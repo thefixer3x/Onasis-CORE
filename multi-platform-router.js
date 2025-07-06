@@ -64,10 +64,13 @@ const PLATFORMS = {
   }
 };
 
-// Supabase configuration
-const SUPABASE_URL=https://<project-ref>.supabase.co
-const SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-const SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+// SD-Ghost Protocol AI Service Integration
+const SD_GHOST_VPS_URL = process.env.SD_GHOST_VPS_URL || 'http://168.231.74.29:3000';
+const SD_GHOST_SUPABASE_URL=https://<project-ref>.supabase.co
+
+// Onasis-CORE Partnership Management (separate Supabase project)
+const ONASIS_SUPABASE_URL=https://<project-ref>.supabase.co
+const ONASIS_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 const JWT_SECRET=REDACTED_JWT_SECRET
 
 // Enhanced logging
@@ -183,11 +186,11 @@ const authenticateUser = async (req, res, next) => {
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET=REDACTED_JWT_SECRET
     
-    // Fetch user from Supabase
-    const userResponse = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    // Fetch user from Onasis-CORE Supabase project
+    const userResponse = await fetch(`${ONASIS_SUPABASE_URL=https://<project-ref>.supabase.co
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-        'apikey': SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'apikey': ONASIS_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
         'Content-Type': 'application/json'
       }
     });
@@ -246,12 +249,12 @@ const trackUsage = async (req, res, next) => {
 
 const logUsage = async (usage) => {
   try {
-    // Store usage in Supabase for billing
-    await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    // Store usage in Onasis-CORE Supabase for vendor billing
+    await fetch(`${ONASIS_SUPABASE_URL=https://<project-ref>.supabase.co
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-        'apikey': SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'apikey': ONASIS_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(usage)
@@ -311,12 +314,12 @@ app.post('/auth/register', authRateLimit, async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
     
-    // Create user in Supabase Auth
-    const authResponse = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    // Create user in Onasis-CORE Supabase Auth
+    const authResponse = await fetch(`${ONASIS_SUPABASE_URL=https://<project-ref>.supabase.co
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-        'apikey': SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+        'Authorization': `Bearer ${ONASIS_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+        'apikey': ONASIS_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
