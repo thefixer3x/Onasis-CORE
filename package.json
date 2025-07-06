@@ -12,7 +12,8 @@
     "email-proxy": "node email-proxy/server.js",
     "billing": "node billing-service/server.js",
     "webhook-proxy": "node webhook-proxy/server.js",
-    "deploy": "./deployment/deploy-unified.sh",
+    "deploy": "./deployment/deploy-control-room.sh",
+    "deploy:control-room": "./deployment/deploy-control-room.sh",
     "deploy:unified": "./deployment/deploy-unified.sh",
     "deploy:gateway": "./deployment/deploy-api-gateway.sh",
     "deploy:all": "./deployment/deploy-all.sh",
@@ -47,7 +48,8 @@
     "crypto": "^1.0.1",
     "nodemailer": "^6.9.1",
     "stripe": "^12.0.0",
-    "winston": "^3.8.2"
+    "winston": "^3.8.2",
+    "ws": "^8.13.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.22",

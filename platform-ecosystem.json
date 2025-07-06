@@ -1,0 +1,237 @@
+{
+  "onasis_ecosystem": {
+    "name": "Onasis Multi-Platform Ecosystem",
+    "description": "Unified authentication, billing, and API services across all platforms",
+    "architecture": "Single source of truth with platform-specific branding"
+  },
+  
+  "platforms": {
+    "seftec_saas": {
+      "domain": "saas.seftec.tech",
+      "brand": "Seftec SaaS",
+      "purpose": "Software as a Service platform",
+      "primary_color": "#2563eb",
+      "services": ["ai-chat", "data-analytics", "automation", "integrations"],
+      "target_audience": "Enterprise clients",
+      "billing_model": "subscription_tiers"
+    },
+    
+    "seftechub": {
+      "domain": "seftechub.com", 
+      "brand": "SeftecHub",
+      "purpose": "Developer hub and API marketplace",
+      "primary_color": "#059669",
+      "services": ["api-gateway", "developer-tools", "documentation", "sdk"],
+      "target_audience": "Developers and integrators",
+      "billing_model": "usage_based"
+    },
+    
+    "vortexcore": {
+      "domain": "vortexcore.app",
+      "brand": "VortexCore",
+      "purpose": "AI-powered core services platform",
+      "primary_color": "#dc2626",
+      "services": ["ai-models", "embeddings", "vector-search", "ml-ops"],
+      "target_audience": "AI/ML teams",
+      "billing_model": "token_consumption"
+    },
+    
+    "lanonasis": {
+      "domain": "lanonasis.com",
+      "brand": "LanOnasis",
+      "purpose": "Privacy-first language and communication platform",
+      "primary_color": "#7c3aed",
+      "services": ["translation", "language-models", "privacy-chat", "encryption"],
+      "target_audience": "Privacy-conscious users",
+      "billing_model": "freemium_premium"
+    },
+    
+    "maas_project": {
+      "domain": "maas.onasis.io",
+      "brand": "MaaS (Models as a Service)",
+      "purpose": "Model hosting and inference platform",
+      "primary_color": "#ea580c",
+      "services": ["model-hosting", "inference-api", "fine-tuning", "deployment"],
+      "target_audience": "AI researchers and companies",
+      "billing_model": "compute_hours"
+    }
+  },
+  
+  "unified_services": {
+    "authentication": {
+      "provider": "supabase_auth",
+      "features": [
+        "single_sign_on",
+        "multi_platform_sessions",
+        "role_based_access",
+        "oauth_integrations",
+        "enterprise_sso"
+      ],
+      "endpoints": {
+        "login": "/auth/login",
+        "register": "/auth/register", 
+        "refresh": "/auth/refresh",
+        "logout": "/auth/logout",
+        "profile": "/auth/profile"
+      }
+    },
+    
+    "billing": {
+      "provider": "stripe_unified",
+      "features": [
+        "multi_platform_billing",
+        "usage_tracking",
+        "subscription_management",
+        "invoice_generation",
+        "payment_methods",
+        "currency_support"
+      ],
+      "endpoints": {
+        "create_subscription": "/billing/subscribe",
+        "usage_tracking": "/billing/usage",
+        "invoices": "/billing/invoices",
+        "payment_methods": "/billing/methods",
+        "billing_portal": "/billing/portal"
+      }
+    },
+    
+    "analytics": {
+      "provider": "custom_analytics",
+      "features": [
+        "cross_platform_tracking",
+        "usage_analytics",
+        "revenue_analytics",
+        "user_journey_tracking",
+        "privacy_compliant"
+      ],
+      "endpoints": {
+        "track_event": "/analytics/track",
+        "dashboard": "/analytics/dashboard",
+        "reports": "/analytics/reports",
+        "metrics": "/analytics/metrics"
+      }
+    }
+  },
+  
+  "api_routing": {
+    "base_structure": "/{platform}/api/{service}",
+    "examples": {
+      "seftec_ai": "https://saas.seftec.tech/api/ai-chat",
+      "seftechub_gateway": "https://seftechub.com/api/gateway",
+      "vortexcore_embeddings": "https://vortexcore.app/api/embeddings",
+      "lanonasis_translate": "https://lanonasis.com/api/translate",
+      "maas_inference": "https://maas.onasis.io/api/inference"
+    }
+  },
+  
+  "shared_infrastructure": {
+    "database": {
+      "primary": "supabase",
+      "tables": [
+        "users",
+        "organizations", 
+        "subscriptions",
+        "usage_logs",
+        "api_keys",
+        "billing_records",
+        "platform_sessions"
+      ]
+    },
+    
+    "caching": {
+      "provider": "redis",
+      "use_cases": [
+        "session_storage",
+        "api_response_caching",
+        "rate_limiting",
+        "usage_counters"
+      ]
+    },
+    
+    "monitoring": {
+      "provider": "custom_monitoring",
+      "metrics": [
+        "api_response_times",
+        "error_rates",
+        "usage_patterns",
+        "revenue_metrics",
+        "user_activity"
+      ]
+    }
+  },
+  
+  "business_models": {
+    "seftec_saas": {
+      "tiers": [
+        {
+          "name": "Starter",
+          "price": 29,
+          "currency": "USD",
+          "billing": "monthly",
+          "limits": {
+            "api_calls": 10000,
+            "users": 5,
+            "storage": "1GB"
+          }
+        },
+        {
+          "name": "Professional", 
+          "price": 99,
+          "currency": "USD",
+          "billing": "monthly",
+          "limits": {
+            "api_calls": 100000,
+            "users": 25,
+            "storage": "10GB"
+          }
+        },
+        {
+          "name": "Enterprise",
+          "price": "custom",
+          "currency": "USD",
+          "billing": "yearly",
+          "limits": {
+            "api_calls": "unlimited",
+            "users": "unlimited", 
+            "storage": "unlimited"
+          }
+        }
+      ]
+    },
+    
+    "usage_based_pricing": {
+      "ai_models": {
+        "gpt_4": { "input": 0.03, "output": 0.06, "unit": "per_1k_tokens" },
+        "claude": { "input": 0.008, "output": 0.024, "unit": "per_1k_tokens" },
+        "embeddings": { "price": 0.0001, "unit": "per_1k_tokens" }
+      },
+      "compute_resources": {
+        "cpu_hours": { "price": 0.10, "unit": "per_hour" },
+        "gpu_hours": { "price": 2.50, "unit": "per_hour" },
+        "storage": { "price": 0.023, "unit": "per_gb_month" }
+      }
+    }
+  },
+  
+  "deployment_strategy": {
+    "architecture": "micro_frontends_unified_backend",
+    "approach": [
+      "Single VPS hosts unified router",
+      "Platform-specific subdomains", 
+      "Shared authentication and billing",
+      "Independent frontend deployments",
+      "Common API layer with platform branding"
+    ],
+    
+    "domains": {
+      "primary": "onasis.io",
+      "platforms": [
+        "saas.seftec.tech",
+        "seftechub.com", 
+        "vortexcore.app",
+        "lanonasis.com",
+        "maas.onasis.io"
+      ]
+    }
+  }
+}
