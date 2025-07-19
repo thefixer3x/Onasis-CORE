@@ -85,9 +85,13 @@ jobs:
       - name: Run tests
         run: |
           if grep -q '"test"' package.json; then
-            bun test
+            if find . -name "*.test.*" -o -name "*_test_*" -o -name "*.spec.*" -o -name "*_spec_*" | grep -q .; then
+              bun test
+            else
+              echo "📝 No test files found, skipping tests"
+            fi
           else
-            echo "No tests configured"
+            echo "📝 No test script configured, skipping tests"
           fi
       
       - name: Build packages
