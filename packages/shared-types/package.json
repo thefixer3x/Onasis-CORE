@@ -1,0 +1,38 @@
+{
+  "name": "@onasis/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types and interfaces for Onasis ecosystem",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --external react",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "lint": "eslint src/**/*.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "types",
+    "typescript",
+    "shared",
+    "onasis",
+    "privacy"
+  ],
+  "author": "Onasis-CORE Team",
+  "license": "PROPRIETARY",
+  "devDependencies": {
+    "typescript": "^5.0.4",
+    "tsup": "^7.2.0",
+    "eslint": "^8.40.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
