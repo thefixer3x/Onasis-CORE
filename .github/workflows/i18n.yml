@@ -85,7 +85,10 @@ jobs:
       - name: Run tests
         run: |
           if grep -q '"test"' package.json; then
-            if find . -name "*.test.*" -o -name "*_test_*" -o -name "*.spec.*" -o -name "*_spec_*" | grep -q .; then
+            # Check if any test files exist with proper extensions
+            test_files=$(find . -type f \( -name "*.test.ts" -o -name "*.test.js" -o -name "*.test.tsx" -o -name "*.test.jsx" -o -name "*.spec.ts" -o -name "*.spec.js" -o -name "*.spec.tsx" -o -name "*.spec.jsx" \) 2>/dev/null || true)
+            if [[ -n "$test_files" ]]; then
+              echo "🧪 Running tests..."
               bun test
             else
               echo "📝 No test files found, skipping tests"
