@@ -61,10 +61,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/Onasis-CORE.git"
+    "url": "https://github.com/[username]/onasis-core-hq.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/Onasis-CORE/issues"
+    "url": "https://github.com/[username]/onasis-core-hq/issues"
   },
   "homepage": "https://onasis.io"
 }
