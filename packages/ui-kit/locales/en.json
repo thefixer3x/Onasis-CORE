@@ -1,0 +1,47 @@
+{
+  "components": {
+    "button": {
+      "loading": "Loading...",
+      "submit": "Submit",
+      "cancel": "Cancel",
+      "save": "Save",
+      "delete": "Delete",
+      "edit": "Edit",
+      "view": "View",
+      "close": "Close"
+    },
+    "avatar": {
+      "alt": "User avatar",
+      "fallback": "User"
+    },
+    "carousel": {
+      "previous": "Previous",
+      "next": "Next",
+      "pause": "Pause",
+      "play": "Play"
+    },
+    "cards": {
+      "readMore": "Read more",
+      "viewDetails": "View details",
+      "learn_more": "Learn more"
+    },
+    "timeline": {
+      "present": "Present",
+      "ongoing": "Ongoing"
+    }
+  },
+  "accessibility": {
+    "skipToContent": "Skip to main content",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "loading": "Loading content"
+  },
+  "common": {
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "clear": "Clear",
+    "apply": "Apply",
+    "reset": "Reset"
+  }
+}

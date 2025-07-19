@@ -1,0 +1,35 @@
+{
+  "providers": {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic", 
+    "google": "Google AI",
+    "local": "Local Model"
+  },
+  "actions": {
+    "generate": "Generate",
+    "analyze": "Analyze",
+    "translate": "Translate",
+    "summarize": "Summarize",
+    "classify": "Classify"
+  },
+  "errors": {
+    "connection": "Failed to connect to AI service",
+    "timeout": "Request timed out",
+    "invalid_response": "Invalid response from AI service",
+    "rate_limit": "Rate limit exceeded",
+    "authentication": "Authentication failed",
+    "model_not_found": "AI model not found"
+  },
+  "status": {
+    "initializing": "Initializing AI service...",
+    "processing": "Processing request...",
+    "completed": "Request completed",
+    "failed": "Request failed"
+  },
+  "settings": {
+    "model": "AI Model",
+    "temperature": "Creativity Level",
+    "max_tokens": "Maximum Length",
+    "provider": "AI Provider"
+  }
+}
