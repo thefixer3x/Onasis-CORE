@@ -1,0 +1,119 @@
+name: Lingo.dev i18n - Onasis Core
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+      - feat/*
+    paths:
+      - 'locales/en.json'
+      - 'i18n.json'
+      - 'src/**'
+      - 'packages/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'locales/en.json'
+      - 'i18n.json'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  i18n:
+    name: Generate Core Translations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Install dependencies
+        run: bun install
+      
+      - name: Validate i18n configuration
+        run: |
+          if [[ -f "i18n.json" ]]; then
+            echo "✅ i18n.json found"
+            bun x jq empty i18n.json
+          else
+            echo "❌ i18n.json not found"
+            exit 1
+          fi
+      
+      - name: Check source locale
+        run: |
+          if [[ -f "locales/en.json" ]]; then
+            echo "✅ Source locale found"
+            key_count=$(bun x jq -r ".. | scalars" locales/en.json | wc -l)
+            echo "📊 Source keys: $key_count"
+          else
+            echo "❌ Source locale not found"
+            exit 1
+          fi
+      
+      - name: Generate translations
+        env:
+          LINGODOTDEV_API_KEY: ${{ secrets.LINGODOTDEV_API_KEY }}
+        run: |
+          echo "🌐 Generating translations for Onasis Core infrastructure..."
+          bun x lingo.dev@latest i18n
+      
+      - name: Validate generated translations
+        run: |
+          echo "🔍 Validating generated translations..."
+          for lang in es fr de ja zh pt ar ko it ru; do
+            if [[ -f "locales/${lang}.json" ]]; then
+              if bun x jq empty "locales/${lang}.json"; then
+                keys=$(bun x jq -r ".. | scalars" "locales/${lang}.json" | wc -l)
+                echo "✅ $lang: $keys keys"
+              else
+                echo "❌ $lang: Invalid JSON"
+                exit 1
+              fi
+            fi
+          done
+      
+      - name: Run tests
+        run: |
+          if grep -q '"test"' package.json; then
+            bun test
+          else
+            echo "No tests configured"
+          fi
+      
+      - name: Build packages
+        run: |
+          if grep -q '"build"' package.json; then
+            bun run build
+          else
+            echo "No build script configured"
+          fi
+      
+      - name: Commit translations
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          if ! git diff --quiet locales/; then
+            git add locales/
+            git commit -m "🌐 Update translations for Onasis Core
+            
+            - Generated infrastructure translations
+            - Updated shared component terminology
+            - Maintained technical accuracy across ecosystem
+            - Auto-generated via Lingo.dev CI/CD
+            
+            Co-authored-by: Lingo.dev <action@lingo.dev>"
+            git push
+          else
+            echo "No translation changes to commit"
+          fi

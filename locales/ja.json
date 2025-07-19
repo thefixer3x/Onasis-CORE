@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "success": "成功"
+  },
+  "privacy": {
+    "infrastructure": "プライバシーインフラストラクチャ",
+    "data_protection": "データ保護",
+    "secure_storage": "安全なストレージ",
+    "encrypted_communications": "暗号化された通信"
+  },
+  "security": {
+    "authentication": "認証",
+    "authorization": "認可",
+    "encryption": "暗号化",
+    "access_control": "アクセス制御"
+  },
+  "shared_components": {
+    "ui_kit": "UIキット",
+    "ai_sdk": "AI SDK",
+    "supabase_client": "Supabaseクライアント",
+    "shared_landing": "共有ランディング"
+  }
+}

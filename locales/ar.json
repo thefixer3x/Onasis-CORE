@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "loading": "جارٍ التحميل...",
+    "error": "خطأ",
+    "success": "نجاح"
+  },
+  "privacy": {
+    "infrastructure": "بنية تحتية للخصوصية",
+    "data_protection": "حماية البيانات",
+    "secure_storage": "تخزين آمن",
+    "encrypted_communications": "اتصالات مشفرة"
+  },
+  "security": {
+    "authentication": "المصادقة",
+    "authorization": "التفويض",
+    "encryption": "التشفير",
+    "access_control": "التحكم في الوصول"
+  },
+  "shared_components": {
+    "ui_kit": "مجموعة واجهة المستخدم",
+    "ai_sdk": "مجموعة تطوير برمجيات الذكاء الاصطناعي",
+    "supabase_client": "عميل Supabase",
+    "shared_landing": "الصفحة الرئيسية المشتركة"
+  }
+}

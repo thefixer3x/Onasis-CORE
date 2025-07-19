@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "Сохранить",
+    "cancel": "Отмена",
+    "delete": "Удалить",
+    "edit": "Редактировать",
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "success": "Успех"
+  },
+  "privacy": {
+    "infrastructure": "Инфраструктура конфиденциальности",
+    "data_protection": "Защита данных",
+    "secure_storage": "Безопасное хранилище",
+    "encrypted_communications": "Шифрованные коммуникации"
+  },
+  "security": {
+    "authentication": "Аутентификация",
+    "authorization": "Авторизация",
+    "encryption": "Шифрование",
+    "access_control": "Контроль доступа"
+  },
+  "shared_components": {
+    "ui_kit": "UI Kit",
+    "ai_sdk": "AI SDK",
+    "supabase_client": "Supabase Client",
+    "shared_landing": "Общий лендинг"
+  }
+}
