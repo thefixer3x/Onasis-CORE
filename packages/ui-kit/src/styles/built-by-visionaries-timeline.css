@@ -1,0 +1,102 @@
+/* Built By Visionaries Timeline Component Styles */
+
+.visionaries-timeline-container {
+  width: 100%;
+  background-color: var(--background);
+  font-family: var(--font-sans);
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+  min-height: 100vh;
+}
+
+.visionaries-title {
+  background-image: linear-gradient(to right, #2563eb, #9333ea, #10b981);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.visionaries-timeline-track {
+  position: relative;
+}
+
+.visionaries-timeline-line {
+  position: absolute;
+  left: 11px;
+  top: 0;
+  overflow: hidden;
+  width: 4px;
+  height: var(--timeline-height, 100%);
+  background-image: linear-gradient(to bottom, transparent, var(--border), transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+.visionaries-timeline-line-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 4px;
+  background-image: linear-gradient(to bottom, #2563eb, #9333ea, #10b981);
+  border-radius: 9999px;
+}
+
+.visionaries-icon-completed {
+  background-color: #10b981;
+  border-color: #34d399;
+}
+
+.visionaries-icon-current {
+  background-color: #3b82f6;
+  border-color: #60a5fa;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.visionaries-icon-upcoming {
+  background-color: #94a3b8;
+  border-color: #cbd5e1;
+}
+
+.visionaries-text-completed {
+  color: #059669;
+}
+
+.visionaries-text-current {
+  color: #2563eb;
+}
+
+.visionaries-text-upcoming {
+  color: #64748b;
+}
+
+.visionaries-footer {
+  background-image: linear-gradient(to right, rgba(219, 234, 254, 0.1), rgba(233, 213, 255, 0.1));
+}
+
+@media (prefers-color-scheme: dark) {
+  .visionaries-text-completed {
+    color: #34d399;
+  }
+  
+  .visionaries-text-current {
+    color: #60a5fa;
+  }
+  
+  .visionaries-text-upcoming {
+    color: #94a3b8;
+  }
+  
+  .visionaries-footer {
+    background-image: linear-gradient(to right, rgba(30, 58, 138, 0.2), rgba(88, 28, 135, 0.2));
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
