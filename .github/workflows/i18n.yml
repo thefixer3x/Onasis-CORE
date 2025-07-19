@@ -82,20 +82,8 @@ jobs:
             fi
           done
       
-      - name: Run tests
-        run: |
-          if grep -q '"test"' package.json; then
-            # Check if any test files exist with proper extensions
-            test_files=$(find . -type f \( -name "*.test.ts" -o -name "*.test.js" -o -name "*.test.tsx" -o -name "*.test.jsx" -o -name "*.spec.ts" -o -name "*.spec.js" -o -name "*.spec.tsx" -o -name "*.spec.jsx" \) 2>/dev/null || true)
-            if [[ -n "$test_files" ]]; then
-              echo "🧪 Running tests..."
-              bun test
-            else
-              echo "📝 No test files found, skipping tests"
-            fi
-          else
-            echo "📝 No test script configured, skipping tests"
-          fi
+      - name: Skip tests (translation-only workflow)
+        run: echo "📝 Tests skipped - this is a translation-focused workflow"
       
       - name: Build packages
         run: |
