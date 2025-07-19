@@ -1,0 +1,62 @@
+{
+  "dashboard": {
+    "title": "Onasis Control Room",
+    "subtitle": "Privacy Infrastructure Management",
+    "overview": "System Overview",
+    "metrics": "System Metrics",
+    "services": "Services"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "services": "Services",
+    "analytics": "Analytics",
+    "privacy": "Privacy",
+    "settings": "Settings",
+    "docs": "Documentation"
+  },
+  "services": {
+    "api_gateway": "API Gateway",
+    "data_masking": "Data Masking",
+    "email_proxy": "Email Proxy",
+    "billing": "Billing Service",
+    "webhook_proxy": "Webhook Proxy",
+    "monitoring": "Monitoring"
+  },
+  "status": {
+    "healthy": "Healthy",
+    "warning": "Warning",
+    "critical": "Critical",
+    "offline": "Offline",
+    "maintenance": "Maintenance"
+  },
+  "metrics": {
+    "requests_per_minute": "Requests/Min",
+    "data_processed": "Data Processed",
+    "privacy_score": "Privacy Score",
+    "uptime": "Uptime",
+    "response_time": "Response Time",
+    "error_rate": "Error Rate"
+  },
+  "privacy": {
+    "pii_detected": "PII Detected",
+    "data_masked": "Data Masked",
+    "requests_anonymized": "Requests Anonymized",
+    "compliance_score": "Compliance Score",
+    "audit_logs": "Audit Logs"
+  },
+  "actions": {
+    "restart_service": "Restart Service",
+    "view_logs": "View Logs",
+    "edit_config": "Edit Config",
+    "enable_service": "Enable Service",
+    "disable_service": "Disable Service",
+    "export_data": "Export Data"
+  },
+  "alerts": {
+    "high_traffic": "High traffic detected",
+    "service_down": "Service is down",
+    "privacy_violation": "Privacy policy violation",
+    "rate_limit_reached": "Rate limit reached",
+    "authentication_failed": "Authentication failures detected"
+  }
+}
