@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "edit": "编辑",
+    "loading": "加载中...",
+    "error": "错误",
+    "success": "成功"
+  },
+  "privacy": {
+    "infrastructure": "隐私基础设施",
+    "data_protection": "数据保护",
+    "secure_storage": "安全存储",
+    "encrypted_communications": "加密通信"
+  },
+  "security": {
+    "authentication": "身份验证",
+    "authorization": "授权",
+    "encryption": "加密",
+    "access_control": "访问控制"
+  },
+  "shared_components": {
+    "ui_kit": "UI Kit",
+    "ai_sdk": "AI SDK",
+    "supabase_client": "Supabase Client",
+    "shared_landing": "共享着陆页"
+  }
+}

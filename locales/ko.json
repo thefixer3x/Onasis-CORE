@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "저장",
+    "cancel": "취소",
+    "delete": "삭제",
+    "edit": "편집",
+    "loading": "로딩 중...",
+    "error": "오류",
+    "success": "성공"
+  },
+  "privacy": {
+    "infrastructure": "개인정보 보호 인프라",
+    "data_protection": "데이터 보호",
+    "secure_storage": "보안 스토리지",
+    "encrypted_communications": "암호화된 통신"
+  },
+  "security": {
+    "authentication": "인증",
+    "authorization": "권한 부여",
+    "encryption": "암호화",
+    "access_control": "접근 제어"
+  },
+  "shared_components": {
+    "ui_kit": "UI 키트",
+    "ai_sdk": "AI SDK",
+    "supabase_client": "Supabase 클라이언트",
+    "shared_landing": "공유 랜딩"
+  }
+}

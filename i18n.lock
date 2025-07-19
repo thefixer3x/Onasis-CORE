@@ -1,0 +1,22 @@
+version: 1
+checksums:
+  55dc377b5e931bfc64e4add83e35d9ea:
+    common/save: f7a2929f33bc420195e59ac5a8bcd454
+    common/cancel: 2e2a849c2223911717de8caa2c71bade
+    common/delete: 8bcf303dd10a645b5baacb02b47d72c9
+    common/edit: eee7f39ff90b18852afc1671f21fbaa9
+    common/loading: 82b4ea7ed1439094d7c4be13aaba9a66
+    common/error: 3c95bcb32c2104b99a46f5b3dd015248
+    common/success: c43827becada6750f7a25890905f38b9
+    privacy/infrastructure: 4fefa14723c8fb8080ba66b621e41456
+    privacy/data_protection: 1177598990976738ae07f4f9ae21d286
+    privacy/secure_storage: 628884c34a55466aa747f274240c58a1
+    privacy/encrypted_communications: 74bf4ec0eab8fa5ac81705bca59b0518
+    security/authentication: 491fbb938cfe44df0438ad3e198d23e6
+    security/authorization: 32289f3368a7f2954cb1e2d47d60c5da
+    security/encryption: 0696af0d67eb394c9e3a50f3a1bd2196
+    security/access_control: a2fbdec69342366a2b6033d119aa279a
+    shared_components/ui_kit: 4ea5d3bb555d974cc3c78673a4fd7d1e
+    shared_components/ai_sdk: f615899bda05a7e63e91d1881b20c0f1
+    shared_components/supabase_client: ada19d3c14b7f742fa40670ceadff1fe
+    shared_components/shared_landing: 7b5c81b6072a4d761daca1b756ac24f3

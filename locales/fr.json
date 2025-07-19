@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès"
+  },
+  "privacy": {
+    "infrastructure": "Infrastructure de confidentialité",
+    "data_protection": "Protection des données",
+    "secure_storage": "Stockage sécurisé",
+    "encrypted_communications": "Communications chiffrées"
+  },
+  "security": {
+    "authentication": "Authentification",
+    "authorization": "Autorisation",
+    "encryption": "Chiffrement",
+    "access_control": "Contrôle d'accès"
+  },
+  "shared_components": {
+    "ui_kit": "Kit UI",
+    "ai_sdk": "SDK IA",
+    "supabase_client": "Client Supabase",
+    "shared_landing": "Page d'accueil partagée"
+  }
+}
