@@ -1,0 +1,18 @@
+{
+  "version": 2.0,
+  "$schema": "https://lingo.dev/schema/i18n.json", 
+  "locale": {
+    "source": "en",
+    "targets": ["es", "fr", "de", "ja", "zh", "pt", "ar"]
+  },
+  "buckets": [
+    {
+      "name": "Core Infrastructure",
+      "include": ["locales/[locale].json", "packages/*/locales/[locale].json", "apps/*/locales/[locale].json", "services/*/locales/[locale].json"]
+    }
+  ],
+  "prompts": {
+    "system": "Professional translator for privacy infrastructure and shared components. Maintain technical accuracy for security and fintech terminology.",
+    "context": "Core privacy infrastructure shared across LAN Onasis ecosystem including VortexCore, Maple Site, and enterprise applications."
+  }
+}
