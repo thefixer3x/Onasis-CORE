@@ -1,0 +1,56 @@
+{
+  "gateway": {
+    "status": {
+      "online": "API Gateway Online",
+      "offline": "API Gateway Offline",
+      "maintenance": "Under Maintenance",
+      "degraded": "Degraded Performance"
+    },
+    "routing": {
+      "forwarding": "Forwarding request...",
+      "masked": "Request anonymized",
+      "filtered": "Request filtered",
+      "blocked": "Request blocked"
+    },
+    "privacy": {
+      "anonymizing": "Anonymizing request...",
+      "masking_complete": "Data masking complete",
+      "identity_protected": "Identity protected",
+      "pii_removed": "PII removed"
+    }
+  },
+  "vendor": {
+    "connection": {
+      "connecting": "Connecting to vendor...",
+      "connected": "Vendor connected",
+      "failed": "Vendor connection failed",
+      "timeout": "Vendor timeout"
+    },
+    "auth": {
+      "authenticating": "Authenticating with vendor...",
+      "authenticated": "Vendor authenticated",
+      "failed": "Vendor authentication failed",
+      "expired": "Vendor token expired"
+    }
+  },
+  "client": {
+    "request": {
+      "received": "Client request received",
+      "processing": "Processing request...",
+      "completed": "Request completed",
+      "failed": "Request failed"
+    },
+    "response": {
+      "sending": "Sending response...",
+      "sent": "Response sent",
+      "sanitized": "Response sanitized"
+    }
+  },
+  "errors": {
+    "rate_limit": "Rate limit exceeded",
+    "invalid_request": "Invalid request format",
+    "vendor_error": "Vendor service error",
+    "privacy_violation": "Privacy policy violation",
+    "authentication_required": "Authentication required"
+  }
+}
