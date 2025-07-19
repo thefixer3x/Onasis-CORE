@@ -1,0 +1,43 @@
+{
+  "auth": {
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up", 
+    "sign_out": "Sign Out",
+    "email": "Email",
+    "password": "Password",
+    "confirm_password": "Confirm Password",
+    "forgot_password": "Forgot Password",
+    "reset_password": "Reset Password",
+    "remember_me": "Remember me"
+  },
+  "database": {
+    "connecting": "Connecting to database...",
+    "connected": "Connected",
+    "connection_failed": "Connection failed",
+    "query_error": "Database query error",
+    "permission_denied": "Permission denied",
+    "not_found": "Record not found"
+  },
+  "realtime": {
+    "connected": "Real-time connected",
+    "disconnected": "Real-time disconnected", 
+    "reconnecting": "Reconnecting...",
+    "subscription_error": "Subscription error"
+  },
+  "storage": {
+    "upload": "Upload",
+    "download": "Download",
+    "delete": "Delete",
+    "uploading": "Uploading...",
+    "upload_failed": "Upload failed",
+    "file_too_large": "File too large",
+    "invalid_file_type": "Invalid file type"
+  },
+  "errors": {
+    "network": "Network error",
+    "timeout": "Request timeout", 
+    "unauthorized": "Unauthorized access",
+    "forbidden": "Access forbidden",
+    "server_error": "Server error"
+  }
+}
