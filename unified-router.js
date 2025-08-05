@@ -18,11 +18,6 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.ROUTER_PORT || 3000;
 
-// Supabase configuration
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mxtsdgkwzjzlttpotole.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-
 // Enhanced logging
 const logger = winston.createLogger({
   level: 'info',
@@ -38,6 +33,16 @@ const logger = winston.createLogger({
     new winston.transports.Console({ format: winston.format.simple() })
   ]
 });
+
+// Supabase configuration
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.');
+  process.exit(1);
+}
 
 // Security middleware
 app.use(helmet({

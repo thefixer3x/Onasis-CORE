@@ -75,8 +75,13 @@ const MONITORED_PLATFORMS = {
 };
 
 // Supabase configuration
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mxtsdgkwzjzlttpotole.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables.');
+  process.exit(1);
+}
 
 // Real-time data store
 let platformStatus = {};

@@ -12,10 +12,14 @@ const VendorAuthManager = require('./vendor-auth-middleware');
 
 class AIServiceRouter {
   constructor(config) {
-    this.sdGhostVpsUrl = config.sdGhostVpsUrl || 'http://168.231.74.29:3000';
-    this.sdGhostSupabaseUrl = config.sdGhostSupabaseUrl || 'https://mxtsdgkwzjzlttpotole.supabase.co';
+    this.sdGhostVpsUrl = config.sdGhostVpsUrl;
+    this.sdGhostSupabaseUrl = config.sdGhostSupabaseUrl;
     this.onasisSupabaseUrl = config.onasisSupabaseUrl;
     this.onasisServiceKey = config.onasisServiceKey;
+    
+    if (!this.sdGhostVpsUrl || !this.sdGhostSupabaseUrl) {
+      throw new Error('Missing required SD-Ghost configuration in AIServiceRouter');
+    }
     
     this.vendorAuth = new VendorAuthManager(
       this.onasisSupabaseUrl,
