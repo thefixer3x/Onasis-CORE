@@ -78,6 +78,11 @@ const MONITORED_PLATFORMS = {
 const SUPABASE_URL=https://<project-ref>.supabase.co
 const SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
+if (!SUPABASE_URL=https://<project-ref>.supabase.co
+  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL=https://<project-ref>.supabase.co
+  process.exit(1);
+}
+
 // Real-time data store
 let platformStatus = {};
 let systemMetrics = {

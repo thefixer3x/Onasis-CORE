@@ -65,7 +65,7 @@ const PLATFORMS = {
 };
 
 // SD-Ghost Protocol AI Service Integration
-const SD_GHOST_VPS_URL = process.env.SD_GHOST_VPS_URL || 'http://168.231.74.29:3000';
+const SD_GHOST_VPS_URL = process.env.SD_GHOST_VPS_URL;
 const SD_GHOST_SUPABASE_URL=https://<project-ref>.supabase.co
 
 // Onasis-CORE Partnership Management (separate Supabase project)
@@ -88,6 +88,13 @@ const logger = winston.createLogger({
     new winston.transports.Console({ format: winston.format.simple() })
   ]
 });
+
+// Validate required environment variables
+if (!SD_GHOST_VPS_URL || !SD_GHOST_SUPABASE_URL=https://<project-ref>.supabase.co
+  logger.error('Missing required environment variables. Please check your .env file.');
+  logger.error('Required: SD_GHOST_VPS_URL, SD_GHOST_SUPABASE_URL=https://<project-ref>.supabase.co
+  process.exit(1);
+}
 
 // Security middleware
 app.use(helmet({
