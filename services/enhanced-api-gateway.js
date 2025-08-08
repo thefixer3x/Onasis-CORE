@@ -20,6 +20,8 @@ import fs from 'fs';
 import { EnhancedMCPWebSocketHandler } from './websocket-mcp-handler.js';
 class EnhancedAPIGateway {
   constructor(options = {}) {
+    // Store the options object for later use
+    this.options = options;
     this.port = options.port || process.env.GATEWAY_PORT || 3001;
     this.app = express();
     this.server = http.createServer(this.app);
