@@ -70,8 +70,17 @@ class EnhancedMCPWebSocketHandler {
         this.logger.warn('WebSocket connection attempt without API key');
         return false;
       }
+
+      // Basic API key validation to unblock handshake
+      // Using synchronous validation since verifyClient doesn't support async
+      const isValidFormat = apiKey && apiKey.length > 10 && apiKey.startsWith('sk-');
       
-      // Store API key for validation during connection
+      if (!isValidFormat) {
+        this.logger.warn('WebSocket connection attempt with invalid API key format');
+        return false;
+      }
+      
+      // Store API key for full validation during connection (after handshake)
       info.req.apiKey = apiKey;
       return true;
       

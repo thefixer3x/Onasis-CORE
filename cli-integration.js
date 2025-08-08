@@ -7,6 +7,7 @@
 
 import 'dotenv/config';
 // import { spawn } from 'child_process'; // Unused - removed to fix lint
+import WebSocket from 'ws';
 
 class OnasisCoreMCPClient {
   constructor(options = {}) {

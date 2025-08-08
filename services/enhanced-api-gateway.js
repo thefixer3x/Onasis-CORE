@@ -15,7 +15,8 @@ import http from 'http';
 import fs from 'fs';
 
 // Import existing onasis-core components
-import { createClient } from '@supabase/supabase-js';
+// Commented out until needed
+// import { createClient } from '@supabase/supabase-js';
 import { EnhancedMCPWebSocketHandler } from './websocket-mcp-handler.js';
 class EnhancedAPIGateway {
   constructor(options = {}) {
@@ -106,7 +107,7 @@ class EnhancedAPIGateway {
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     
     // Rate limiting with anonymous tracking
-    const createRateLimit = (windowMs, max, message) => rateLimit({
+    const createRateLimit = (windowMs, max, _message) => rateLimit({
       windowMs,
       max,
       keyGenerator: (req) => {
@@ -267,6 +268,8 @@ class EnhancedAPIGateway {
       }
     ];
   }
+  
+  async executeTool(name, args) {
     switch (name) {
       case 'create_memory':
         if (!args.title || !args.content || !args.type) {
@@ -307,17 +310,6 @@ class EnhancedAPIGateway {
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
-      case 'orchestrate_workflow':
-        return {
-          workflow_id: crypto.randomUUID(),
-          description: args.workflow_description,
-          status: 'completed',
-          execution_time_ms: 1250
-        };
-        
-      default:
-        throw new Error(`Unknown tool: ${name}`);
-    }
   }
   
   async proxyToVendor(req, res) {
@@ -344,8 +336,8 @@ class EnhancedAPIGateway {
           reject(error);
         } else {
           this.logger.info(`🚀 Enhanced API Gateway with MCP WebSocket running on port ${this.port}`);
-          this.logger.info(`📡 WebSocket MCP endpoint: ws://localhost:${this.port}/mcp/ws`);
-          this.logger.info(`🔧 HTTP MCP endpoints: http://localhost:${this.port}/mcp/info`);
+          this.logger.info(`📡 WebSocket MCP endpoint: ws://${this.options?.host || process.env.GATEWAY_HOST || '0.0.0.0'}:${this.port}/mcp/ws`);
+          this.logger.info(`🔧 HTTP MCP endpoints: http://${this.options?.host || process.env.GATEWAY_HOST || '0.0.0.0'}:${this.port}/mcp/info`);
           resolve();
         }
       });

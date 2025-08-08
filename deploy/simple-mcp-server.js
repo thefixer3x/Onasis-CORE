@@ -236,7 +236,7 @@ class SimpleMCPServer {
     }
   }
 
-  async handleInitialize(params) {
+  async handleInitialize(_params) {
     return {
       protocolVersion: '2024-11-05',
       capabilities: {
