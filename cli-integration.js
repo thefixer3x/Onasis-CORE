@@ -5,10 +5,8 @@
  * Extends @lanonasis/cli with WebSocket MCP capabilities
  */
 
-import { EnhancedMCPWebSocketHandler } from './services/websocket-mcp-handler.js';
-import { EnhancedAPIGateway } from './services/enhanced-api-gateway.js';
-import { spawn } from 'child_process';
-require('dotenv').config();
+import 'dotenv/config';
+// import { spawn } from 'child_process'; // Unused - removed to fix lint
 
 class OnasisCoreMCPClient {
   constructor(options = {}) {
@@ -501,7 +499,7 @@ EXAMPLES:
 }
 
 // CLI execution
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const cli = new OnasisCoreMCPCLI();
   cli.run(process.argv);
 }

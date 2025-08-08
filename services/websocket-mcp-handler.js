@@ -256,7 +256,7 @@ class EnhancedMCPWebSocketHandler {
       
       const errorResponse = {
         type: 'error',
-        id: data?.id,
+        id: message?.id,
         error: {
           code: -32603,
           message: 'Internal error',

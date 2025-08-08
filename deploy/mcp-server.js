@@ -43,7 +43,7 @@ class MCPServerDeployment {
       wsPort: process.env.MCP_WS_PORT || 8081,
       host: process.env.MCP_HOST || '0.0.0.0',
       environment: process.env.NODE_ENV || 'development',
-      maxConnections: process.env.MCP_MAX_CONNECTIONS || 1000,
+      maxConnections: process.env.MCP_MAX_CONNECTIONS ? parseInt(process.env.MCP_MAX_CONNECTIONS, 10) : 1000,
       rateLimit: {
         windowMs: 15 * 60 * 1000, // 15 minutes
         max: process.env.MCP_RATE_LIMIT || 100 // requests per window

@@ -15,13 +15,15 @@ WORKDIR /app
 # Create logs directory
 RUN mkdir -p logs
 
-# Copy package files
+# Copy package files first for better layer caching
 COPY package*.json ./
+
+# Install dependencies (cached layer if package files unchanged)
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Copy source files after dependencies are installed
 COPY services/ ./services/
 COPY deploy/ ./deploy/
-
-# Install dependencies
-RUN npm ci --omit=dev && npm cache clean --force
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
