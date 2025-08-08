@@ -12,11 +12,11 @@ import rateLimit from 'express-rate-limit';
 import winston from 'winston';
 import crypto from 'crypto';
 import http from 'http';
-import WebSocket from 'ws';
+import fs from 'fs';
 
 // Import existing onasis-core components
 import { createClient } from '@supabase/supabase-js';
-
+import { EnhancedMCPWebSocketHandler } from './websocket-mcp-handler.js';
 class EnhancedAPIGateway {
   constructor(options = {}) {
     this.port = options.port || process.env.GATEWAY_PORT || 3001;
@@ -28,12 +28,21 @@ class EnhancedAPIGateway {
     this.setupRoutes();
     
     // Initialize WebSocket MCP handler
-    this.mcpHandler = new EnhancedMCPWebSocketHandler(this.server, options);
-    
+    try {
+      this.mcpHandler = new EnhancedMCPWebSocketHandler(this.server, options);
+    } catch (error) {
+      this.logger.error('Failed to initialize MCP WebSocket handler:', error);
+      throw error;
+    }
     this.logger.info('Enhanced API Gateway with MCP WebSocket initialized');
   }
   
   setupLogger() {
+    // Ensure logs directory exists before creating file transports
+    if (!fs.existsSync('logs')) {
+      fs.mkdirSync('logs', { recursive: true });
+    }
+    
     return winston.createLogger({
       level: 'info',
       format: winston.format.combine(
@@ -64,15 +73,29 @@ class EnhancedAPIGateway {
       }
     }));
     
-    // CORS with privacy-aware origin handling
+    // CORS with secure origin whitelist
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://api.lanonasis.com',
+      'https://lanonasis.com',
+      'https://mcp.lanonasis.com'
+    ];
+    
     this.app.use(cors({
       origin: (origin, callback) => {
-        // Allow all origins but log them anonymously
-        const hashedOrigin = origin ? 
-          crypto.createHash('sha256').update(origin).digest('hex').substring(0, 12) : 
-          'direct';
-        this.logger.info(`Request from hashed origin: ${hashedOrigin}`);
-        callback(null, true);
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.includes(origin)) {
+          const hashedOrigin = crypto.createHash('sha256').update(origin).digest('hex').substring(0, 12);
+          this.logger.info(`Request from allowed hashed origin: ${hashedOrigin}`);
+          callback(null, true);
+        } else {
+          const hashedOrigin = crypto.createHash('sha256').update(origin).digest('hex').substring(0, 12);
+          this.logger.warn(`Request from blocked hashed origin: ${hashedOrigin}`);
+          callback(new Error('Not allowed by CORS'), false);
+        }
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -86,17 +109,18 @@ class EnhancedAPIGateway {
     const createRateLimit = (windowMs, max, message) => rateLimit({
       windowMs,
       max,
-      message: { error: message, code: 'RATE_LIMIT_EXCEEDED' },
-      standardHeaders: true,
-      legacyHeaders: false,
-      skipSuccessfulRequests: false,
       keyGenerator: (req) => {
         // Generate anonymous session key
-        const sessionId = req.headers['x-session-id'] || 
-                         req.headers['authorization']?.substring(0, 20) || 
+        const sessionId = req.headers['x-session-id'] ||
+                         req.headers['authorization'] ||
                          req.headers['x-api-key']?.substring(0, 20) ||
+                         req.ip ||
                          'anonymous';
-        return crypto.createHash('sha256').update(sessionId).digest('hex').substring(0, 16);
+        return crypto
+          .createHash('sha256')
+          .update(sessionId)
+          .digest('hex')
+          .substring(0, 16);
       }
     });
     
@@ -243,17 +267,11 @@ class EnhancedAPIGateway {
       }
     ];
   }
-  
-  async callMCPTool(name, args, req) {
-    // Validate API key
-    const apiKey = req.headers['x-api-key'] || req.headers['authorization']?.replace('Bearer ', '');
-    if (!apiKey) {
-      throw new Error('API key required');
-    }
-    
-    // Mock implementation - would integrate with actual services
     switch (name) {
       case 'create_memory':
+        if (!args.title || !args.content || !args.type) {
+          throw new Error('Missing required fields: title, content, type');
+        }
         return {
           id: crypto.randomUUID(),
           title: args.title,
@@ -263,6 +281,9 @@ class EnhancedAPIGateway {
         };
         
       case 'search_memories':
+        if (!args.query) {
+          throw new Error('Missing required field: query');
+        }
         return {
           query: args.query,
           results: [
@@ -275,6 +296,17 @@ class EnhancedAPIGateway {
           ]
         };
         
+      case 'orchestrate_workflow':
+        return {
+          workflow_id: crypto.randomUUID(),
+          description: args.workflow_description,
+          status: 'completed',
+          execution_time_ms: 1250
+        };
+        
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
       case 'orchestrate_workflow':
         return {
           workflow_id: crypto.randomUUID(),
@@ -331,7 +363,7 @@ class EnhancedAPIGateway {
 }
 
 // CLI usage
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const gateway = new EnhancedAPIGateway();
   
   gateway.start().catch((error) => {

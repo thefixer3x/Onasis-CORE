@@ -37,7 +37,10 @@ class SimpleMCPServer {
       port: process.env.MCP_SERVER_PORT || 8080,
       wsPort: process.env.MCP_WS_PORT || 8081,
       host: process.env.MCP_HOST || '0.0.0.0',
-      maxConnections: parseInt(process.env.MCP_MAX_CONNECTIONS) || 100
+      maxConnections: (() => {
+        const parsed = parseInt(process.env.MCP_MAX_CONNECTIONS, 10);
+        return isNaN(parsed) ? 100 : parsed;
+      })()
     };
     
     this.connections = new Map();
@@ -112,7 +115,7 @@ class SimpleMCPServer {
         console.log(`🔌 New WebSocket connection: ${connectionId}`);
         console.log(`📊 Active connections: ${this.connections.size}`);
         
-        this.handleConnection(ws, req);
+        this.handleConnection(ws, req, connectionId);
       });
 
       // Start HTTP server
@@ -151,10 +154,9 @@ class SimpleMCPServer {
     }
   }
 
-  handleConnection(ws, req) {
-    logger.info(`New WebSocket connection: ${req.connectionId}`);
+  handleConnection(ws, req, connectionId) {
+    logger.info(`New WebSocket connection: ${connectionId}`);
     
-
     // Handle messages
     ws.on('message', (data) => {
       try {
