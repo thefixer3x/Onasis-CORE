@@ -52,6 +52,11 @@
   to = "/.netlify/functions/info"
   status = 200
 
+[[redirects]]
+  from = "/migrate"
+  to = "/.netlify/functions/apply-migration"
+  status = 200
+
 # Root serves index.html
 [[redirects]]
   from = "/"
