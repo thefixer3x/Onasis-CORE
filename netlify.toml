@@ -47,7 +47,13 @@
   to = "/.netlify/functions/info"
   status = 200
 
-# Catch-all for API Gateway
+# Root serves index.html
+[[redirects]]
+  from = "/"
+  to = "/index.html"
+  status = 200
+
+# Catch-all for API Gateway (excluding root)
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/api-gateway"
