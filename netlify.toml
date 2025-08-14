@@ -27,6 +27,11 @@
   status = 200
 
 [[redirects]]
+  from = "/v1/keys/*"
+  to = "/.netlify/functions/key-manager/:splat"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/maas/*"
   to = "/.netlify/functions/maas-api/:splat"
   status = 200
