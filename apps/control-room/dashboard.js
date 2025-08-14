@@ -12,8 +12,9 @@ const helmet = require('helmet');
 const WebSocket = require('ws');
 const http = require('http');
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 const winston = require('winston');
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const app = express();
 const server = http.createServer(app);
@@ -77,10 +78,14 @@ const MONITORED_PLATFORMS = {
 // Supabase configuration
 const SUPABASE_URL=https://<project-ref>.supabase.co
 const SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
 
 if (!SUPABASE_URL=https://<project-ref>.supabase.co
   logger.error('Missing required Supabase configuration. Please set SUPABASE_URL=https://<project-ref>.supabase.co
   process.exit(1);
+}
+if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  logger.warn('SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 }
 
 // Real-time data store
@@ -101,12 +106,278 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:4000', 'https://control.onasis.io'],
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:4000',
+    'http://localhost:8080',
+    'http://localhost:5173',
+    'https://control.onasis.io',
+    'https://api.lanonasis.com',
+    'https://dashboard.lanonasis.com'
+  ],
   credentials: true
 }));
 
 app.use(express.json());
+// Accept URL-encoded form posts (for cross-origin redirects without fetch)
+app.use(express.urlencoded({ extended: false }));
 app.use(express.static('control-room/public'));
+
+// -----------------------------
+// Centralized Auth Gateway (/v1/auth/*)
+// -----------------------------
+
+// One-time code store (short-lived, single-use)
+const CODE_TTL_MS = parseInt(process.env.AUTH_CODE_TTL_MS || '120000', 10); // default 2 minutes
+const codeStore = new Map();
+
+const generateCode = () => {
+  return crypto.randomBytes(24).toString('base64url');
+};
+
+const saveCode = ({ refresh_token, user }, redirectTo) => {
+  const code = generateCode();
+  const now = Date.now();
+  const record = {
+    code,
+    refresh_token,
+    user,
+    redirect_to: redirectTo || null,
+    used: false,
+    created_at: now,
+    expires_at: now + CODE_TTL_MS
+  };
+  codeStore.set(code, record);
+  return record;
+};
+
+// Purge expired codes periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of codeStore.entries()) {
+    if (v.expires_at <= now || v.used) codeStore.delete(k);
+  }
+}, Math.min(CODE_TTL_MS, 60000));
+
+// Audit logger -> core.log_event (best-effort)
+async function logAudit({ req, action, target, status = 'allowed', meta = {}, userId = null }) {
+  if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    logger.debug('Audit skipped: service key missing', { action, target, status });
+    return;
+  }
+  try {
+    await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        apikey: SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        p_project: 'onasis-core',
+        p_user_id: userId,
+        p_action: action,
+        p_target: target,
+        p_status: status,
+        p_meta: meta,
+        p_ip_address: req?.ip || null,
+        p_user_agent: req?.get('user-agent') || null,
+        p_project_scope: null
+      })
+    });
+  } catch (e) {
+    logger.warn('Audit log failed', { error: e.message, action, target, status });
+  }
+}
+
+// Supabase Auth helpers (REST)
+async function adminCreateUser({ email, password, user_metadata }) {
+  if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    throw new Error('Service key not configured');
+  }
+  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+      apikey: SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, password, user_metadata })
+  });
+  if (!res.ok) throw new Error(`Signup failed (${res.status})`);
+  return res.json();
+}
+
+async function signInWithPassword({ email, password }) {
+  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, password })
+  });
+  if (!res.ok) throw new Error('Invalid credentials');
+  return res.json();
+}
+
+async function refreshSession({ refresh_token }) {
+  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ refresh_token })
+  });
+  if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
+  return res.json();
+}
+
+async function getUserByAccessToken(accessToken) {
+  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+    }
+  });
+  if (!res.ok) throw new Error(`getUser failed (${res.status})`);
+  return res.json();
+}
+
+async function signOutByAccessToken(accessToken) {
+  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+    }
+  });
+  if (!res.ok) throw new Error(`logout failed (${res.status})`);
+}
+
+// Input guard
+function requireFields(obj, fields) {
+  for (const f of fields) {
+    if (!obj || typeof obj[f] === 'undefined' || obj[f] === null || obj[f] === '') return f;
+  }
+  return null;
+}
+
+// Routes
+app.post('/v1/auth/signup', async (req, res) => {
+  if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    await logAudit({ req, action: 'auth_signup', target: 'auth', status: 'denied', meta: { reason: 'service_key_missing' } });
+    return res.status(503).json({ error: 'Service unavailable', code: 'SERVICE_KEY_MISSING' });
+  }
+  const missing = requireFields(req.body, ['email', 'password']);
+  if (missing) {
+    return res.status(400).json({ error: 'Invalid request', code: 'BAD_REQUEST' });
+  }
+  const { email, password, user_metadata } = req.body;
+  try {
+    const created = await adminCreateUser({ email, password, user_metadata });
+    await logAudit({ req, action: 'auth_signup', target: 'auth', status: 'allowed', meta: { email: 'redacted' }, userId: created?.user?.id || null });
+    return res.status(201).json({ success: true });
+  } catch (e) {
+    await logAudit({ req, action: 'auth_signup', target: 'auth', status: 'error', meta: { reason: 'signup_failed' } });
+    return res.status(400).json({ error: 'Unable to create account', code: 'SIGNUP_FAILED' });
+  }
+});
+
+app.post('/v1/auth/login', async (req, res) => {
+  const missing = requireFields(req.body, ['email', 'password']);
+  if (missing) {
+    return res.status(400).json({ error: 'Invalid request', code: 'BAD_REQUEST' });
+  }
+  const { email, password, redirect_to, state } = req.body;
+  try {
+    const session = await signInWithPassword({ email, password });
+    const record = saveCode({ refresh_token: session.refresh_token, user: session.user }, redirect_to);
+    await logAudit({ req, action: 'auth_login', target: 'auth', status: 'allowed', meta: { code_issued: true } , userId: session.user?.id || null });
+
+    if (redirect_to) {
+      const url = new URL(redirect_to);
+      url.searchParams.set('code', record.code);
+      if (state) url.searchParams.set('state', state);
+      return res.redirect(302, url.toString());
+    }
+    return res.json({ code: record.code, expires_in: Math.floor(CODE_TTL_MS / 1000) });
+  } catch (e) {
+    await logAudit({ req, action: 'auth_login', target: 'auth', status: 'denied', meta: { reason: 'invalid_credentials' } });
+    return res.status(401).json({ error: 'Invalid credentials', code: 'UNAUTHORIZED' });
+  }
+});
+
+app.post('/v1/auth/exchange', async (req, res) => {
+  const missing = requireFields(req.body, ['code']);
+  if (missing) return res.status(400).json({ error: 'Invalid request', code: 'BAD_REQUEST' });
+  const { code } = req.body;
+  const record = codeStore.get(code);
+  const now = Date.now();
+  if (!record || record.used || record.expires_at <= now) {
+    await logAudit({ req, action: 'auth_exchange', target: 'auth', status: 'denied', meta: { reason: 'invalid_or_expired_code' } });
+    return res.status(400).json({ error: 'Invalid or expired code', code: 'INVALID_CODE' });
+  }
+  try {
+    const refreshed = await refreshSession({ refresh_token: record.refresh_token });
+    record.used = true;
+    codeStore.set(code, record);
+    await logAudit({ req, action: 'auth_exchange', target: 'auth', status: 'allowed', meta: { code_used: true }, userId: refreshed.user?.id || record.user?.id || null });
+    return res.json({
+      access_token: refreshed.access_token,
+      refresh_token: refreshed.refresh_token,
+      expires_in: refreshed.expires_in,
+      token_type: refreshed.token_type || 'bearer',
+      user: refreshed.user || record.user || null
+    });
+  } catch (e) {
+    await logAudit({ req, action: 'auth_exchange', target: 'auth', status: 'error', meta: { reason: 'refresh_failed' } });
+    return res.status(400).json({ error: 'Exchange failed', code: 'EXCHANGE_FAILED' });
+  }
+});
+
+app.post('/v1/auth/refresh', async (req, res) => {
+  const missing = requireFields(req.body, ['refresh_token']);
+  if (missing) return res.status(400).json({ error: 'Invalid request', code: 'BAD_REQUEST' });
+  try {
+    const refreshed = await refreshSession({ refresh_token: req.body.refresh_token });
+    await logAudit({ req, action: 'auth_refresh', target: 'auth', status: 'allowed', userId: refreshed.user?.id || null });
+    return res.json(refreshed);
+  } catch (e) {
+    await logAudit({ req, action: 'auth_refresh', target: 'auth', status: 'denied', meta: { reason: 'invalid_refresh' } });
+    return res.status(400).json({ error: 'Refresh failed', code: 'REFRESH_FAILED' });
+  }
+});
+
+app.get('/v1/auth/user', async (req, res) => {
+  const auth = req.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+  try {
+    const user = await getUserByAccessToken(token);
+    await logAudit({ req, action: 'auth_user', target: 'auth', status: 'allowed', userId: user?.id || null });
+    return res.json({ user });
+  } catch (e) {
+    await logAudit({ req, action: 'auth_user', target: 'auth', status: 'denied' });
+    return res.status(401).json({ error: 'Unauthorized', code: 'UNAUTHORIZED' });
+  }
+});
+
+app.post('/v1/auth/logout', async (req, res) => {
+  const auth = req.get('authorization') || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return res.status(200).json({ success: true });
+  try {
+    await signOutByAccessToken(token);
+    await logAudit({ req, action: 'auth_logout', target: 'auth', status: 'allowed' });
+    return res.json({ success: true });
+  } catch (e) {
+    await logAudit({ req, action: 'auth_logout', target: 'auth', status: 'error' });
+    return res.json({ success: true });
+  }
+});
 
 // WebSocket connection handling
 wss.on('connection', (ws) => {
