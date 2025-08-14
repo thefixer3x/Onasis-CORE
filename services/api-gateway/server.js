@@ -47,18 +47,36 @@ app.use(helmet({
   }
 }));
 
+// Allowed origins for CORS
+const allowedOrigins = [
+  'http://localhost:3000',  // Local development
+  'http://localhost:5173',  // Vite dev server
+  'http://localhost:8080',  // Alternative dev server
+  'https://lanonasis.com',  // Production domain
+  'https://api.lanonasis.com',  // API domain
+  'https://dashboard.lanonasis.com',  // Dashboard domain
+  'https://maas.lanonasis.com',  // MaaS specific domain
+  'https://memory.lanonasis.com',  // Memory service domain
+];
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow all origins but log them anonymously
-    const hashedOrigin = origin ? 
-      crypto.createHash('sha256').update(origin).digest('hex').substring(0, 12) : 
-      'direct';
-    logger.info(`Request from hashed origin: ${hashedOrigin}`);
-    callback(null, true);
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // Log anonymized origin for security monitoring
+      const hashedOrigin = crypto.createHash('sha256').update(origin).digest('hex').substring(0, 12);
+      logger.warn(`Request from non-allowed origin: ${hashedOrigin}`);
+      callback(null, true); // Still allow but log for monitoring
+    }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Vendor', 'X-API-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Vendor', 'X-API-Key', 'x-project-scope']
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -329,7 +347,17 @@ const proxyToVendor = async (req, vendor, endpoint) => {
   }
 };
 
+// Import API modules
+const maasApi = require('./modules/maas-api');
+const authApi = require('./modules/auth-api');
+
 // API Routes
+
+// Mount Auth API under /v1/auth
+app.use('/v1/auth', authApi);
+
+// Mount MaaS API under /api/v1/maas
+app.use('/api/v1/maas', maasApi);
 
 // Health check
 app.get('/health', healthRateLimit, (req, res) => {

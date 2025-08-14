@@ -145,3 +145,5 @@ out/
 test-results/
 screenshots/
 test-output/
+# Local Netlify folder
+.netlify
