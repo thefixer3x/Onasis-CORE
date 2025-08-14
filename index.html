@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onasis-CORE API Gateway - Dev Mode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .terminal {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 800px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            position: relative;
+        }
+        
+        .terminal-header {
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .terminal-content {
+            line-height: 1.6;
+        }
+        
+        .prompt {
+            color: #00ff00;
+            margin-right: 10px;
+        }
+        
+        .command {
+            color: #ffff00;
+        }
+        
+        .output {
+            color: #00ffff;
+            margin-left: 20px;
+        }
+        
+        .error {
+            color: #ff4444;
+        }
+        
+        .success {
+            color: #44ff44;
+        }
+        
+        .info {
+            color: #4488ff;
+        }
+        
+        .blink {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        .ascii-art {
+            color: #666;
+            font-size: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div class="terminal-header">
+            onasis-core@api.lanonasis.com ~ % 
+        </div>
+        
+        <div class="ascii-art">
+             ____                    _                ____ ___  ____  _____ 
+            / __ \____  ____ _______(______  ____   / __ \__ \/ __ \/ ___/
+           / / / / __ \/ __ `/ ___/ / ___(_______  / / / /_/ / /_/ /\__ \ 
+          / /_/ / / / / /_/ (__  ) (__  )  / ___/ / /_/ / __/ _, _/___/ / 
+          \____/_/ /_/\__,_/____/_/____/  /_/     \____/____/_/ |_|/____/  
+        </div>
+        
+        <div class="terminal-content">
+            <div><span class="prompt">$</span> <span class="command">systemctl status onasis-core</span></div>
+            <div class="output success">● onasis-core.service - Privacy-First API Gateway</div>
+            <div class="output">   Loaded: loaded (/etc/systemd/system/onasis-core.service; enabled)</div>
+            <div class="output success">   Active: active (running) since $(date)</div>
+            <div class="output">   Main PID: 1337 (node)</div>
+            
+            <br>
+            
+            <div><span class="prompt">$</span> <span class="command">curl https://api.lanonasis.com/health</span></div>
+            <div class="output info">{"status":"ok","service":"Onasis-CORE API Gateway"}</div>
+            
+            <br>
+            
+            <div><span class="success">✓</span> <strong>Welcome to Dev Mode</strong></div>
+            <div class="output">Privacy-First Infrastructure Services Platform</div>
+            
+            <br>
+            
+            <div><span class="info">Available Endpoints:</span></div>
+            <div class="output">  GET  /health          - Service health check</div>
+            <div class="output">  GET  /info            - API information</div>
+            <div class="output">  POST /v1/auth/login   - Authentication</div>
+            <div class="output">  GET  /v1/auth/session - Session validation</div>
+            <div class="output">  GET  /api/v1/models   - Available AI models</div>
+            
+            <br>
+            
+            <div><span class="info">Features:</span></div>
+            <div class="output success">  ✓ Vendor Identity Masking</div>
+            <div class="output success">  ✓ Client Anonymization</div>
+            <div class="output success">  ✓ Request Sanitization</div>
+            <div class="output success">  ✓ Anonymous Billing</div>
+            <div class="output success">  ✓ Audit Logging</div>
+            
+            <br>
+            
+            <div><span class="info">Documentation:</span> <a href="https://docs.onasis.io" style="color: #00ffff;">docs.onasis.io</a></div>
+            <div><span class="info">Repository:</span> <a href="https://github.com/thefixer3x/Onasis-CORE" style="color: #00ffff;">github.com/thefixer3x/Onasis-CORE</a></div>
+            
+            <br>
+            
+            <div><span class="prompt">$</span> <span class="blink">_</span></div>
+        </div>
+    </div>
+    
+    <script>
+        // Add some dynamic elements
+        document.addEventListener('DOMContentLoaded', function() {
+            // Replace $(date) with actual date
+            const dateElements = document.querySelectorAll('.terminal-content');
+            dateElements.forEach(el => {
+                el.innerHTML = el.innerHTML.replace('$(date)', new Date().toISOString());
+            });
+            
+            // Add some terminal-like behavior
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    // Could add interactive terminal commands here
+                }
+            });
+        });
+    </script>
+</body>
+</html>
