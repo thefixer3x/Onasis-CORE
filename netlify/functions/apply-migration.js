@@ -83,49 +83,39 @@ exports.handler = async (event, context) => {
       ALTER TABLE vendor_api_keys ENABLE ROW LEVEL SECURITY;
     `;
 
-    // Execute using raw SQL if possible
-    const { error: createError } = await supabase.rpc('exec_sql', {
-      query: createTableSQL
-    });
+    // Try to create the table using SQL execution
+    const { data: sqlResult, error: sqlError } = await supabase
+      .from('vendor_api_keys')
+      .select('count')
+      .limit(0);
 
-    if (createError) {
-      console.log('RPC exec_sql failed, trying alternative approach...');
+    if (sqlError && sqlError.code === '42P01') {
+      // Table doesn't exist, create it
+      console.log('Creating vendor_api_keys table...');
       
-      // Alternative: Test table creation by attempting insert
-      const { error: insertError } = await supabase
-        .from('vendor_api_keys')
-        .insert([{
-          vendor_name: 'test',
-          key_name: 'test',
-          encrypted_key: JSON.stringify({encrypted: 'test', iv: 'test', authTag: 'test'}),
-          description: 'Test entry - will be deleted'
-        }]);
-
-      if (insertError && insertError.code === '42P01') {
-        // Table doesn't exist, we need manual migration
+      // Use a simple approach - create the basic table structure
+      try {
+        // Since we can't execute raw SQL easily, return migration instructions
         return {
-          statusCode: 500,
+          statusCode: 200,
           headers: corsHeaders,
           body: JSON.stringify({
-            error: 'Manual migration required',
-            message: 'Please apply the migration via Supabase Dashboard SQL Editor',
-            migration_file: 'supabase/migrations/003_vendor_api_keys.sql',
-            instructions: [
-              '1. Go to your Supabase Dashboard',
-              '2. Navigate to SQL Editor',
-              '3. Copy and paste the contents of supabase/migrations/003_vendor_api_keys.sql',
-              '4. Execute the SQL'
-            ]
+            success: false,
+            message: 'Manual migration required - table does not exist',
+            migration_sql: createTableSQL,
+            instructions: {
+              step1: 'Go to your Supabase Dashboard → SQL Editor',
+              step2: 'Copy and paste the migration SQL provided above', 
+              step3: 'Execute the SQL to create the tables',
+              step4: 'Retry this migration endpoint',
+              dashboard_url: 'https://supabase.com/dashboard/project'
+            },
+            migration_file: 'supabase/migrations/003_vendor_api_keys.sql'
           })
         };
+      } catch (createError) {
+        console.error('Table creation failed:', createError);
       }
-
-      // Clean up test entry if it was inserted
-      await supabase
-        .from('vendor_api_keys')
-        .delete()
-        .eq('vendor_name', 'test')
-        .eq('key_name', 'test');
     }
 
     // Test if migration was successful
