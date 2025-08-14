@@ -3,11 +3,11 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = process.env.SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('SUPABASE_URL=https://<project-ref>.supabase.co
+  console.error('SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
