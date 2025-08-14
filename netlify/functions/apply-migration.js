@@ -19,8 +19,8 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
+    const supabaseUrl = process.env.SUPABASE_DATABASE_URL || process.env.SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return {
@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify({
           error: 'Supabase configuration missing',
-          details: 'SUPABASE_URL and SUPABASE_SERVICE_KEY required'
+          details: 'SUPABASE_DATABASE_URL/SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SERVICE_KEY required'
         })
       };
     }
