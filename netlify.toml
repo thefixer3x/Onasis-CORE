@@ -9,6 +9,8 @@
   NODE_VERSION = "18"
   # Build environment
   NODE_ENV = "production"
+  # Skip secrets scanning for project scope identifiers and domains
+  SECRETS_SCAN_OMIT_KEYS = "VITE_PROJECT_SCOPE,VITE_API_URL,VITE_DASHBOARD_URL,VITE_MCP_URL"
 
 # Headers for security and CORS
 [[headers]]
