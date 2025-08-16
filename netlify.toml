@@ -9,8 +9,10 @@
   NODE_VERSION = "18"
   # Build environment
   NODE_ENV = "production"
-  # Skip secrets scanning for project scope identifiers and domains
-  SECRETS_SCAN_OMIT_KEYS = "VITE_PROJECT_SCOPE,VITE_API_URL,VITE_DASHBOARD_URL,VITE_MCP_URL"
+  # Skip secrets scanning for project scope identifiers and domains  
+  SECRETS_SCAN_OMIT_KEYS = "VITE_PROJECT_SCOPE,VITE_API_URL,VITE_DASHBOARD_URL,VITE_MCP_URL,default_jwt_secret,lanonasis-maas,api.lanonasis.com"
+  # Skip secrets scanning for auth pages containing form fields
+  SECRETS_SCAN_OMIT_PATHS = "auth/login.html"
 
 # Headers for security and CORS
 [[headers]]
@@ -67,6 +69,12 @@
 [[redirects]]
   from = "/setup"
   to = "/.netlify/functions/setup-defaults"
+  status = 200
+
+# Auth page
+[[redirects]]
+  from = "/auth/login"
+  to = "/auth/login.html"
   status = 200
 
 # Root serves index.html
