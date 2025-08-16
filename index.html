@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Onasis-CORE API Gateway - Dev Mode</title>
+    <meta http-equiv="refresh" content="3; url=https://dashboard.lanonasis.com">
+    <title>Onasis-CORE API Gateway - Redirecting...</title>
     <style>
         * {
             margin: 0;
@@ -38,37 +39,71 @@
             padding-bottom: 10px;
             margin-bottom: 20px;
             color: #888;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .red { background: #ff5f56; }
+        .yellow { background: #ffbd2e; }
+        .green { background: #27c93f; }
+        
+        .title {
+            margin-left: auto;
             font-size: 12px;
         }
         
         .terminal-content {
+            font-size: 14px;
             line-height: 1.6;
         }
         
         .prompt {
             color: #00ff00;
-            margin-right: 10px;
+            font-weight: bold;
         }
         
         .command {
-            color: #ffff00;
+            color: #fff;
         }
         
         .output {
-            color: #00ffff;
+            color: #888;
             margin-left: 20px;
         }
         
-        .error {
-            color: #ff4444;
-        }
-        
         .success {
-            color: #44ff44;
+            color: #00ff00;
         }
         
         .info {
-            color: #4488ff;
+            color: #00ffff;
+        }
+        
+        .active {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        
+        .section-title {
+            color: #ffbd2e;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        a {
+            color: #00ffff;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
         }
         
         .blink {
@@ -80,67 +115,64 @@
             51%, 100% { opacity: 0; }
         }
         
-        .ascii-art {
-            color: #666;
-            font-size: 10px;
-            margin-bottom: 20px;
-            text-align: center;
+        .loading-bar {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #00ffff);
+            animation: loading 3s linear forwards;
+        }
+        
+        @keyframes loading {
+            from { width: 0; }
+            to { width: 100%; }
         }
     </style>
 </head>
 <body>
     <div class="terminal">
         <div class="terminal-header">
-            onasis-core@api.lanonasis.com ~ % 
-        </div>
-        
-        <div class="ascii-art">
-             ____                    _                ____ ___  ____  _____ 
-            / __ \____  ____ _______(______  ____   / __ \__ \/ __ \/ ___/
-           / / / / __ \/ __ `/ ___/ / ___(_______  / / / /_/ / /_/ /\__ \ 
-          / /_/ / / / / /_/ (__  ) (__  )  / ___/ / /_/ / __/ _, _/___/ / 
-          \____/_/ /_/\__,_/____/_/____/  /_/     \____/____/_/ |_|/____/  
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+            <span class="title">api.lanonasis.com</span>
         </div>
         
         <div class="terminal-content">
-            <div><span class="prompt">$</span> <span class="command">systemctl status onasis-core</span></div>
-            <div class="output success">● onasis-core.service - Privacy-First API Gateway</div>
-            <div class="output">   Loaded: loaded (/etc/systemd/system/onasis-core.service; enabled)</div>
-            <div class="output success">   Active: active (running) since $(date)</div>
-            <div class="output">   Main PID: 1337 (node)</div>
+            <div><span class="prompt">$</span> <span class="command">onasis-core redirect</span></div>
             
             <br>
             
-            <div><span class="prompt">$</span> <span class="command">curl https://api.lanonasis.com/health</span></div>
-            <div class="output info">{"status":"ok","service":"Onasis-CORE API Gateway"}</div>
+            <div class="output success">✓ API Gateway Active</div>
+            <div class="output">Redirecting to Dashboard...</div>
             
             <br>
             
-            <div><span class="success">✓</span> <strong>Welcome to Dev Mode</strong></div>
-            <div class="output">Privacy-First Infrastructure Services Platform</div>
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            
+            <div class="section-title">📡 API Endpoints Available:</div>
+            <div class="output">• /health - Service health check</div>
+            <div class="output">• /api/v1/memory - Memory operations</div>
+            <div class="output">• /v1/auth - Authentication services</div>
+            <div class="output">• /v1/keys - API key management</div>
             
             <br>
             
-            <div><span class="info">Available Endpoints:</span></div>
-            <div class="output">  GET  /health          - Service health check</div>
-            <div class="output">  GET  /info            - API information</div>
-            <div class="output">  POST /v1/auth/login   - Authentication</div>
-            <div class="output">  GET  /v1/auth/session - Session validation</div>
-            <div class="output">  GET  /api/v1/models   - Available AI models</div>
+            <div class="section-title">🔐 Redirecting to:</div>
+            <div class="output">→ <a href="https://dashboard.lanonasis.com">dashboard.lanonasis.com</a></div>
             
             <br>
             
-            <div><span class="info">Features:</span></div>
-            <div class="output success">  ✓ Vendor Identity Masking</div>
-            <div class="output success">  ✓ Client Anonymization</div>
-            <div class="output success">  ✓ Request Sanitization</div>
-            <div class="output success">  ✓ Anonymous Billing</div>
-            <div class="output success">  ✓ Audit Logging</div>
-            
-            <br>
-            
-            <div><span class="info">Documentation:</span> <a href="https://docs.onasis.io" style="color: #00ffff;">docs.onasis.io</a></div>
-            <div><span class="info">Repository:</span> <a href="https://github.com/thefixer3x/Onasis-CORE" style="color: #00ffff;">github.com/thefixer3x/Onasis-CORE</a></div>
+            <div class="info">If not redirected automatically, click the link above.</div>
             
             <br>
             
@@ -149,21 +181,10 @@
     </div>
     
     <script>
-        // Add some dynamic elements
-        document.addEventListener('DOMContentLoaded', function() {
-            // Replace $(date) with actual date
-            const dateElements = document.querySelectorAll('.terminal-content');
-            dateElements.forEach(el => {
-                el.innerHTML = el.innerHTML.replace('$(date)', new Date().toISOString());
-            });
-            
-            // Add some terminal-like behavior
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') {
-                    // Could add interactive terminal commands here
-                }
-            });
-        });
+        // Redirect after 3 seconds
+        setTimeout(function() {
+            window.location.href = "https://dashboard.lanonasis.com";
+        }, 3000);
     </script>
 </body>
 </html>
