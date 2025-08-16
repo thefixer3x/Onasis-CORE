@@ -1,12 +1,14 @@
 const express = require('express');
 const serverless = require('serverless-http');
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 
 // Initialize Supabase client using environment variables
 const supabaseUrl = process.env.SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const jwtSecret = process.env.SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error('Missing required Supabase environment variables');
@@ -29,8 +31,8 @@ app.use(require('cors')({
 
 app.use(express.json());
 
-// Simple auth verification using vendor API keys
-const verifyApiKey = async (req, res, next) => {
+// JWT token verification
+const verifyJwtToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -40,33 +42,49 @@ const verifyApiKey = async (req, res, next) => {
       });
     }
 
-    if (!supabase) {
-      return res.status(503).json({ 
-        error: 'Database service unavailable',
-        code: 'SERVICE_UNAVAILABLE'
-      });
-    }
-
     const token = authHeader.substring(7);
-    const projectScope = process.env.VITE_PROJECT_SCOPE || req.headers['x-project-scope'];
+    
+    // Check if this is an API key format (starts with lmk_) or JWT token
+    if (token.startsWith('lmk_')) {
+      // API key validation
+      if (!supabase) {
+        return res.status(503).json({ 
+          error: 'Database service unavailable',
+          code: 'SERVICE_UNAVAILABLE'
+        });
+      }
 
-    // Check if token exists in vendor_api_keys table
-    const { data: keyData, error } = await supabase
-      .from('vendor_api_keys')
-      .select('*')
-      .eq('vendor_name', projectScope)
-      .eq('is_active', true)
-      .single();
+      const projectScope = process.env.VITE_PROJECT_SCOPE || req.headers['x-project-scope'] || 'lanonasis-maas';
+      
+      // Check if API key exists in vendor_api_keys table
+      const { data: keyData, error } = await supabase
+        .from('vendor_api_keys')
+        .select('*')
+        .eq('key_value', token)
+        .eq('is_active', true)
+        .single();
 
-    if (error || !keyData) {
-      return res.status(401).json({ 
-        error: 'Invalid API key',
-        code: 'AUTH_INVALID'
-      });
+      if (error || !keyData) {
+        return res.status(401).json({ 
+          error: 'Invalid API key',
+          code: 'AUTH_INVALID'
+        });
+      }
+
+      req.user = { id: keyData.user_id || 'api-user', project_scope: keyData.vendor_name };
+    } else {
+      // JWT token validation
+      try {
+        const decoded = jwt.verify(token, jwtSecret);
+        req.user = decoded;
+      } catch (jwtError) {
+        return res.status(401).json({ 
+          error: 'Invalid JWT token',
+          code: 'JWT_INVALID'
+        });
+      }
     }
-
-    // Simple token validation (in production, decrypt and compare)
-    req.user = { id: 'maas-user', project_scope: projectScope };
+    
     next();
   } catch (error) {
     console.error('Auth verification failed:', error);
@@ -78,7 +96,7 @@ const verifyApiKey = async (req, res, next) => {
 };
 
 // Apply auth middleware to protected routes
-app.use('/memories*', verifyApiKey);
+app.use('/memories*', verifyJwtToken);
 
 // Memory endpoints
 app.get('/memories', async (req, res) => {
