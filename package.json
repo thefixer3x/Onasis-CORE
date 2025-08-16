@@ -38,27 +38,28 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "@supabase/supabase-js": "^2.38.4",
+    "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
     "express-rate-limit": "^6.7.0",
     "helmet": "^6.1.5",
-    "node-fetch": "^2.6.7",
-    "dotenv": "^16.0.3",
-    "bcrypt": "^5.1.0",
     "jsonwebtoken": "^9.0.0",
-    "crypto": "^1.0.1",
+    "node-fetch": "^2.6.7",
     "nodemailer": "^6.9.1",
+    "serverless-http": "^3.2.0",
     "stripe": "^12.0.0",
     "winston": "^3.8.2",
-    "ws": "^8.13.0",
-    "@supabase/supabase-js": "^2.38.4"
+    "ws": "^8.13.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22",
-    "jest": "^29.5.0",
-    "eslint": "^8.40.0",
-    "prettier": "^2.8.8",
     "@types/node": "^18.16.3",
+    "eslint": "^8.40.0",
+    "jest": "^29.5.0",
+    "nodemon": "^2.0.22",
+    "prettier": "^2.8.8",
     "typescript": "^5.0.4"
   },
   "repository": {
@@ -68,5 +69,5 @@
   "bugs": {
     "url": "https://github.com/thefixer3x/Onasis-CORE/issues"
   },
-  "homepage": "https://onasis.io"
+  "homepage": "https://lanonasis.com"
 }

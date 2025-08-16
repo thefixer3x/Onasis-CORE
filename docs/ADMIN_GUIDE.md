@@ -28,7 +28,7 @@ Onasis-CORE is your **enterprise-grade partnership orchestration platform** mana
   - `seftechub.com` - Developer Hub (Usage-based billing)
   - `vortexcore.app` - AI/ML Platform (Token consumption)
   - `lanonasis.com` - Privacy Communication (Freemium)
-  - `maas.onasis.io` - Models as a Service (Compute hours)
+  - `maas.lanonasis.com` - Models as a Service (Compute hours)
 
 #### **2. Vendor Authentication System** (`vendor-auth-middleware.js`)
 - **Purpose**: Secure vendor API key management
@@ -318,7 +318,7 @@ const revenueAnalytics = {
     'vortexcore.app': 45623.75,
     'seftechub.com': 23456.50,
     'lanonasis.com': 6789.00,
-    'maas.onasis.io': 2526.00
+    'maas.lanonasis.com': 2526.00
   },
   vendor_distribution: {
     enterprise_clients: 125000.00,
@@ -535,7 +535,7 @@ REINDEX INDEX idx_vendor_usage_logs_created_at;
 pm2 start ecosystem.staging.config.js
 
 # 2. Run health checks
-curl https://staging.onasis.io/health
+curl https://staging.lanonasis.com/health
 
 # 3. Blue-green deployment
 pm2 reload ecosystem.production.config.js
@@ -617,15 +617,15 @@ FOR VALUES FROM ('2024-07-01') TO ('2024-08-01');
 - [Security Guide](./SECURITY_GUIDE.md)
 
 ### **Support Channels**
-- **Admin Support**: admin@onasis.io
-- **Technical Issues**: tech@onasis.io
+- **Admin Support**: admin@example.com
+- **Technical Issues**: tech@lanonasis.com
 - **Emergency Hotline**: +1-800-ONASIS-1
-- **Status Page**: https://status.onasis.io
+- **Status Page**: https://status.lanonasis.com
 
 ### **Monitoring Tools**
-- **Grafana Dashboard**: https://grafana.onasis.io
-- **Logs**: https://logs.onasis.io
-- **APM**: https://apm.onasis.io
+- **Grafana Dashboard**: https://grafana.lanonasis.com
+- **Logs**: https://logs.lanonasis.com
+- **APM**: https://apm.lanonasis.com
 - **Alerts**: Slack #onasis-alerts
 
 ---

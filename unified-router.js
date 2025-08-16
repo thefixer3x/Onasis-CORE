@@ -348,7 +348,7 @@ app.get('/services', generalRateLimit, (req, res) => {
     available_services: services,
     total_count: services.length,
     base_url: req.protocol + '://' + req.get('host'),
-    documentation: 'https://docs.onasis.io'
+    documentation: 'https://docs.lanonasis.com'
   });
 });
 
@@ -474,7 +474,7 @@ app.use('*', (req, res) => {
       '/api/v1/chat/completions',
       '/webhook/{service_name}'
     ],
-    documentation: 'https://docs.onasis.io',
+    documentation: 'https://docs.lanonasis.com',
     request_id: req.anonymousId
   });
 });

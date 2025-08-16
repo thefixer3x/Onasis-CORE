@@ -396,8 +396,8 @@ app.get('/info', generalRateLimit, (req, res) => {
       embeddings: '/api/v1/embeddings',
       models: '/api/v1/models'
     },
-    privacy_policy: 'https://onasis.io/privacy',
-    terms_of_service: 'https://onasis.io/terms'
+    privacy_policy: 'https://lanonasis.com/privacy',
+    terms_of_service: 'https://lanonasis.com/terms'
   });
 });
 
@@ -606,7 +606,7 @@ app.use('*', (req, res) => {
       '/health',
       '/info'
     ],
-    documentation: 'https://docs.onasis.io'
+    documentation: 'https://docs.lanonasis.com'
   });
 });
 
