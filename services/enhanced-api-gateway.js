@@ -80,10 +80,10 @@ class EnhancedAPIGateway {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://localhost:5173',
-      process.env.VITE_API_URL || 'https://api.lanonasis.com',
-      process.env.VITE_DASHBOARD_URL || 'https://lanonasis.com',
-      process.env.VITE_MCP_URL || 'https://mcp.lanonasis.com'
-    ].filter(Boolean);
+      'https://api.lanonasis.com',
+      'https://lanonasis.com',
+      'https://mcp.lanonasis.com'
+    ];
     
     this.app.use(cors({
       origin: (origin, callback) => {

@@ -3,7 +3,7 @@
 /**
  * Onasis-CORE Multi-Platform Router
  * Unified authentication, billing, and API services across all platforms
- * saas.seftec.tech | seftechub.com | vortexcore.app | lanonasis.com | maas.lanonasis.com
+ * saas.seftec.tech | seftechub.com | vortexcore.app | lanonasis.com | maas.onasis.io
  */
 
 const express = require('express');
@@ -54,7 +54,7 @@ const PLATFORMS = {
     billing_model: 'freemium_premium',
     target: 'privacy_users'
   },
-  'maas.lanonasis.com': {
+  'maas.onasis.io': {
     name: 'MaaS',
     brand: 'Models as a Service',
     color: '#ea580c',

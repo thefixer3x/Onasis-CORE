@@ -175,7 +175,7 @@ limit_req_zone \$binary_remote_addr zone=gateway_limit:10m rate=200r/m;
 # Main API Gateway
 server {
     listen 80;
-    server_name api.vortexai.io gateway.apiendpoint.net lanonasis.com www.lanonasis.com;
+    server_name api.vortexai.io gateway.apiendpoint.net onasis.io www.onasis.io;
     
     # Security headers
     add_header X-Frame-Options DENY;
@@ -251,7 +251,7 @@ server {
 # Data Masking Service
 server {
     listen 80;
-    server_name data.lanonasis.com;
+    server_name data.onasis.io;
     
     location / {
         limit_req zone=api_limit burst=10 nodelay;
@@ -265,7 +265,7 @@ server {
 # Email Proxy Service  
 server {
     listen 80;
-    server_name mail.lanonasis.com;
+    server_name mail.onasis.io;
     
     location / {
         limit_req zone=api_limit burst=5 nodelay;
@@ -279,7 +279,7 @@ server {
 # Webhook Proxy
 server {
     listen 80;
-    server_name webhook.vortexai.io hook.lanonasis.com;
+    server_name webhook.vortexai.io hook.onasis.io;
     
     location /webhook/ {
         limit_req zone=api_limit burst=5 nodelay;
@@ -437,8 +437,8 @@ main() {
     log "4. Set up monitoring and alerting"
     log "5. Test all endpoints and privacy features"
     echo ""
-    info "Documentation: https://docs.lanonasis.com"
-    info "Support: support@lanonasis.com"
+    info "Documentation: https://docs.onasis.io"
+    info "Support: support@onasis.io"
 }
 
 # Execute main function

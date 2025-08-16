@@ -102,7 +102,7 @@ SEFTEC_SAAS_URL=https://saas.seftec.tech
 SEFTECHUB_URL=https://seftechub.com
 VORTEXCORE_URL=https://vortexcore.app
 LANONASIS_URL=https://lanonasis.com
-MAAS_URL=https://maas.lanonasis.com
+MAAS_URL=https://maas.onasis.io
 
 # Control Room Security
 CONTROL_ROOM_SECRET=onasis_control_room_master_key_2024
@@ -169,7 +169,7 @@ configure_nginx_control_room() {
 # Control Room Dashboard
 server {
     listen 80;
-    server_name control.lanonasis.com dashboard.lanonasis.com admin.lanonasis.com;
+    server_name control.onasis.io dashboard.onasis.io admin.onasis.io;
     
     # Security headers for admin interface
     add_header X-Frame-Options DENY always;
@@ -344,9 +344,9 @@ show_control_room_status() {
     
     echo ""
     info "🌐 Master Control URLs:"
-    log "Control Room Dashboard: https://control.lanonasis.com"
-    log "Alternative Access: https://dashboard.lanonasis.com"
-    log "Admin Interface: https://admin.lanonasis.com"
+    log "Control Room Dashboard: https://control.onasis.io"
+    log "Alternative Access: https://dashboard.onasis.io"
+    log "Admin Interface: https://admin.onasis.io"
     log "Direct Access: http://$VPS_HOST:4000"
     
     echo ""
@@ -355,7 +355,7 @@ show_control_room_status() {
     log "SeftecHub: https://seftechub.com/api"
     log "VortexCore: https://vortexcore.app/api"
     log "LanOnasis: https://lanonasis.com/api"
-    log "MaaS: https://maas.lanonasis.com/api"
+    log "MaaS: https://maas.onasis.io/api"
     
     echo ""
     info "🎛️  Control Room Features:"
@@ -388,7 +388,7 @@ main() {
     log "   • seftechub.com (SeftecHub)"
     log "   • vortexcore.app (VortexCore)"
     log "   • lanonasis.com (LanOnasis)"
-    log "   • maas.lanonasis.com (MaaS)"
+    log "   • maas.onasis.io (MaaS)"
     echo ""
     
     deploy_control_room
@@ -404,7 +404,7 @@ main() {
     info "🎛️  You now have complete oversight of your entire platform ecosystem!"
     echo ""
     info "Next Steps:"
-    log "1. Access Control Room: https://control.lanonasis.com"
+    log "1. Access Control Room: https://control.onasis.io"
     log "2. Configure domain DNS for all platforms"
     log "3. Set up SSL certificates for production domains"
     log "4. Configure Supabase API keys in .env"
@@ -418,8 +418,8 @@ main() {
     log "Update services: pm2 reload all"
     echo ""
     info "📞 Support:"
-    log "Documentation: https://docs.lanonasis.com"
-    log "Control Room Guide: https://docs.lanonasis.com/control-room"
+    log "Documentation: https://docs.onasis.io"
+    log "Control Room Guide: https://docs.onasis.io/control-room"
 }
 
 # Execute main function

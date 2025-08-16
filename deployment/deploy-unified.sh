@@ -197,10 +197,10 @@ server {
     server_name 
         api.vortexai.io 
         gateway.apiendpoint.net 
-        lanonasis.com 
-        www.lanonasis.com
+        onasis.io 
+        www.onasis.io
         proxy.connectionpoint.io
-        unified.lanonasis.com;
+        unified.onasis.io;
     
     # Security headers
     add_header X-Frame-Options DENY always;
@@ -492,7 +492,7 @@ show_status() {
     info "🌐 Unified API Endpoints:"
     log "Primary: https://api.vortexai.io/api/{service}"
     log "Neutral: https://gateway.apiendpoint.net/api/{service}"
-    log "Direct: https://lanonasis.com/api/{service}"
+    log "Direct: https://onasis.io/api/{service}"
     log "Health: https://api.vortexai.io/health"
     log "Services: https://api.vortexai.io/services"
     
@@ -550,7 +550,7 @@ main() {
     log "View logs: pm2 logs onasis-unified-router"
     log "Restart: pm2 restart onasis-unified-router"
     echo ""
-    info "📚 Documentation: https://docs.lanonasis.com"
+    info "📚 Documentation: https://docs.onasis.io"
 }
 
 # Execute main function
