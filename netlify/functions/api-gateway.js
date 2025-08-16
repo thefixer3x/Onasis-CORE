@@ -115,8 +115,8 @@ async function routeRequest(path, method, headers, body, query) {
           models: '/api/v1/models',
           auth: '/v1/auth'
         },
-        privacy_policy: 'https://lanonasis.com/privacy',
-        terms_of_service: 'https://lanonasis.com/terms',
+        privacy_policy: 'https://onasis.io/privacy',
+        terms_of_service: 'https://onasis.io/terms',
         request_id: requestId
       }
     };
@@ -184,7 +184,7 @@ async function routeRequest(path, method, headers, body, query) {
         '/api/v1/models',
         '/v1/auth'
       ],
-      documentation: 'https://docs.lanonasis.com',
+      documentation: 'https://docs.onasis.io',
       request_id: requestId
     }
   };

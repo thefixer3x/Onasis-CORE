@@ -47,7 +47,7 @@
     },
     
     "maas_project": {
-      "domain": "maas.lanonasis.com",
+      "domain": "maas.onasis.io",
       "brand": "MaaS (Models as a Service)",
       "purpose": "Model hosting and inference platform",
       "primary_color": "#ea580c",
@@ -120,7 +120,7 @@
       "seftechub_gateway": "https://seftechub.com/api/gateway",
       "vortexcore_embeddings": "https://vortexcore.app/api/embeddings",
       "lanonasis_translate": "https://lanonasis.com/api/translate",
-      "maas_inference": "https://maas.lanonasis.com/api/inference"
+      "maas_inference": "https://maas.onasis.io/api/inference"
     }
   },
   
@@ -224,13 +224,13 @@
     ],
     
     "domains": {
-      "primary": "lanonasis.com",
+      "primary": "onasis.io",
       "platforms": [
         "saas.seftec.tech",
         "seftechub.com", 
         "vortexcore.app",
         "lanonasis.com",
-        "maas.lanonasis.com"
+        "maas.onasis.io"
       ]
     }
   }

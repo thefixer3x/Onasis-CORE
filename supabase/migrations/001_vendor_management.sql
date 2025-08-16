@@ -526,7 +526,7 @@ INSERT INTO vendor_organizations (
     'ONASIS_DEMO',
     'Onasis Demo Organization',
     'enterprise',
-    'demo@lanonasis.com',
+    'demo@onasis.io',
     'Demo Admin',
     '["saas.seftec.tech", "vortexcore.app", "lanonasis.com"]'::jsonb,
     '{"ai-chat": true, "embeddings": true, "text-to-speech": true}'::jsonb,

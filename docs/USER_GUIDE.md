@@ -11,7 +11,7 @@ Onasis-CORE is your **unified platform empire** that manages 5 distinct branded 
 - 🛠️ **SeftecHub** (`seftechub.com`) - Developer Hub & Marketplace
 - 🧠 **VortexCore** (`vortexcore.app`) - AI/ML Infrastructure Platform
 - 🔒 **LanOnasis** (`lanonasis.com`) - Privacy-First Communication
-- 🤖 **MaaS** (`maas.lanonasis.com`) - Models as a Service
+- 🤖 **MaaS** (`maas.onasis.io`) - Models as a Service
 
 ---
 
@@ -53,7 +53,7 @@ Authorization: Bearer your_token
 ### **For Business Partners/Vendors**
 
 #### 1. **Get Vendor Access**
-Contact: `business@lanonasis.com` for vendor onboarding
+Contact: `business@onasis.io` for vendor onboarding
 
 #### 2. **Receive API Keys**
 ```bash
@@ -270,7 +270,7 @@ const privateChatResponse = await fetch('https://lanonasis.com/api/privacy-chat'
 #### **MaaS** - Model Hosting
 ```javascript
 // Deploy Model
-const deployResponse = await fetch('https://maas.lanonasis.com/api/deploy', {
+const deployResponse = await fetch('https://maas.onasis.io/api/deploy', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${access_token}`,
@@ -286,7 +286,7 @@ const deployResponse = await fetch('https://maas.lanonasis.com/api/deploy', {
 });
 
 // Model Inference
-const inferenceResponse = await fetch('https://maas.lanonasis.com/api/inference', {
+const inferenceResponse = await fetch('https://maas.onasis.io/api/inference', {
   method: 'POST',
   headers: {
     'Authorization': `Bearer ${access_token}`,
@@ -509,12 +509,12 @@ const batchResponse = await fetch('https://vortexcore.app/api/batch', {
   }
 }
 ```
-**Solution**: Check service status at `https://status.lanonasis.com`
+**Solution**: Check service status at `https://status.onasis.io`
 
 ### **Getting Help**
-- 📧 **Support Email**: support@lanonasis.com
-- 📚 **Documentation**: https://docs.lanonasis.com
-- 💬 **Community**: https://community.lanonasis.com
+- 📧 **Support Email**: support@onasis.io
+- 📚 **Documentation**: https://docs.onasis.io
+- 💬 **Community**: https://community.onasis.io
 - 🐛 **Bug Reports**: https://github.com/onasis-core/issues
 
 ---
