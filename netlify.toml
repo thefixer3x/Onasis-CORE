@@ -37,6 +37,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/v1/memory*"
+  to = "/.netlify/functions/maas-api/memories:splat"
+  status = 200
+
+[[redirects]]
   from = "/api/v1/*"
   to = "/.netlify/functions/api-gateway/:splat"
   status = 200
