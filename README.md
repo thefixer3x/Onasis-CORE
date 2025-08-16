@@ -49,12 +49,12 @@ Secure webhook routing with privacy protection
 
 **Client-Facing Domains:**
 - `api.vortexai.io` - Main branded API endpoint
-- `secure.onasis.io` - Privacy-focused branding
+- `secure.lanonasis.com` - Privacy-focused branding
 - `gateway.apiendpoint.net` - Neutral connection point
 
 **Internal/Vendor Routing:**
 - `proxy.connectionpoint.io` - Vendor API masking
-- `bridge.onasis.io` - Internal service communication
+- `bridge.lanonasis.com` - Internal service communication
 - `webhook.vortexai.io` - Callback routing
 
 ## 🚀 **Quick Start**
@@ -101,10 +101,10 @@ Connected to **The Fixer Initiative** Supabase project for:
 | Service | Status | Endpoint | Privacy Level |
 |---------|--------|----------|---------------|
 | API Gateway | 🟢 Active | `api.vortexai.io` | High |
-| Data Masking | 🟡 Development | `data.onasis.io` | Maximum |
-| Email Proxy | 🔴 Planned | `mail.onasis.io` | High |
-| Billing Service | 🟡 Development | `bill.onasis.io` | Medium |
-| Webhook Proxy | 🔴 Planned | `hook.onasis.io` | High |
+| Data Masking | 🟡 Development | `data.lanonasis.com` | Maximum |
+| Email Proxy | 🔴 Planned | `mail.lanonasis.com` | High |
+| Billing Service | 🟡 Development | `bill.lanonasis.com` | Medium |
+| Webhook Proxy | 🔴 Planned | `hook.lanonasis.com` | High |
 
 ## 🔧 **Infrastructure**
 
@@ -143,9 +143,9 @@ Proprietary - All rights reserved. Contact for licensing opportunities.
 
 ## 📞 **Contact**
 
-- **Business Inquiries:** business@onasis.io
-- **Technical Support:** support@onasis.io
-- **Privacy Officer:** privacy@onasis.io
+- **Business Inquiries:** business@lanonasis.com
+- **Technical Support:** support@lanonasis.com
+- **Privacy Officer:** privacy@lanonasis.com
 
 ---
 

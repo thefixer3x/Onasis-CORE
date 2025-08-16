@@ -335,10 +335,10 @@ curl -X POST https://api.vortexai.io/api/v1/chat/completions \
 
 ## Support
 
-- **Documentation**: https://docs.onasis.io
-- **Technical Support**: support@onasis.io
-- **Business Inquiries**: business@onasis.io
-- **Privacy Officer**: privacy@onasis.io
+- **Documentation**: https://docs.lanonasis.com
+- **Technical Support**: support@lanonasis.com
+- **Business Inquiries**: business@lanonasis.com
+- **Privacy Officer**: privacy@lanonasis.com
 
 ## Changelog
 

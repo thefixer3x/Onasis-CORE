@@ -66,10 +66,10 @@ const MONITORED_PLATFORMS = {
     color: '#7c3aed',
     priority: 'medium'
   },
-  'maas.onasis.io': {
+  'maas.lanonasis.com': {
     name: 'MaaS',
-    health_url: 'https://maas.onasis.io/health',
-    api_base: 'https://maas.onasis.io/api',
+    health_url: 'https://maas.lanonasis.com/health',
+    api_base: 'https://maas.lanonasis.com/api',
     color: '#ea580c',
     priority: 'critical'
   }
@@ -111,7 +111,7 @@ app.use(cors({
     'http://localhost:4000',
     'http://localhost:8080',
     'http://localhost:5173',
-    'https://control.onasis.io',
+    'https://control.lanonasis.com',
     'https://api.lanonasis.com',
     'https://dashboard.lanonasis.com'
   ],

@@ -75,7 +75,7 @@
 - `seftechub.com` - Developer Hub & Marketplace  
 - `vortexcore.app` - AI/ML Infrastructure Platform
 - `lanonasis.com` - Privacy-First Communication
-- `maas.onasis.io` - Models as a Service
+- `maas.lanonasis.com` - Models as a Service
 
 ### **SD-Ghost Protocol** (AI Service Layer):
 - Enhanced Memory Server (VPS: 168.231.74.29:3000)
