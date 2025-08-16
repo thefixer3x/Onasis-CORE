@@ -39,7 +39,7 @@ Onasis-CORE is your **enterprise-grade partnership orchestration platform** mana
 - **Purpose**: Routes vendor requests to SD-Ghost Protocol
 - **Integration Points**: 
   - VPS Enhanced Memory Server (`168.231.74.29:3000`)
-  - Supabase Edge Functions (`mxtsdgkwzjzlttpotole.supabase.co`)
+  - Supabase Edge Functions (`your-project.supabase.co`)
 
 #### **4. Control Room Dashboard** (`control-room/dashboard.js`)
 - **Purpose**: Real-time monitoring and analytics
@@ -63,10 +63,10 @@ ONASIS_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ONASIS_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
 
 # SD-Ghost Protocol Integration
-SD_GHOST_VPS_URL=http://168.231.74.29:3000
+SD_GHOST_VPS_URL=http://your-vps-ip:3000
 SD_GHOST_SUPABASE_URL=https://<project-ref>.supabase.co
 SD_GHOST_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-SD_GHOST_MEMORY_API_KEY=sk_test_ghost_memory_2024_secure_api_key_v1
+SD_GHOST_MEMORY_API_KEY=your_memory_api_key
 ```
 
 #### **Production Deployment**
@@ -252,7 +252,7 @@ const vpsHealth = {
 
 // Supabase Edge Functions
 const supabaseHealth = {
-  endpoint: 'https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1',
+  endpoint: 'https://your-project.supabase.co/functions/v1',
   status: 'healthy',
   response_time: 156,
   available_functions: ['ai-chat', 'elevenlabs-tts', 'generate-embedding'],
@@ -483,10 +483,10 @@ curl -H "Authorization: Bearer pk_live_VENDOR_CODE.sk_live_secret" \
 #### **3. AI Service Integration Issues**
 ```bash
 # Check SD-Ghost Protocol health
-curl http://168.231.74.29:3000/health
+curl http://your-vps-ip:3000/health
 
 # Check Supabase functions
-curl https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/ai-chat \
+curl https://your-project.supabase.co/functions/v1/ai-chat \
   -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
 ```
 

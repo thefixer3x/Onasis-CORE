@@ -256,8 +256,8 @@ eas whoami
 import Constants from 'expo-constants';
 
 const API_CONFIG = {
-  baseURL: 'https://mxtsdgkwzjzlttpotole.supabase.co',
-  memoryServerURL: 'http://168.231.74.29:3000',
+  baseURL: 'https://your-project.supabase.co',
+  memoryServerURL: 'http://your-vps-ip:3000',
   onasisURL: 'https://api.onasis.io',
   apiKey: Constants.expoConfig?.extra?.apiKey || 'your-api-key'
 };
