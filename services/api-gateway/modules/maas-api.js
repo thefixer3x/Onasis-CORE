@@ -152,7 +152,7 @@ router.use(auditLog);
 // Memory Management Endpoints
 
 // GET /api/v1/maas/memories - List memories with pagination
-router.get('/memories', async (req, res) => {
+router.get('/api/v1/memory', async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -221,7 +221,7 @@ router.get('/memories', async (req, res) => {
 });
 
 // POST /api/v1/maas/memories - Create new memory
-router.post('/memories', async (req, res) => {
+router.post('/api/v1/memory', async (req, res) => {
   try {
     const { title, content, type, tags, metadata } = req.body;
     
