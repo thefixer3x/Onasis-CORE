@@ -44,9 +44,9 @@ const verifyJwtToken = async (req, res, next) => {
 
     const token = authHeader.substring(7);
     
-    // Check if this is an API key format (starts with lmk_) or JWT token
-    if (token.startsWith('lmk_')) {
-      // API key validation
+    // Check if this is an API key format (starts with sk_) or JWT token
+    if (token.startsWith('sk_')) {
+      // API key validation using onasis-core validation function
       if (!supabase) {
         return res.status(503).json({ 
           error: 'Database service unavailable',
@@ -54,24 +54,36 @@ const verifyJwtToken = async (req, res, next) => {
         });
       }
 
-      const projectScope = process.env.VITE_PROJECT_SCOPE || req.headers['x-project-scope'] || 'lanonasis-maas';
-      
-      // Check if API key exists in vendor_api_keys table
-      const { data: keyData, error } = await supabase
-        .from('vendor_api_keys')
-        .select('*')
-        .eq('key_value', token)
-        .eq('is_active', true)
-        .single();
-
-      if (error || !keyData) {
+      // Extract key components: sk_[type]_[vendor]_[hash]
+      const keyParts = token.split('_');
+      if (keyParts.length < 4) {
         return res.status(401).json({ 
-          error: 'Invalid API key',
+          error: 'Invalid API key format',
           code: 'AUTH_INVALID'
         });
       }
+      
+      const keyId = keyParts.slice(0, -1).join('_'); // Everything except the last part (hash)
+      
+      // Use the validate_vendor_api_key function from onasis-core
+      const { data, error } = await supabase.rpc('validate_vendor_api_key', {
+        p_key_id: keyId,
+        p_key_secret: token
+      });
 
-      req.user = { id: keyData.user_id || 'api-user', project_scope: keyData.vendor_name };
+      if (error || !data || !data[0]?.is_valid) {
+        return res.status(401).json({ 
+          error: 'Invalid API key',
+          code: 'AUTH_INVALID',
+          debug: error?.message
+        });
+      }
+
+      req.user = { 
+        id: data[0].vendor_code || 'api-user', 
+        vendor_org_id: data[0].vendor_org_id,
+        project_scope: 'lanonasis-maas'
+      };
     } else {
       // JWT token validation
       try {
@@ -108,21 +120,44 @@ app.get('/memories', async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
-      .from('vendor_api_keys')
+    const { limit = 20, offset = 0, memory_type, tags } = req.query;
+
+    // Build query for memory entries
+    let query = supabase
+      .from('memory_entries')
       .select('*')
-      .limit(1);
+      .eq('vendor_org_id', req.user.vendor_org_id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    // Add filters if provided
+    if (memory_type) {
+      query = query.eq('memory_type', memory_type);
+    }
+
+    if (tags) {
+      const tagArray = Array.isArray(tags) ? tags : [tags];
+      query = query.contains('tags', tagArray);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       return res.status(500).json({ 
         error: 'Database error',
-        code: 'DB_ERROR'
+        code: 'DB_ERROR',
+        details: error.message
       });
     }
 
     res.json({
-      data: [],
-      message: 'Memory service is operational',
+      data: data || [],
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total: count
+      },
+      message: 'Memories retrieved successfully',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -136,17 +171,48 @@ app.get('/memories', async (req, res) => {
 
 app.post('/memories', async (req, res) => {
   try {
-    const { title, content, memory_type, tags } = req.body;
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
 
-    res.status(201).json({
-      data: {
-        id: 'mem-' + Date.now(),
+    const { title, content, memory_type = 'context', tags = [] } = req.body;
+
+    // Validate required fields
+    if (!title || !content) {
+      return res.status(400).json({
+        error: 'Title and content are required',
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Insert memory entry
+    const { data, error } = await supabase
+      .from('memory_entries')
+      .insert({
+        vendor_org_id: req.user.vendor_org_id,
         title,
         content,
-        type: memory_type || 'context',
+        memory_type,
         tags: tags || [],
-        created_at: new Date().toISOString()
-      },
+        created_by: req.user.id,
+        updated_by: req.user.id
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({
+        error: 'Failed to create memory',
+        code: 'DB_ERROR',
+        details: error.message
+      });
+    }
+
+    res.status(201).json({
+      data: data,
       message: 'Memory created successfully'
     });
   } catch (error) {
