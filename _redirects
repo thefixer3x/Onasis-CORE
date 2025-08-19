@@ -1,0 +1,30 @@
+# Memory service routing
+/api/v1/memory/*  /.netlify/functions/maas-api/memories/:splat  200
+/api/v1/memory    /.netlify/functions/maas-api/memories         200
+
+# MCP Authentication routes  
+/sse              /.netlify/functions/mcp-sse                   200
+/message          /.netlify/functions/mcp-message               200
+/oauth/authorize  /.netlify/functions/cli-auth                  200
+/api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
+/api/mcp          /.netlify/functions/mcp                       200
+
+# Core Gateway API routes
+/v1/auth/*        /.netlify/functions/auth-api/:splat           200
+/v1/keys/*        /.netlify/functions/key-manager/:splat        200
+/api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
+
+# Health check endpoints
+/health           /.netlify/functions/health                    200
+/info             /.netlify/functions/info                      200
+/migrate          /.netlify/functions/apply-migration           200
+/setup            /.netlify/functions/setup-defaults            200
+
+# Auth page
+/auth/login       /auth/login.html                              200
+
+# Root serves index.html
+/                 /index.html                                   200
+
+# Catch-all for API Gateway (excluding root)
+/*                /.netlify/functions/api-gateway               200
