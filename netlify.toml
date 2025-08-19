@@ -10,7 +10,7 @@
   # Build environment
   NODE_ENV = "production"
   # Skip secrets scanning for project scope identifiers and domains  
-  SECRETS_SCAN_OMIT_KEYS = "VITE_PROJECT_SCOPE,VITE_API_URL,VITE_DASHBOARD_URL,VITE_MCP_URL,default_jwt_secret,lanonasis-maas,api.lanonasis.com"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_PROJECT_SCOPE,VITE_API_URL,VITE_DASHBOARD_URL,VITE_MCP_URL,VITE_AUTH_GATEWAY_URL,VITE_DOCS_URL,VITE_SUPABASE_URL=https://<project-ref>.supabase.co
   # Skip secrets scanning for auth pages containing form fields
   SECRETS_SCAN_OMIT_PATHS = "auth/login.html"
 
@@ -23,6 +23,32 @@
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
     X-Powered-By = "Onasis-CORE"
+
+# MCP Authentication routes
+[[redirects]]
+  from = "/sse"
+  to = "/.netlify/functions/mcp-sse"
+  status = 200
+
+[[redirects]]
+  from = "/message"
+  to = "/.netlify/functions/mcp-message"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/authorize"
+  to = "/.netlify/functions/cli-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/cli-auth/*"
+  to = "/.netlify/functions/cli-auth/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/mcp"
+  to = "/.netlify/functions/mcp"
+  status = 200
 
 # Core Gateway API routes
 [[redirects]]
@@ -41,8 +67,13 @@
   status = 200
 
 [[redirects]]
-  from = "/api/v1/memory*"
-  to = "/.netlify/functions/maas-api/memories:splat"
+  from = "/api/v1/memory/*"
+  to = "/.netlify/functions/maas-api/memories/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/api/v1/memory"
+  to = "/.netlify/functions/maas-api/memories"
   status = 200
 
 [[redirects]]
