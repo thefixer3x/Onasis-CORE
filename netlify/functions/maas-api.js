@@ -108,10 +108,10 @@ const verifyJwtToken = async (req, res, next) => {
 };
 
 // Apply auth middleware to protected routes
-app.use('/memories*', verifyJwtToken);
+app.use('/api/v1/memory*', verifyJwtToken);
 
 // Memory endpoints
-app.get('/memories', async (req, res) => {
+app.get('/api/v1/memory', async (req, res) => {
   try {
     if (!supabase) {
       return res.status(503).json({ 
@@ -169,7 +169,7 @@ app.get('/memories', async (req, res) => {
   }
 });
 
-app.post('/memories', async (req, res) => {
+app.post('/api/v1/memory', async (req, res) => {
   try {
     if (!supabase) {
       return res.status(503).json({ 
@@ -224,7 +224,7 @@ app.post('/memories', async (req, res) => {
   }
 });
 
-app.post('/memories/search', async (req, res) => {
+app.post('/api/v1/memory/search', async (req, res) => {
   try {
     const { query, limit = 10 } = req.body;
 
@@ -277,8 +277,8 @@ app.use('*', (req, res) => {
     error: 'MaaS endpoint not found',
     code: 'MAAS_ENDPOINT_NOT_FOUND',
     available_endpoints: [
-      '/memories',
-      '/memories/search', 
+      '/api/v1/memory',
+      '/api/v1/memory/search', 
       '/organizations',
       '/api-keys',
       '/health'
