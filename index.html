@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Onasis-CORE API Gateway - Redirecting...</title>
+    <title>Onasis-CORE API Gateway - Dev Mode</title>
     <style>
         * {
             margin: 0;
@@ -145,12 +145,12 @@
         </div>
         
         <div class="terminal-content">
-            <div><span class="prompt">$</span> <span class="command">onasis-core redirect</span></div>
+            <div><span class="prompt">$</span> <span class="command">systemctl status onasis-core</span></div>
             
             <br>
             
             <div class="output success">✓ API Gateway Active</div>
-            <div class="output">Redirecting to Dashboard...</div>
+            <div class="output">Ready to serve API requests</div>
             
             <br>
             
@@ -166,12 +166,12 @@
             
             <br>
             
-            <div class="section-title">🔐 Redirecting to:</div>
+            <div class="section-title">🔗 Related Services:</div>
             <div class="output">→ <a href="https://dashboard.lanonasis.com">dashboard.lanonasis.com</a></div>
             
             <br>
             
-            <div class="info">If not redirected automatically, click the link above.</div>
+            <div class="info">Access dashboard and other services via the links below.</div>
             
             <br>
             
@@ -188,7 +188,7 @@
     <script>
         // Redirect after 3 seconds
         setTimeout(function() {
-            window.location.href = "https://dashboard.lanonasis.com";
+            // Auto-redirect removed - API Gateway serves its proper function
         }, 3000);
     </script>
 </body>
