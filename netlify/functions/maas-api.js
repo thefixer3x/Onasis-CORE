@@ -248,7 +248,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Onasis-CORE MaaS API',
-    version: '1.0.0',
+    version: '1.0.1',
     timestamp: new Date().toISOString(),
     project_scope: process.env.VITE_PROJECT_SCOPE || 'maas',
     capabilities: [
