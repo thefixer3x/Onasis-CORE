@@ -1,6 +1,7 @@
 {
   "name": "onasis-core",
   "version": "1.0.0",
+  "type": "module",
   "description": "Privacy-First Infrastructure Services Platform",
   "main": "index.js",
   "scripts": {
@@ -38,6 +39,7 @@
     "npm": ">=8.0.0"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.3",
     "@supabase/supabase-js": "^2.38.4",
     "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
