@@ -1,0 +1,33 @@
+{
+  "mcpServers": {
+    "onasis-core-memory": {
+      "command": "wscat",
+      "args": ["-c", "ws://localhost:9083/mcp"],
+      "description": "Onasis-CORE Memory as a Service - Complete 17-tool MCP server",
+      "capabilities": {
+        "memory": true,
+        "projects": true,
+        "organizations": true,
+        "apiKeys": true,
+        "configuration": true,
+        "health": true
+      },
+      "toolCategories": [
+        "Memory Management (6 tools): create, search, get, update, delete, list memories",
+        "API Key Management (4 tools): create, list, rotate, delete API keys",
+        "Project Management (2 tools): create, list projects",
+        "Organization Management (1 tool): get organization info",
+        "Authentication & Status (2 tools): auth status, health status",
+        "Configuration Management (2 tools): get/set configuration"
+      ],
+      "endpoints": {
+        "websocket": "ws://localhost:9083/mcp",
+        "http": "http://localhost:9082"
+      },
+      "authentication": {
+        "type": "test-mode",
+        "note": "Currently in test mode - no API key required"
+      }
+    }
+  }
+}
