@@ -44,9 +44,46 @@ const verifyJwtToken = async (req, res, next) => {
 
     const token = authHeader.substring(7);
     
-    // Check if this is an API key format (starts with sk_) or JWT token
-    if (token.startsWith('sk_')) {
-      // API key validation using onasis-core validation function
+    // Check if this is an API key format (pk_xxx.sk_xxx or sk_xxx) or JWT token
+    if (token.includes('.') && token.startsWith('pk_')) {
+      // New vendor key format: pk_live_vendor_id.sk_live_secret
+      const [keyId, keySecret] = token.split('.');
+      
+      if (!keyId || !keySecret || !keySecret.startsWith('sk_')) {
+        return res.status(401).json({ 
+          error: 'Invalid API key format',
+          code: 'AUTH_INVALID'
+        });
+      }
+
+      if (!supabase) {
+        return res.status(503).json({ 
+          error: 'Database service unavailable',
+          code: 'SERVICE_UNAVAILABLE'
+        });
+      }
+      
+      // Use the validate_vendor_api_key function from onasis-core
+      const { data, error } = await supabase.rpc('validate_vendor_api_key', {
+        p_key_id: keyId,
+        p_key_secret: keySecret
+      });
+
+      if (error || !data || !data[0]?.is_valid) {
+        return res.status(401).json({ 
+          error: 'Invalid API key',
+          code: 'AUTH_INVALID',
+          debug: error?.message
+        });
+      }
+
+      req.user = { 
+        id: data[0].vendor_code || 'api-user', 
+        vendor_org_id: data[0].vendor_org_id,
+        project_scope: 'lanonasis-maas'
+      };
+    } else if (token.startsWith('sk_')) {
+      // Legacy API key format: sk_[type]_[vendor]_[hash]
       if (!supabase) {
         return res.status(503).json({ 
           error: 'Database service unavailable',
