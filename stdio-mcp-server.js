@@ -23,7 +23,7 @@ process.env.DEBUG = '';
 
 class OnasisCoreStdioMCPServer {
   constructor() {
-    this.wsUrl = 'ws://localhost:9083/mcp';
+    this.wsUrl = process.env.MCP_WEBSOCKET_URL || 'wss://mcp.lanonasis.com/mcp';
     this.ws = null;
     this.connected = false;
     this.messageId = 1;
