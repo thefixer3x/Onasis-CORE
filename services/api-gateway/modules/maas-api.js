@@ -301,7 +301,8 @@ router.post('/api/v1/memory', async (req, res) => {
 });
 
 // GET /api/v1/maas/memories/:id - Get specific memory
-router.get('/memories/:id', async (req, res) => {
+// GET /api/v1/memory/:id - Get specific memory
+router.get('/api/v1/memory/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -353,7 +354,8 @@ router.get('/memories/:id', async (req, res) => {
 });
 
 // PUT /api/v1/maas/memories/:id - Update memory
-router.put('/memories/:id', async (req, res) => {
+// PUT /api/v1/memory/:id - Update memory
+router.put('/api/v1/memory/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { title, content, type, tags, metadata } = req.body;
@@ -452,7 +454,8 @@ router.put('/memories/:id', async (req, res) => {
 });
 
 // DELETE /api/v1/maas/memories/:id - Delete memory
-router.delete('/memories/:id', async (req, res) => {
+// DELETE /api/v1/memory/:id - Delete memory
+router.delete('/api/v1/memory/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -489,7 +492,8 @@ router.delete('/memories/:id', async (req, res) => {
 });
 
 // POST /api/v1/maas/memories/search - Semantic search
-router.post('/memories/search', async (req, res) => {
+// POST /api/v1/memory/search - Semantic search
+router.post('/api/v1/memory/search', async (req, res) => {
   try {
     const { query, limit = 10, similarity_threshold = 0.8 } = req.body;
     

@@ -31,6 +31,12 @@ app.use(require('cors')({
 
 app.use(express.json());
 
+// Middleware to ensure JSON responses
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
 // JWT token verification
 const verifyJwtToken = async (req, res, next) => {
   try {
@@ -261,6 +267,275 @@ app.post('/api/v1/memory', async (req, res) => {
   }
 });
 
+// GET /api/v1/memory/:id - Get specific memory
+app.get('/api/v1/memory/:id', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from('memory_entries')
+      .select('*')
+      .eq('id', id)
+      .eq('vendor_org_id', req.user.vendor_org_id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          error: 'Memory not found',
+          code: 'NOT_FOUND'
+        });
+      }
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message
+    });
+  }
+});
+
+// PUT /api/v1/memory/:id - Update memory
+app.put('/api/v1/memory/:id', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    const { id } = req.params;
+    const { title, content, memory_type, tags, metadata } = req.body;
+
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (title !== undefined) updateData.title = title;
+    if (content !== undefined) updateData.content = content;
+    if (memory_type !== undefined) updateData.memory_type = memory_type;
+    if (tags !== undefined) updateData.tags = tags;
+    if (metadata !== undefined) updateData.metadata = metadata;
+
+    const { data, error } = await supabase
+      .from('memory_entries')
+      .update(updateData)
+      .eq('id', id)
+      .eq('vendor_org_id', req.user.vendor_org_id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({
+          error: 'Memory not found',
+          code: 'NOT_FOUND'
+        });
+      }
+      throw error;
+    }
+
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message
+    });
+  }
+});
+
+// DELETE /api/v1/memory/:id - Delete memory
+app.delete('/api/v1/memory/:id', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('memory_entries')
+      .delete()
+      .eq('id', id)
+      .eq('vendor_org_id', req.user.vendor_org_id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/v1/memory/count - Get memory count
+app.get('/api/v1/memory/count', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    const { count, error } = await supabase
+      .from('memory_entries')
+      .select('*', { count: 'exact', head: true })
+      .eq('vendor_org_id', req.user.vendor_org_id);
+
+    if (error) throw error;
+
+    res.json({ count: count || 0 });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/v1/memory/stats - Get memory statistics
+app.get('/api/v1/memory/stats', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    // Get total count and breakdown by type
+    const { data: typeBreakdown, error: typeError } = await supabase
+      .from('memory_entries')
+      .select('memory_type')
+      .eq('vendor_org_id', req.user.vendor_org_id);
+
+    if (typeError) throw typeError;
+
+    const memoriesByType = {};
+    typeBreakdown?.forEach((item) => {
+      memoriesByType[item.memory_type] = (memoriesByType[item.memory_type] || 0) + 1;
+    });
+
+    // Get recent memories
+    const { data: recentMemories } = await supabase
+      .from('memory_entries')
+      .select('*')
+      .eq('vendor_org_id', req.user.vendor_org_id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    res.json({
+      total_memories: typeBreakdown?.length || 0,
+      memories_by_type: memoriesByType,
+      recent_memories: recentMemories || []
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/v1/memory/:id/access - Update access tracking
+app.post('/api/v1/memory/:id/access', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('memory_entries')
+      .update({ 
+        last_accessed: new Date().toISOString(),
+        access_count: supabase.raw('access_count + 1')
+      })
+      .eq('id', id)
+      .eq('vendor_org_id', req.user.vendor_org_id);
+
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/v1/memory/bulk/delete - Bulk delete memories
+app.post('/api/v1/memory/bulk/delete', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    const { memory_ids } = req.body;
+
+    if (!Array.isArray(memory_ids) || memory_ids.length === 0) {
+      return res.status(400).json({
+        error: 'memory_ids must be a non-empty array',
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    const { error } = await supabase
+      .from('memory_entries')
+      .delete()
+      .in('id', memory_ids)
+      .eq('vendor_org_id', req.user.vendor_org_id);
+
+    if (error) throw error;
+
+    res.json({
+      deleted_count: memory_ids.length,
+      failed_ids: []
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR',
+      details: error.message,
+      deleted_count: 0,
+      failed_ids: req.body.memory_ids || []
+    });
+  }
+});
+
 app.post('/api/v1/memory/search', async (req, res) => {
   try {
     const { query, limit = 10 } = req.body;
@@ -314,11 +589,20 @@ app.use('*', (req, res) => {
     error: 'MaaS endpoint not found',
     code: 'MAAS_ENDPOINT_NOT_FOUND',
     available_endpoints: [
-      '/api/v1/memory',
-      '/api/v1/memory/search', 
-      '/organizations',
-      '/api-keys',
-      '/health'
+      'GET /api/v1/memory',
+      'POST /api/v1/memory',
+      'GET /api/v1/memory/:id',
+      'PUT /api/v1/memory/:id',
+      'DELETE /api/v1/memory/:id',
+      'POST /api/v1/memory/search',
+      'GET /api/v1/memory/count',
+      'GET /api/v1/memory/stats',
+      'POST /api/v1/memory/:id/access',
+      'POST /api/v1/memory/bulk/delete',
+      'GET /organizations',
+      'POST /api-keys',
+      'GET /api-keys',
+      'GET /health'
     ]
   });
 });
