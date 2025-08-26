@@ -1,6 +1,6 @@
 # Memory service routing
-/api/v1/memory/*  /.netlify/functions/maas-api/:splat  200
-/api/v1/memory    /.netlify/functions/maas-api         200
+/api/v1/memory/*  /.netlify/functions/maas-api/memories/:splat  200
+/api/v1/memory    /.netlify/functions/maas-api/memories         200
 
 # MCP Authentication routes  
 /sse              /.netlify/functions/mcp-sse                   200
@@ -20,8 +20,9 @@
 /migrate          /.netlify/functions/apply-migration           200
 /setup            /.netlify/functions/setup-defaults            200
 
-# Auth page
-/auth/login       /auth/login.html                              200
+# Auth page routing
+/auth/login       /auth.html                                   200
+/auth             /auth.html                                   200
 
 # Root serves index.html
 /                 /index.html                                   200
