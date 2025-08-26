@@ -126,7 +126,7 @@ const ws = new WebSocket('ws://localhost:9083/mcp');
 ### Supabase Production Setup
 ```bash
 SUPABASE_URL=https://mxtsdgkwzjzlttpotole.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU
+SUPABASE_SERVICE_KEY=[your_service_key_here]
 ```
 
 ### Key Tables
