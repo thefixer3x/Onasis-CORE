@@ -126,7 +126,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Parse URL parameters
             const urlParams = new URLSearchParams(window.location.search);
-            redirectUrl = urlParams.get('redirect_url') || urlParams.get('return_to') || 'https://dashboard.lanonasis.com';
+            redirectUrl = urlParams.get('redirect_url') || urlParams.get('return_to') || window.location.origin;
             platform = urlParams.get('platform') || 'dashboard';
             
             // Update UI based on platform
