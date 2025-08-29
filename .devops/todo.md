@@ -81,3 +81,14 @@ API Gateway ──┬── User Management
 
 *Updated by: Claude Code Assistant*
 *Next Review: 2025-08-29*
+## [2025-08-29] Security Hardening – Key Management & Auth
+- [ ] Hotfix: stop returning `key_secret` in create/rotate API key tool responses
+- [ ] Hotfix: store only hash (Argon2id/BCrypt) for internal API keys; generate non-recoverable secrets
+- [ ] Fix vendor key encryption: switch to AES-256-GCM with createCipheriv, store iv+tag; migrate legacy rows
+- [ ] Remove decrypted vendor key readback; reference-only responses (kid/version/vendor)
+- [ ] Implement output redaction for secrets across WS/SSE logs
+- [ ] Introduce approvals default (`exec.plan` → `exec.confirm`) for secret-using/write ops
+- [ ] Add `@onasis/vault-broker` abstraction (GCP Secret Manager + KMS baseline)
+- [ ] JIT injection: resolve secret references server-side and inject transiently at execution
+- [ ] Add KEY_MANAGEMENT.md and SECURITY.md; align with Privacy/TOMs/DPA
+- [ ] Map adapters to OAuth/device-code flows; avoid raw key storage where possible
