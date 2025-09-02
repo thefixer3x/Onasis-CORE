@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onasis-CORE API Gateway - Dev Mode</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .terminal {
+            background: #1a1a1a;
+            border: 2px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 800px;
+            width: 90%;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+            position: relative;
+        }
+        
+        .terminal-header {
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: #888;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        .red { background: #ff5f56; }
+        .yellow { background: #ffbd2e; }
+        .green { background: #27c93f; }
+        
+        .title {
+            margin-left: auto;
+            font-size: 12px;
+        }
+        
+        .terminal-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .prompt {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        
+        .command {
+            color: #fff;
+        }
+        
+        .output {
+            color: #888;
+            margin-left: 20px;
+        }
+        
+        .success {
+            color: #00ff00;
+        }
+        
+        .info {
+            color: #00ffff;
+        }
+        
+        .active {
+            color: #00ff00;
+            font-weight: bold;
+        }
+        
+        .section-title {
+            color: #ffbd2e;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        a {
+            color: #00ffff;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        .blink {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        .loading-bar {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #00ffff);
+            animation: loading 3s linear forwards;
+        }
+        
+        @keyframes loading {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div class="terminal-header">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+            <span class="title">api.lanonasis.com</span>
+        </div>
+        
+        <div class="terminal-content">
+            <div><span class="prompt">$</span> <span class="command">systemctl status onasis-core</span></div>
+            
+            <br>
+            
+            <div class="output success">✓ API Gateway Active</div>
+            <div class="output">Ready to serve API requests</div>
+            
+            <br>
+            
+            <div class="loading-bar">
+                <div class="loading-progress"></div>
+            </div>
+            
+            <div class="section-title">📡 API Endpoints Available:</div>
+            <div class="output">• /health - Service health check</div>
+            <div class="output">• /api/v1/memory - Memory operations</div>
+            <div class="output">• /v1/auth - Authentication services</div>
+            <div class="output">• /v1/keys - API key management</div>
+            
+            <br>
+            
+            <div class="section-title">🔗 Related Services:</div>
+            <div class="output">→ <a href="https://dashboard.lanonasis.com">dashboard.lanonasis.com</a></div>
+            
+            <br>
+            
+            <div class="info">Access dashboard and other services via the links below.</div>
+            
+            <br>
+            
+            <div class="section-title">📚 Resources:</div>
+            <div class="output">• Documentation: <a href="https://docs.lanonasis.com">docs.lanonasis.com</a></div>
+            <div class="output">• Repository: <a href="https://github.com/lanonasis/lanonasis-maas">github.com/lanonasis/lanonasis-maas</a></div>
+            
+            <br>
+            
+            <div><span class="prompt">$</span> <span class="blink">_</span></div>
+        </div>
+    </div>
+    
+    <script>
+        // Redirect after 3 seconds
+        setTimeout(function() {
+            // Auto-redirect removed - API Gateway serves its proper function
+        }, 3000);
+    </script>
+</body>
+</html>

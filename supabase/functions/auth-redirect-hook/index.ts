@@ -31,8 +31,12 @@ serve(async (req) => {
         defaultRedirect = 'https://auth.vortexcore.app'
       } else if (email.includes('dev') || email.includes('developer')) {
         defaultRedirect = 'https://api.lanonasis.com/console'
-      } else if (email.includes('seyederick')) {
-        defaultRedirect = 'https://seyederick.com'
+      } else if (email.includes('connectionpoint')) {
+        defaultRedirect = 'https://connectionpoint.tech'
+      } else if (email.includes('grizzen')) {
+        defaultRedirect = 'https://grizzen.solutions'
+      } else if (email.includes('seftechub')) {
+        defaultRedirect = 'https://seftechub.com'
       } else if (email.includes('seftec')) {
         defaultRedirect = 'https://saas.seftec.tech'
       }
