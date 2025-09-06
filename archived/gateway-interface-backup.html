@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lanonasis API Gateway - Memory-as-a-Service Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            color: white;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .tagline {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+        }
+        
+        .services {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        
+        .service-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+        
+        .service-icon {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+        
+        .service-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+        
+        .service-desc {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        
+        .service-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+        
+        .service-link:hover {
+            opacity: 0.9;
+        }
+        
+        .api-info {
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            background: #27ae60;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        
+        .endpoints {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 30px 0;
+        }
+        
+        .endpoint {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Monaco', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .method {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            margin-right: 10px;
+        }
+        
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            margin-top: 60px;
+        }
+        
+        .footer a {
+            color: rgba(255,255,255,0.9);
+            text-decoration: none;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        @media (max-width: 768px) {
+            .services {
+                grid-template-columns: 1fr;
+            }
+            
+            .endpoints {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🧠 Lanonasis</div>
+            <div class="tagline">Memory-as-a-Service Platform</div>
+            <div class="subtitle">API Gateway for AI Developers</div>
+        </div>
+        
+        <div class="api-info">
+            <div class="status-badge">✓ API Gateway Active</div>
+            <h2 style="margin-bottom: 20px; color: #2c3e50;">Core API Endpoints</h2>
+            <div class="endpoints">
+                <div class="endpoint">
+                    <span class="method">GET</span>/health
+                </div>
+                <div class="endpoint">
+                    <span class="method">POST</span>/v1/auth/login
+                </div>
+                <div class="endpoint">
+                    <span class="method">GET</span>/api/v1/memory
+                </div>
+                <div class="endpoint">
+                    <span class="method">POST</span>/v1/keys/generate
+                </div>
+            </div>
+        </div>
+        
+        <div class="services">
+            <!-- Console Interface -->
+            <div class="service-card">
+                <div class="service-icon">🎛️</div>
+                <div class="service-title">Developer Console</div>
+                <div class="service-desc">
+                    Complete developer toolkit for managing API keys, monitoring usage, and accessing platform features.
+                </div>
+                <a href="/console" class="service-link">Access Console</a>
+            </div>
+            
+            <!-- Dashboard -->
+            <div class="service-card">
+                <div class="service-icon">📊</div>
+                <div class="service-title">Dashboard</div>
+                <div class="service-desc">
+                    Interactive dashboard for memory visualization, analytics, and comprehensive platform management.
+                </div>
+                <a href="https://dashboard.lanonasis.com" class="service-link">Open Dashboard</a>
+            </div>
+            
+            <!-- Documentation -->
+            <div class="service-card">
+                <div class="service-icon">📚</div>
+                <div class="service-title">API Documentation</div>
+                <div class="service-desc">
+                    Complete API reference, integration guides, and developer resources for building with Lanonasis.
+                </div>
+                <a href="https://docs.lanonasis.com" class="service-link">View Docs</a>
+            </div>
+            
+            <!-- MCP Integration -->
+            <div class="service-card">
+                <div class="service-icon">🔗</div>
+                <div class="service-title">MCP Server</div>
+                <div class="service-desc">
+                    Model Context Protocol integration for AI agents with secure memory and key management capabilities.
+                </div>
+                <a href="https://mcp.lanonasis.com" class="service-link">Connect MCP</a>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>
+                <a href="https://github.com/lanonasis/lanonasis-maas">GitHub Repository</a> • 
+                <a href="https://docs.lanonasis.com">Documentation</a> • 
+                <a href="https://dashboard.lanonasis.com/auth/register">Sign Up</a>
+            </p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">
+                Lanonasis Memory-as-a-Service Platform © 2024
+            </p>
+        </div>
+    </div>
+    
+    <script>
+        // Add OAuth callback handling
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const access_token = urlParams.get('access_token');
+        const error = urlParams.get('error');
+        const return_to = urlParams.get('return_to');
+        
+        if (code || access_token || error) {
+            // OAuth callback detected, redirect to appropriate service
+            console.log('OAuth callback detected on API gateway');
+            
+            if (return_to === 'dashboard') {
+                window.location.href = `https://dashboard.lanonasis.com/auth/callback${window.location.search}`;
+            } else if (return_to === 'console') {
+                window.location.href = `/console/auth/callback${window.location.search}`;
+            } else if (return_to === 'vortexcore') {
+                window.location.href = `https://auth.vortexcore.app/auth/callback${window.location.search}`;
+            } else {
+                // Default to dashboard for now
+                window.location.href = `https://dashboard.lanonasis.com/auth/callback${window.location.search}`;
+            }
+        }
+    </script>
+</body>
+</html>
