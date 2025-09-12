@@ -1,6 +1,8 @@
-# Memory service routing
-/api/v1/memory/*  /.netlify/functions/maas-api/memories/:splat  200
-/api/v1/memory    /.netlify/functions/maas-api/memories         200
+# Memory service routing - support both singular and plural
+/api/v1/memories/*  /.netlify/functions/maas-api/:splat  200
+/api/v1/memories    /.netlify/functions/maas-api         200
+/api/v1/memory/*    /.netlify/functions/maas-api/:splat  200
+/api/v1/memory      /.netlify/functions/maas-api         200
 
 # MCP Authentication routes  
 /sse              /.netlify/functions/mcp-sse                   200

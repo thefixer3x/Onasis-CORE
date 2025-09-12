@@ -169,6 +169,21 @@ async function routeRequest(path, method, headers, body, query) {
     };
   }
 
+  // Authentication endpoints
+  if (path.startsWith('/v1/auth') || path.startsWith('/api/v1/auth')) {
+    return {
+      statusCode: 501,
+      body: {
+        error: {
+          message: 'Authentication endpoint not implemented in gateway mode',
+          type: 'not_implemented',
+          code: 'AUTH_NOT_IMPLEMENTED'
+        },
+        request_id: requestId
+      }
+    };
+  }
+
   // Default 404 response
   return {
     statusCode: 404,
@@ -182,9 +197,13 @@ async function routeRequest(path, method, headers, body, query) {
         '/health',
         '/info',
         '/api/v1/models',
+        '/api/v1/memory',
+        '/api/v1/memory/:id',
+        '/api/v1/memory/search',
+        '/api/v1/memory/stats',
         '/v1/auth'
       ],
-      documentation: 'https://docs.onasis.io',
+      documentation: 'https://docs.lanonasis.com/cli',
       request_id: requestId
     }
   };
