@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
 // Initialize Supabase client
-const supabaseUrl = process.env.SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+// Use the Supabase project URL, not the direct database URL
+const supabaseUrl = process.env.VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 const jwtSecret = process.env.SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
 
@@ -137,6 +138,8 @@ async function handleSignup(body, headers) {
     const { email, password, name } = body;
     const projectScope = headers['x-project-scope'] || 'lanonasis-maas';
 
+    console.log('Signup attempt:', { email, hasPassword: !!password, name, projectScope });
+
     if (!email || !password || !name) {
       return {
         statusCode: 400,
@@ -145,18 +148,20 @@ async function handleSignup(body, headers) {
     }
 
     if (!supabase) {
+      console.error('Supabase client not initialized');
       return {
         statusCode: 503,
         body: { error: 'Database service unavailable', code: 'SERVICE_UNAVAILABLE' }
       };
     }
 
-    // Check if user already exists
+    console.log('Supabase client initialized, checking for existing user...');
+
+    // Check if user already exists in MaaS schema
     const { data: existingUser } = await supabase
-      .from('users')
+      .from('maas.users')
       .select('id')
       .eq('email', email)
-      .eq('project_scope', projectScope)
       .single();
 
     if (existingUser) {
@@ -166,47 +171,104 @@ async function handleSignup(body, headers) {
       };
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Get or create default organization for individual users
+    let orgId;
+    const { data: defaultOrg } = await supabase
+      .from('maas.organizations')
+      .select('id')
+      .eq('slug', 'individual-users')
+      .single();
+      
+    if (defaultOrg) {
+      orgId = defaultOrg.id;
+    } else {
+      // Create default organization for individual signups
+      const { data: newOrg, error: orgError } = await supabase
+        .from('maas.organizations')
+        .insert({
+          name: 'Individual Users',
+          slug: 'individual-users',
+          description: 'Default organization for individual user signups',
+          plan: 'free'
+        })
+        .select()
+        .single();
+        
+      if (orgError) {
+        console.error('Error creating default organization:', orgError);
+        return {
+          statusCode: 500,
+          body: { error: 'Failed to set up user organization', code: 'ORG_ERROR' }
+        };
+      }
+      orgId = newOrg.id;
+    }
 
-    // Create user
-    const { data: newUser, error } = await supabase
-      .from('users')
-      .insert({
-        email,
-        password_hash: hashedPassword,
+    console.log('Using organization ID:', orgId);
+
+    // Create user in Core auth (using Supabase Auth)
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      user_metadata: {
         full_name: name,
-        project_scope: projectScope,
-        role: 'user',
-        is_active: true,
-        created_at: new Date().toISOString()
+        project_scope: projectScope
+      },
+      email_confirm: true
+    });
+
+    if (authError) {
+      console.error('Core auth user creation failed:', authError);
+      return {
+        statusCode: 500,
+        body: { 
+          error: 'Failed to create authentication', 
+          code: 'AUTH_ERROR',
+          details: authError.message
+        }
+      };
+    }
+
+    console.log('Core auth user created:', authUser.user.id);
+
+    // Create MaaS user record
+    const { data: newUser, error } = await supabase
+      .from('maas.users')
+      .insert({
+        user_id: authUser.user.id,
+        organization_id: orgId,
+        email,
+        role: 'admin' // First user in org becomes admin
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Database error:', error);
+      console.error('Database error creating user:', error);
       return {
         statusCode: 500,
-        body: { error: 'Failed to create user', code: 'DB_ERROR' }
+        body: { 
+          error: 'Failed to create user', 
+          code: 'DB_ERROR',
+          details: error.message || 'Unknown database error',
+          hint: error.hint || null
+        }
       };
     }
 
-    // Generate default API key for the user
-    const apiKeyValue = `lmk_${crypto.randomBytes(16).toString('hex')}`;
-    
-    await supabase
-      .from('vendor_api_keys')
-      .insert({
-        vendor_name: projectScope,
-        key_value: apiKeyValue,
-        is_active: true,
-        user_id: newUser.id,
-        created_at: new Date().toISOString()
-      });
+    console.log('MaaS user created successfully:', newUser.id);
 
-    // Generate JWT tokens
-    const tokens = generateTokens(newUser);
+    // Create JWT tokens using the Core auth user data
+    const userForToken = {
+      id: authUser.user.id,
+      email: email,
+      full_name: name,
+      role: 'user',
+      maas_user_id: newUser.id,
+      organization_id: orgId
+    };
+    
+    const tokens = generateTokens(userForToken);
 
     return {
       statusCode: 201,
@@ -227,6 +289,8 @@ async function handleLogin(body, headers) {
     const { email, password } = body;
     const projectScope = headers['x-project-scope'] || 'lanonasis-maas';
 
+    console.log('Login attempt for:', email);
+
     if (!email || !password) {
       return {
         statusCode: 400,
@@ -241,39 +305,59 @@ async function handleLogin(body, headers) {
       };
     }
 
-    // Find user
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .eq('project_scope', projectScope)
-      .eq('is_active', true)
+    // Authenticate with Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (authError || !authData.user) {
+      console.log('Auth failed:', authError?.message);
+      return {
+        statusCode: 401,
+        body: { error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }
+      };
+    }
+
+    console.log('Core auth successful, finding MaaS user...');
+
+    // Find MaaS user record
+    const { data: maasUser, error: maasError } = await supabase
+      .from('maas.users')
+      .select('*, organization:maas.organizations(id, name, plan)')
+      .eq('user_id', authData.user.id)
+      .eq('status', 'active')
       .single();
 
-    if (error || !user) {
+    if (maasError || !maasUser) {
+      console.log('MaaS user not found:', maasError?.message);
       return {
         statusCode: 401,
-        body: { error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }
+        body: { error: 'User account not found or inactive', code: 'USER_NOT_FOUND' }
       };
     }
 
-    // Verify password
-    const passwordValid = await bcrypt.compare(password, user.password_hash);
-    if (!passwordValid) {
-      return {
-        statusCode: 401,
-        body: { error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }
-      };
-    }
+    console.log('MaaS user found:', maasUser.id);
 
     // Update last login
     await supabase
-      .from('users')
+      .from('maas.users')
       .update({ last_login_at: new Date().toISOString() })
-      .eq('id', user.id);
+      .eq('id', maasUser.id);
+
+    // Prepare user data for token
+    const userForToken = {
+      id: authData.user.id,
+      email: authData.user.email,
+      full_name: authData.user.user_metadata?.full_name || maasUser.email,
+      role: maasUser.role || 'user',
+      maas_user_id: maasUser.id,
+      organization_id: maasUser.organization_id,
+      organization: maasUser.organization
+    };
 
     // Generate JWT tokens
-    const tokens = generateTokens(user);
+    const tokens = generateTokens(userForToken);
 
     return {
       statusCode: 200,
@@ -284,7 +368,7 @@ async function handleLogin(body, headers) {
     console.error('Login error:', error);
     return {
       statusCode: 500,
-      body: { error: 'Internal server error', code: 'SERVER_ERROR' }
+      body: { error: 'Internal server error', code: 'SERVER_ERROR', details: error.message }
     };
   }
 }
