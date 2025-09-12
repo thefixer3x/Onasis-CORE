@@ -11,10 +11,11 @@
 /api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
 /api/mcp          /.netlify/functions/mcp                       200
 
-# Core Gateway API routes
+# Core Gateway API routes (Higher Priority - specific routes first)
 /v1/auth/*        /.netlify/functions/auth-api/:splat           200
 /v1/keys/*        /.netlify/functions/key-manager/:splat        200
 /api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
+/api/v1/auth/*    /.netlify/functions/auth-api/:splat           200
 
 # Health check endpoints
 /health           /.netlify/functions/health                    200
@@ -29,5 +30,5 @@
 # Root serves index.html
 /                 /index.html                                   200
 
-# Catch-all for API Gateway (excluding root)
-/*                /.netlify/functions/api-gateway               200
+# Catch-all for API Gateway (LOWEST PRIORITY - catch remaining routes)
+/api/*            /.netlify/functions/api-gateway/:splat        200

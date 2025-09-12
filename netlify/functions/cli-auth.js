@@ -5,9 +5,9 @@
  * Provides dashboard access token for authenticated CLI users
  */
 
-import { createClient } from '@supabase/supabase-js';
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -21,7 +21,7 @@ const authSessions = new Map();
 /**
  * Generate authentication URL for CLI
  */
-export async function generateAuthUrl(event) {
+async function generateAuthUrl(event) {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -81,7 +81,7 @@ export async function generateAuthUrl(event) {
  * OAuth authorization endpoint
  * Shows login page for CLI authentication
  */
-export async function authorize(event) {
+async function authorize(event) {
   if (event.httpMethod !== 'GET') {
     return {
       statusCode: 405,
@@ -373,7 +373,7 @@ export async function authorize(event) {
  * Handle authentication callback
  * Validates credentials and returns authorization code
  */
-export async function callback(event) {
+async function callback(event) {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -469,7 +469,7 @@ export async function callback(event) {
  * Exchange authorization code for access token
  * Provides dashboard access token for CLI
  */
-export async function token(event) {
+async function token(event) {
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -573,7 +573,7 @@ async function validateApiKey(apiKey) {
 /**
  * Main handler - Route to appropriate function
  */
-export default async function handler(event, context) {
+exports.handler = async function(event, context) {
   const path = event.path.replace('/api/cli-auth', '');
   
   switch (path) {
