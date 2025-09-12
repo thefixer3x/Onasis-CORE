@@ -152,6 +152,7 @@ const verifyJwtToken = async (req, res, next) => {
 
 // Apply auth middleware to protected routes
 app.use('/api/v1/memory*', verifyJwtToken);
+app.use('/api/v1/memories*', verifyJwtToken);
 
 // Memory endpoints
 app.get('/api/v1/memory', async (req, res) => {
