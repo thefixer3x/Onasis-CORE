@@ -17,6 +17,19 @@
 </head>
 <body class="gradient-bg min-h-screen flex items-center justify-center p-4">
     
+    <!-- Cookie Consent Banner -->
+    <div id="cookie-banner" class="hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm text-white p-4 z-50">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="text-sm">
+                <p>We use cookies to enhance your experience and analyze platform usage. <a href="https://docs.lanonasis.com/privacy" target="_blank" class="underline hover:text-gray-300">Learn more</a></p>
+            </div>
+            <div class="flex gap-3">
+                <button id="accept-necessary" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-sm transition-colors">Necessary Only</button>
+                <button id="accept-all" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-md text-sm transition-colors">Accept All</button>
+            </div>
+        </div>
+    </div>
+    
     <div class="w-full max-w-md fade-in">
         <!-- Main Auth Card -->
         <div class="glass-effect rounded-2xl border border-white/20 p-8 shadow-2xl backdrop-blur-md">
@@ -77,6 +90,29 @@
                     </div>
                 </div>
 
+                <!-- Age Verification (Sign Up Only) -->
+                <div id="age-field" class="hidden">
+                    <label class="flex items-center space-x-3">
+                        <input type="checkbox" id="age-confirm" name="age_confirm" 
+                               class="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500 focus:ring-2">
+                        <span class="text-sm text-white/90">I confirm I am 13 years or older</span>
+                    </label>
+                </div>
+
+                <!-- Terms and Privacy Consent (Sign Up Only) -->
+                <div id="consent-field" class="hidden">
+                    <label class="flex items-start space-x-3">
+                        <input type="checkbox" id="consent" name="consent" required
+                               class="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500 focus:ring-2 mt-0.5">
+                        <span class="text-sm text-white/90 leading-relaxed">
+                            I agree to the 
+                            <a href="https://docs.lanonasis.com/terms" target="_blank" class="text-white underline hover:text-white/80">Terms of Service</a> 
+                            and 
+                            <a href="https://docs.lanonasis.com/privacy" target="_blank" class="text-white underline hover:text-white/80">Privacy Policy</a>
+                        </span>
+                    </label>
+                </div>
+
                 <!-- Submit Button -->
                 <button type="submit" id="submit-btn"
                         class="w-full bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg hover:bg-white/90 transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -114,6 +150,8 @@
         const loginTab = document.getElementById('login-tab');
         const signupTab = document.getElementById('signup-tab');
         const nameField = document.getElementById('name-field');
+        const ageField = document.getElementById('age-field');
+        const consentField = document.getElementById('consent-field');
         const submitBtn = document.getElementById('submit-btn');
         const submitText = document.getElementById('submit-text');
         const loadingSpinner = document.getElementById('loading-spinner');
@@ -131,6 +169,9 @@
             
             // Update UI based on platform
             updatePlatformInfo();
+            
+            // Initialize cookie consent
+            initializeCookieConsent();
             
             // Set up event listeners
             loginTab.addEventListener('click', () => setMode(false));
@@ -159,11 +200,15 @@
                 loginTab.className = 'flex-1 py-2 px-4 rounded-md text-sm font-medium text-white/70 transition-all duration-200 hover:text-white';
                 signupTab.className = 'flex-1 py-2 px-4 rounded-md text-sm font-medium text-white transition-all duration-200 bg-white/20';
                 nameField.classList.remove('hidden');
+                ageField.classList.remove('hidden');
+                consentField.classList.remove('hidden');
                 submitText.textContent = 'Create Account';
             } else {
-                loginTab.className = 'flex-1 py-2 px-4 rounded-md text-sm font-medium text-white transition-all duration-200 bg-white/20';
-                signupTab.className = 'flex-1 py-2 px-4 rounded-md text-sm font-medium text-white/70 transition-all duration-200 hover:text-white';
+                loginTab.className = 'flex-1 py-2 px-4 rounded-md text-sm font-medium text-white/70 transition-all duration-200 hover:text-white';
+                signupTab.className = 'flex-1 py-2 px-4 rounded-md text-sm font-medium text-white transition-all duration-200 bg-white/20';
                 nameField.classList.add('hidden');
+                ageField.classList.add('hidden');
+                consentField.classList.add('hidden');
                 submitText.textContent = 'Sign In';
             }
         }
@@ -197,6 +242,23 @@
         async function handleSubmit(e) {
             e.preventDefault();
             hideError();
+            
+            // Validate compliance fields for signup
+            if (isSignUpMode) {
+                const ageConfirm = document.getElementById('age-confirm').checked;
+                const consent = document.getElementById('consent').checked;
+                
+                if (!ageConfirm) {
+                    showError('You must confirm you are 13 years or older to create an account.');
+                    return;
+                }
+                
+                if (!consent) {
+                    showError('You must agree to the Terms of Service and Privacy Policy to create an account.');
+                    return;
+                }
+            }
+            
             setLoading(true);
 
             const formData = new FormData(authForm);
@@ -254,6 +316,29 @@
             errorMessage.className = 'bg-green-500/20 border border-green-500/30 text-green-200 px-4 py-3 rounded-lg text-sm';
             errorMessage.textContent = message;
             errorMessage.classList.remove('hidden');
+        }
+        
+        // Cookie consent management
+        function initializeCookieConsent() {
+            const cookieBanner = document.getElementById('cookie-banner');
+            const acceptNecessary = document.getElementById('accept-necessary');
+            const acceptAll = document.getElementById('accept-all');
+            
+            // Check if user has already made a choice
+            const cookieConsent = localStorage.getItem('cookie_consent');
+            if (!cookieConsent) {
+                cookieBanner.classList.remove('hidden');
+            }
+            
+            acceptNecessary.addEventListener('click', () => {
+                localStorage.setItem('cookie_consent', 'necessary');
+                cookieBanner.classList.add('hidden');
+            });
+            
+            acceptAll.addEventListener('click', () => {
+                localStorage.setItem('cookie_consent', 'all');
+                cookieBanner.classList.add('hidden');
+            });
         }
     </script>
 </body>
