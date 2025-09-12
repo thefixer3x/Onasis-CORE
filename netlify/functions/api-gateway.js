@@ -169,20 +169,8 @@ async function routeRequest(path, method, headers, body, query) {
     };
   }
 
-  // Authentication endpoints
-  if (path.startsWith('/v1/auth') || path.startsWith('/api/v1/auth')) {
-    return {
-      statusCode: 501,
-      body: {
-        error: {
-          message: 'Authentication endpoint not implemented in gateway mode',
-          type: 'not_implemented',
-          code: 'AUTH_NOT_IMPLEMENTED'
-        },
-        request_id: requestId
-      }
-    };
-  }
+  // Authentication endpoints are handled by dedicated auth-api function
+  // This catch-all should not interfere with /v1/auth/* routes
 
   // Default 404 response
   return {
