@@ -59,7 +59,9 @@
     "SUPABASE_URL=https://<project-ref>.supabase.co
     "SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
     "OPENAI_API_KEY": "@openai-api-key",
-    "MCP_ENDPOINT": "https://mcp.lanonasis.com"
+    "MCP_ENDPOINT": "https://mcp.lanonasis.com",
+    "DASHBOARD_REDIRECT_URL": "https://dashboard.lanonasis.com/auth/callback",
+    "API_REDIRECT_URL": "https://api.lanonasis.com/auth/callback"
   },
   "regions": ["iad1"],
   "functions": {
