@@ -155,7 +155,10 @@ async function handleSignup(body, headers) {
       };
     }
 
-    console.log('Supabase client initialized, checking for existing user...');
+    console.log('Using simple auth system for basic PostgreSQL database...');
+    
+    // Try simple approach first - create a basic users table if needed
+    return await handleSimpleSignup(email, password, name, projectScope);
 
     // Check if user already exists in MaaS schema
     const { data: existingUser } = await supabase
@@ -370,6 +373,92 @@ async function handleLogin(body, headers) {
       statusCode: 500,
       body: { error: 'Internal server error', code: 'SERVER_ERROR', details: error.message }
     };
+  }
+}
+
+// Simple signup for basic PostgreSQL database
+async function handleSimpleSignup(email, password, name, projectScope) {
+  try {
+    // First, ensure we have a basic users table
+    await ensureUsersTable();
+    
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('simple_users')
+      .select('id')
+      .eq('email', email)
+      .single();
+      
+    if (existingUser) {
+      return {
+        statusCode: 409,
+        body: { error: 'User already exists', code: 'USER_EXISTS' }
+      };
+    }
+    
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+    
+    // Create user
+    const { data: newUser, error } = await supabase
+      .from('simple_users')
+      .insert({
+        email,
+        password_hash: hashedPassword,
+        full_name: name,
+        project_scope: projectScope,
+        role: 'user',
+        is_active: true,
+        created_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Error creating user:', error);
+      return {
+        statusCode: 500,
+        body: { error: 'Failed to create user', code: 'DB_ERROR', details: error.message }
+      };
+    }
+    
+    console.log('User created successfully:', newUser.id);
+    
+    // Generate tokens
+    const tokens = generateTokens(newUser);
+    
+    return {
+      statusCode: 201,
+      body: tokens
+    };
+    
+  } catch (error) {
+    console.error('Simple signup error:', error);
+    return {
+      statusCode: 500,
+      body: { error: 'Signup failed', code: 'SIGNUP_ERROR', details: error.message }
+    };
+  }
+}
+
+// Ensure basic users table exists
+async function ensureUsersTable() {
+  try {
+    // Try to select from the table to see if it exists
+    const { error } = await supabase
+      .from('simple_users')
+      .select('count')
+      .limit(1);
+      
+    if (error && error.code === 'PGRST116') {
+      console.log('simple_users table does not exist, but cannot create it via Supabase client');
+      throw new Error('Database schema not set up. Please run migrations manually.');
+    }
+    
+    console.log('simple_users table verified');
+  } catch (error) {
+    console.error('Error checking users table:', error);
+    throw error;
   }
 }
 
