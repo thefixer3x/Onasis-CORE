@@ -307,6 +307,9 @@ async function handleLogin(body, headers) {
         body: { error: 'Database service unavailable', code: 'SERVICE_UNAVAILABLE' }
       };
     }
+    
+    console.log('Using simple auth system for login...');
+    return await handleSimpleLogin(email, password, projectScope);
 
     // Authenticate with Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -437,6 +440,66 @@ async function handleSimpleSignup(email, password, name, projectScope) {
     return {
       statusCode: 500,
       body: { error: 'Signup failed', code: 'SIGNUP_ERROR', details: error.message }
+    };
+  }
+}
+
+// Simple login for basic PostgreSQL database
+async function handleSimpleLogin(email, password, projectScope) {
+  try {
+    console.log('Attempting simple login for:', email);
+    
+    // Find user
+    const { data: user, error } = await supabase
+      .from('simple_users')
+      .select('*')
+      .eq('email', email)
+      .eq('is_active', true)
+      .single();
+      
+    if (error || !user) {
+      console.log('User not found or error:', error?.message);
+      return {
+        statusCode: 401,
+        body: { error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }
+      };
+    }
+    
+    console.log('User found, verifying password...');
+    
+    // Verify password
+    const passwordValid = await bcrypt.compare(password, user.password_hash);
+    if (!passwordValid) {
+      console.log('Invalid password');
+      return {
+        statusCode: 401,
+        body: { error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' }
+      };
+    }
+    
+    console.log('Password valid, updating last login...');
+    
+    // Update last login
+    await supabase
+      .from('simple_users')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('id', user.id);
+      
+    // Generate tokens
+    const tokens = generateTokens(user);
+    
+    console.log('Login successful for user:', user.id);
+    
+    return {
+      statusCode: 200,
+      body: tokens
+    };
+    
+  } catch (error) {
+    console.error('Simple login error:', error);
+    return {
+      statusCode: 500,
+      body: { error: 'Login failed', code: 'LOGIN_ERROR', details: error.message }
     };
   }
 }
