@@ -1,14 +1,34 @@
 {
-  "name": "onasis-mcp",
-  "alias": ["mcp.lanonasis.com"],
+  "name": "onasis-api-gateway",
+  "alias": ["api.lanonasis.com"],
   "version": 2,
   "builds": [
+    {
+      "src": "auth.html",
+      "use": "@vercel/static"
+    },
     {
       "src": "src/mcp/index.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
+    {
+      "src": "/auth/login",
+      "dest": "/auth.html",
+      "headers": {
+        "Content-Type": "text/html",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "/auth.html",
+      "headers": {
+        "Content-Type": "text/html",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
     {
       "src": "/mcp/sse",
       "dest": "/src/mcp/index.ts",
