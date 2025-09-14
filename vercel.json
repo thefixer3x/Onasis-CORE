@@ -1,37 +1,59 @@
 {
-  "name": "onasis-api-gateway",
-  "alias": ["api.lanonasis.com"],
+  "name": "onasis-mcp-server",
+  "alias": ["mcp.lanonasis.com"],
   "version": 2,
   "builds": [
     {
-      "src": "auth.html",
-      "use": "@vercel/static"
+      "src": "netlify/functions/cli-auth.js",
+      "use": "@vercel/node"
     },
     {
-      "src": "src/mcp/index.ts",
+      "src": "netlify/functions/mcp.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "netlify/functions/mcp-sse.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "netlify/functions/mcp-message.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "netlify/functions/auth-api.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/auth/login",
-      "dest": "/auth.html",
+      "src": "/auth/cli-login",
+      "dest": "/netlify/functions/cli-auth.js",
       "headers": {
-        "Content-Type": "text/html",
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+      }
+    },
+    {
+      "src": "/oauth/authorize",
+      "dest": "/netlify/functions/cli-auth.js",
+      "headers": {
+        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*"
       }
     },
     {
-      "src": "/auth/(.*)",
-      "dest": "/auth.html",
+      "src": "/oauth/token",
+      "dest": "/netlify/functions/cli-auth.js",
       "headers": {
-        "Content-Type": "text/html",
+        "Content-Type": "application/json",
         "Access-Control-Allow-Origin": "*"
       }
     },
     {
-      "src": "/mcp/sse",
-      "dest": "/src/mcp/index.ts",
+      "src": "/sse",
+      "dest": "/netlify/functions/mcp-sse.js",
       "headers": {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -42,8 +64,8 @@
       }
     },
     {
-      "src": "/mcp/(.*)",
-      "dest": "/src/mcp/index.ts",
+      "src": "/message",
+      "dest": "/netlify/functions/mcp-message.js",
       "headers": {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type, X-API-Key, X-Client-Id, X-MCP-Capabilities",
@@ -51,21 +73,43 @@
       }
     },
     {
+      "src": "/api/auth/(.*)",
+      "dest": "/netlify/functions/auth-api.js",
+      "headers": {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
       "src": "/(.*)",
-      "dest": "/src/mcp/index.ts"
+      "dest": "/netlify/functions/mcp.js"
     }
   ],
   "env": {
     "SUPABASE_URL": "@supabase-url",
     "SUPABASE_SERVICE_KEY": "@supabase-service-key",
     "OPENAI_API_KEY": "@openai-api-key",
-    "MCP_ENDPOINT": "https://mcp.lanonasis.com",
-    "DASHBOARD_REDIRECT_URL": "https://dashboard.lanonasis.com/auth/callback",
-    "API_REDIRECT_URL": "https://api.lanonasis.com/auth/callback"
+    "MCP_ENDPOINT": "https://mcp.lanonasis.com"
   },
   "regions": ["iad1"],
   "functions": {
-    "src/mcp/index.ts": {
+    "netlify/functions/cli-auth.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "netlify/functions/mcp.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "netlify/functions/mcp-sse.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "netlify/functions/mcp-message.js": {
+      "maxDuration": 300,
+      "memory": 1024
+    },
+    "netlify/functions/auth-api.js": {
       "maxDuration": 300,
       "memory": 1024
     }
