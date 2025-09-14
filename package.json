@@ -1,7 +1,6 @@
 {
   "name": "onasis-core",
   "version": "1.0.0",
-  "type": "module",
   "description": "Privacy-First Infrastructure Services Platform",
   "main": "index.js",
   "scripts": {
