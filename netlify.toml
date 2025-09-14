@@ -8,6 +8,43 @@
   NODE_ENV = "production"
   SECRETS_SCAN_ENABLED = "false"
 
+# Redirects for CLI auth endpoints
+[[redirects]]
+  from = "/auth/cli-login"
+  to = "/.netlify/functions/cli-auth"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/authorize"
+  to = "/.netlify/functions/cli-auth"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/token"
+  to = "/.netlify/functions/cli-auth"
+  status = 200
+
+[[redirects]]
+  from = "/sse"
+  to = "/.netlify/functions/mcp-sse"
+  status = 200
+
+[[redirects]]
+  from = "/message"
+  to = "/.netlify/functions/mcp-message"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/*"
+  to = "/.netlify/functions/auth-api"
+  status = 200
+
+# Catch-all redirect to main MCP function
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/mcp"
+  status = 200
+
 # Headers for security
 [[headers]]
   for = "/*"
