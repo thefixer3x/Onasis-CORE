@@ -574,11 +574,19 @@ async function validateApiKey(apiKey) {
  * Main handler - Route to appropriate function
  */
 exports.handler = async function(event, context) {
-  const path = event.path.replace('/api/cli-auth', '');
-  
+  // Handle both direct function calls and redirected paths
+  let path = event.path;
+  if (path.includes('/api/cli-auth')) {
+    path = path.replace('/api/cli-auth', '');
+  }
+
+  // Clean up path - remove leading slashes and handle empty paths
+  path = path.replace(/^\/+/, '/').replace(/\/+$/, '') || '/';
+
   switch (path) {
     case '/auth-url':
       return generateAuthUrl(event);
+    case '/auth/cli-login':
     case '/authorize':
     case '/oauth/authorize':
       return authorize(event);
@@ -590,7 +598,11 @@ exports.handler = async function(event, context) {
     default:
       return {
         statusCode: 404,
-        body: JSON.stringify({ error: 'Not found' })
+        body: JSON.stringify({
+          error: 'Not found',
+          path: path,
+          originalPath: event.path
+        })
       };
   }
 }
