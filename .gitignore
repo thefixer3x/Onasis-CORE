@@ -147,3 +147,9 @@ screenshots/
 test-output/
 # Local Netlify folder
 .netlify
+
+# Turbo cache
+.turbo
+
+# GitGuardian cache
+.cache_ggshield
