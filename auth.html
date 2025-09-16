@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LanOnasis Platform Authentication</title>
+    <title>Lanonasis Platform Authentication</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -21,7 +21,7 @@
     <div id="cookie-banner" class="hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm text-white p-4 z-50">
         <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="text-sm">
-                <p>We use cookies to enhance your experience and analyze platform usage. <a href="https://docs.LanOnasis.com/privacy" target="_blank" class="underline hover:text-gray-300">Learn more</a></p>
+                <p>We use cookies to enhance your experience and analyze platform usage. <a href="https://docs.lanonasis.com/privacy" target="_blank" class="underline hover:text-gray-300">Learn more</a></p>
             </div>
             <div class="flex gap-3">
                 <button id="accept-necessary" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-sm transition-colors">Necessary Only</button>
@@ -41,7 +41,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
                     </svg>
                 </div>
-                <h1 class="text-2xl font-bold text-white mb-2">LanOnasis Platform</h1>
+                <h1 class="text-2xl font-bold text-white mb-2">Lanonasis Platform</h1>
                 <p class="text-white/70 text-sm" id="auth-subtitle">Secure Authentication Gateway</p>
                 <div class="mt-2 text-xs text-white/50" id="platform-info"></div>
             </div>
@@ -106,9 +106,9 @@
                                class="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500 focus:ring-2 mt-0.5">
                         <span class="text-sm text-white/90 leading-relaxed">
                             I agree to the 
-                            <a href="https://docs.LanOnasis.com/terms" target="_blank" class="text-white underline hover:text-white/80">Terms of Service</a> 
+                            <a href="https://docs.lanonasis.com/terms" target="_blank" class="text-white underline hover:text-white/80">Terms of Service</a> 
                             and 
-                            <a href="https://docs.LanOnasis.com/privacy" target="_blank" class="text-white underline hover:text-white/80">Privacy Policy</a>
+                            <a href="https://docs.lanonasis.com/privacy" target="_blank" class="text-white underline hover:text-white/80">Privacy Policy</a>
                         </span>
                     </label>
                 </div>
@@ -165,9 +165,9 @@
             <div class="mt-8 text-center text-xs text-white/50">
                 <div>Secured by <span class="font-medium text-white/70">Onasis-CORE</span></div>
                 <div class="mt-1">
-                    <a href="https://docs.LanOnasis.com" class="hover:text-white/70 transition-colors">Documentation</a>
+                    <a href="https://docs.lanonasis.com" class="hover:text-white/70 transition-colors">Documentation</a>
                     <span class="mx-2">•</span>
-                    <a href="https://github.com/LanOnasis/LanOnasis-maas" class="hover:text-white/70 transition-colors">GitHub</a>
+                    <a href="https://github.com/lanonasis/lanonasis-maas" class="hover:text-white/70 transition-colors">GitHub</a>
                 </div>
             </div>
         </div>
@@ -310,7 +310,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Project-Scope': 'LanOnasis-maas'
+                        'X-Project-Scope': 'lanonasis-maas'
                     },
                     body: JSON.stringify(body)
                 });
@@ -383,7 +383,7 @@
                     provider: provider,
                     redirect_uri: redirectUrl,
                     platform: platform,
-                    project_scope: 'LanOnasis-maas'
+                    project_scope: 'lanonasis-maas'
                 });
                 
                 // Redirect to OAuth endpoint
