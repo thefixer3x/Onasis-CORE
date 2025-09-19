@@ -1,5 +1,5 @@
 [build]
-  command = "npm install"
+  command = "curl -fsSL https://bun.sh/install | bash && source /opt/buildhome/.bashrc && bun install"
   functions = "netlify/functions"
   publish = "."
 
@@ -7,6 +7,7 @@
   NODE_VERSION = "18"
   NODE_ENV = "production"
   SECRETS_SCAN_ENABLED = "false"
+  NPM_FLAGS = "--version"
 
 # Headers for security
 [[headers]]
