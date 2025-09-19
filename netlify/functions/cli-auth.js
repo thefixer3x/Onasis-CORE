@@ -53,8 +53,8 @@ async function generateAuthUrl(event) {
     timestamp: Date.now()
   });
 
-  // Build authentication URL
-  const authUrl = new URL('https://mcp.lanonasis.com/oauth/authorize');
+  // Build authentication URL - FIXED: Use central auth system
+  const authUrl = new URL('https://api.lanonasis.com/oauth/authorize');
   authUrl.searchParams.append('client_id', clientId);
   authUrl.searchParams.append('redirect_uri', redirectUri);
   authUrl.searchParams.append('response_type', 'code');
@@ -90,6 +90,8 @@ async function authorize(event) {
   }
 
   const params = event.queryStringParameters || {};
+  const state = params.state || 'default';
+  const clientId = params.client_id || 'lanonasis-cli';
   
   // Return HTML login page
   const html = `
