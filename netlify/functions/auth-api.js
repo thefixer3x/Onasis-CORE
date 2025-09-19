@@ -53,7 +53,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const path = event.path.replace('/v1/auth', '') || '/';
+    const path = event.path.replace('/api/v1/auth', '').replace('/v1/auth', '') || '/';
     const method = event.httpMethod;
     const headers = event.headers;
     const body = event.body ? JSON.parse(event.body) : {};
