@@ -10,7 +10,11 @@
         body { font-family: 'Inter', sans-serif; }
         .fade-in { animation: fadeIn 0.6s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .glass-effect { backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.1); }
+        .glass-effect { 
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px); 
+            background: rgba(255, 255, 255, 0.1); 
+        }
         .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
         .input-focus:focus { box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1); }
     </style>
@@ -21,7 +25,7 @@
     <div id="cookie-banner" class="hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm text-white p-4 z-50">
         <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
             <div class="text-sm">
-                <p>We use cookies to enhance your experience and analyze platform usage. <a href="https://docs.lanonasis.com/privacy" target="_blank" class="underline hover:text-gray-300">Learn more</a></p>
+                <p>We use cookies to enhance your experience and analyze platform usage. <a href="https://docs.lanonasis.com/privacy" target="_blank" rel="noopener noreferrer" class="underline hover:text-gray-300">Learn more</a></p>
             </div>
             <div class="flex gap-3">
                 <button id="accept-necessary" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-md text-sm transition-colors">Necessary Only</button>
@@ -106,9 +110,8 @@
                                class="w-4 h-4 text-blue-600 bg-white/10 border-white/20 rounded focus:ring-blue-500 focus:ring-2 mt-0.5">
                         <span class="text-sm text-white/90 leading-relaxed">
                             I agree to the 
-                            <a href="https://docs.lanonasis.com/terms" target="_blank" class="text-white underline hover:text-white/80">Terms of Service</a> 
-                            and 
-                            <a href="https://docs.lanonasis.com/privacy" target="_blank" class="text-white underline hover:text-white/80">Privacy Policy</a>
+                            <span class="text-sm">I agree to the <a href="https://docs.lanonasis.com/terms" target="_blank" rel="noopener noreferrer" class="text-white/70 underline hover:text-white">Terms of Service</a> and 
+                            <a href="https://docs.lanonasis.com/privacy" target="_blank" rel="noopener noreferrer" class="text-white/70 underline hover:text-white">Privacy Policy</a></span>
                         </span>
                     </label>
                 </div>
@@ -117,7 +120,7 @@
                 <button type="submit" id="submit-btn"
                         class="w-full bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg hover:bg-white/90 transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-50 disabled:cursor-not-allowed">
                     <span id="submit-text">Sign In</span>
-                    <svg id="loading-spinner" class="hidden animate-spin -ml-1 mr-3 h-5 w-5 text-gray-900 inline" fill="none" viewBox="0 0 24 24">
+                    <svg id="loading-spinner" class="hidden animate-spin h-5 w-5 text-gray-900" style="display: none;" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
