@@ -53,12 +53,18 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const path = event.path.replace('/api/v1/auth', '').replace('/v1/auth', '') || '/';
+    // Fix path parsing - handle both direct function calls and redirected paths
+    let path = event.path;
+    // Remove the function path if present
+    path = path.replace('/.netlify/functions/auth-api', '');
+    // Remove the API prefix paths
+    path = path.replace('/api/v1/auth', '').replace('/v1/auth', '') || '/';
+    
     const method = event.httpMethod;
     const headers = event.headers;
     const body = event.body ? JSON.parse(event.body) : {};
     
-    console.log(`Auth API: ${method} ${path}`);
+    console.log(`Auth API: ${method} ${path} (original: ${event.path})`);
 
     // Route requests
     let response;

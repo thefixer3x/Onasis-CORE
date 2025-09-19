@@ -11,7 +11,17 @@
 /api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
 /api/mcp          /.netlify/functions/mcp                       200
 
-# Core Gateway API routes (Higher Priority - specific routes first)
+# Authentication routes (HIGHEST PRIORITY - must be first!)
+/api/v1/auth/login    /.netlify/functions/auth-api    200!
+/api/v1/auth/signup   /.netlify/functions/auth-api    200!
+/api/v1/auth/health   /.netlify/functions/auth-api    200!
+/api/v1/auth/callback /.netlify/functions/auth-api    200!
+
+# Dashboard authentication callback
+/auth/dashboard/callback  /.netlify/functions/dashboard-callback    200
+/dashboard/auth/callback  /.netlify/functions/dashboard-callback    200
+
+# Core Gateway API routes (Higher Priority - specific routes after auth)
 /v1/auth/*        /.netlify/functions/auth-api/:splat           200
 /v1/keys/*        /.netlify/functions/key-manager/:splat        200
 /api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
