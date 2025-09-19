@@ -127,6 +127,24 @@ docker-compose.override.yml
 *token*
 *credential*
 
+# CRITICAL SECURITY: Supabase API Keys and Secrets (NEVER COMMIT)
+*supabase*key*
+*service*role*
+*anon*key*
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9*
+SUPABASE_*
+VITE_SUPABASE_*
+JWT_SECRET=REDACTED_JWT_SECRET
+SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
+*jwt*secret*
+
+# OpenAI and other API keys
+OPENAI_API_KEY*
+ANTHROPIC_API_KEY*
+LINGO_API_KEY*
+sk-*
+onasis_*
+
 # Monitoring and logs
 monitoring/
 audit-logs/
