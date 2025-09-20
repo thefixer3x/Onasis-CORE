@@ -122,7 +122,7 @@ POST /v1/keys/vendors
 {
   "vendor_name": "anthropic",
   "key_name": "primary",
-  "api_key": "sk-ant-api03-1234567890abcdef...",
+  "api_key": "sk-ant-api03-[REDACTED]...",
   "description": "Primary Anthropic API key for Claude"
 }
 ```

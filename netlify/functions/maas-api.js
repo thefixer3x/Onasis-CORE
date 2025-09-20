@@ -151,7 +151,8 @@ const verifyJwtToken = async (req, res, next) => {
 };
 
 // Apply auth middleware to protected routes
-app.use('/api/v1/memory*', verifyJwtToken);
+app.use('/api/v1/memory', verifyJwtToken);
+app.use('/api/v1/memories', verifyJwtToken);
 
 // Memory endpoints
 app.get('/api/v1/memory', async (req, res) => {
@@ -166,10 +167,14 @@ app.get('/api/v1/memory', async (req, res) => {
     const { limit = 20, offset = 0, memory_type, tags } = req.query;
 
     // Build query for memory entries
+    // For JWT users, use user_id instead of vendor_org_id
+    const filterField = req.user.vendor_org_id ? 'vendor_org_id' : 'user_id';
+    const filterValue = req.user.vendor_org_id || req.user.id;
+    
     let query = supabase
       .from('memory_entries')
       .select('*')
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq(filterField, filterValue)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -584,7 +589,7 @@ app.use((error, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     error: 'MaaS endpoint not found',
     code: 'MAAS_ENDPOINT_NOT_FOUND',

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - Lanonasis Memory Service</title>
+    <meta name="description" content="Create your Lanonasis Memory-as-a-Service account" />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0A1930, #1a2332);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .auth-container {
+            background: rgba(26, 35, 50, 0.9);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #00D4AA;
+            margin-bottom: 8px;
+        }
+        
+        .logo p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #00D4AA;
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #00D4AA, #00B4D8);
+            color: #ffffff;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 170, 0.3);
+        }
+        
+        .divider {
+            text-align: center;
+            margin: 25px 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .divider span {
+            background: rgba(26, 35, 50, 0.9);
+            padding: 0 15px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+        }
+        
+        .oauth-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .btn-oauth {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
+        
+        .btn-oauth:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+        
+        .footer-links {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .footer-links a {
+            color: #00D4AA;
+            text-decoration: none;
+            margin: 0 15px;
+        }
+        
+        .footer-links a:hover {
+            text-decoration: underline;
+        }
+        
+        .back-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+        
+        .back-link a {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-link a:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+        }
+        
+        .terms {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-align: center;
+            margin-top: 20px;
+            line-height: 1.4;
+        }
+        
+        .terms a {
+            color: #00D4AA;
+            text-decoration: none;
+        }
+        
+        .terms a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="back-link">
+        <a href="/">
+            <span>←</span>
+            <span>Back to Home</span>
+        </a>
+    </div>
+    
+    <div class="auth-container">
+        <div class="logo">
+            <h1>🧠 Lanonasis</h1>
+            <p>Create your account</p>
+        </div>
+        
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" placeholder="Enter your email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" placeholder="Create a password" required minlength="8">
+            </div>
+            
+            <div class="form-group">
+                <label for="confirmPassword">Confirm Password</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm your password" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">
+                <span>Create Account</span>
+            </button>
+        </form>
+        
+        <div class="divider">
+            <span>or sign up with</span>
+        </div>
+        
+        <div class="oauth-buttons">
+            <button class="btn btn-oauth" onclick="signUpWithProvider('google')">
+                <span>🔍</span>
+                <span>Continue with Google</span>
+            </button>
+            
+            <button class="btn btn-oauth" onclick="signUpWithProvider('github')">
+                <span>🐙</span>
+                <span>Continue with GitHub</span>
+            </button>
+            
+            <button class="btn btn-oauth" onclick="signUpWithProvider('discord')">
+                <span>💬</span>
+                <span>Continue with Discord</span>
+            </button>
+        </div>
+        
+        <div class="footer-links">
+            <a href="/auth/login">Already have an account?</a>
+        </div>
+        
+        <div class="terms">
+            By creating an account, you agree to our 
+            <a href="/terms">Terms of Service</a> and 
+            <a href="/privacy">Privacy Policy</a>
+        </div>
+    </div>
+    
+    <script>
+        // Handle form submission
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            // Validate passwords match
+            if (password !== confirmPassword) {
+                alert('Passwords do not match');
+                return;
+            }
+            
+            // Here you would integrate with Supabase auth
+            console.log('Email/password registration attempt:', { email });
+            
+            // After successful registration, redirect to dashboard
+            // window.location.href = 'https://dashboard.lanonasis.com';
+        });
+        
+        // Handle OAuth provider sign up
+        function signUpWithProvider(provider) {
+            console.log(`OAuth sign up with ${provider}`);
+            
+            // Construct OAuth URL with central auth routing
+            const redirectUrl = `https://api.lanonasis.com/auth/callback?return_to=dashboard`;
+            
+            // This would integrate with your Supabase auth hook
+            console.log(`Redirecting to ${provider} OAuth with callback: ${redirectUrl}`);
+            
+            // Example OAuth redirect (would be actual Supabase URL in production)
+            // window.location.href = `https://your-supabase-project.supabase.co/auth/v1/authorize?provider=${provider}&redirect_to=${encodeURIComponent(redirectUrl)}`;
+        }
+        
+        // Handle OAuth callback if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const access_token = urlParams.get('access_token');
+        const error = urlParams.get('error');
+        
+        if (code || access_token) {
+            console.log('OAuth callback received on register page');
+            // Process the OAuth callback
+            window.location.href = 'https://dashboard.lanonasis.com';
+        } else if (error) {
+            console.error('OAuth error:', error);
+            alert('Authentication failed. Please try again.');
+        }
+    </script>
+</body>
+</html>

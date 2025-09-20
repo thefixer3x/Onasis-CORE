@@ -12,13 +12,14 @@ const VendorAuthManager = require('./vendor-auth-middleware');
 
 class AIServiceRouter {
   constructor(config) {
-    this.sdGhostVpsUrl = config.sdGhostVpsUrl;
-    this.sdGhostSupabaseUrl = config.sdGhostSupabaseUrl;
-    this.onasisSupabaseUrl = config.onasisSupabaseUrl;
+    // CORRECTED: MCP server separate, everything else through api.lanonasis.com
+    this.mcpServerUrl = config.mcpServerUrl || 'https://mcp.lanonasis.com';
+    this.apiBaseUrl = config.apiBaseUrl || 'https://api.lanonasis.com';
+    this.onasisSupabaseUrl = config.onasisSupabaseUrl || 'https://mxtsdgkwzjzlttpotole.supabase.co';
     this.onasisServiceKey = config.onasisServiceKey;
     
-    if (!this.sdGhostVpsUrl || !this.sdGhostSupabaseUrl) {
-      throw new Error('Missing required SD-Ghost configuration in AIServiceRouter');
+    if (!this.mcpServerUrl || !this.onasisSupabaseUrl) {
+      throw new Error('Missing required MCP server configuration in AIServiceRouter');
     }
     
     this.vendorAuth = new VendorAuthManager(
@@ -40,19 +41,41 @@ class AIServiceRouter {
     });
   }
 
-  // Service mapping: Vendor service names → SD-Ghost Protocol endpoints
+  // Service mapping: Correct routing architecture
   getServiceMapping() {
     return {
-      // AI Conversation Services
-      'ai-chat': {
-        type: 'supabase',
-        endpoint: '/functions/v1/ai-chat',
-        description: 'Multi-model AI conversations'
+      // MCP Protocol Services (direct to mcp.lanonasis.com)
+      'mcp-tools': {
+        type: 'mcp',
+        endpoint: '/api/tools',
+        description: 'List available MCP tools'
       },
-      'chat': {
-        type: 'supabase', 
-        endpoint: '/functions/v1/ai-chat',
-        description: 'AI chat conversations'
+      'mcp-execute': {
+        type: 'mcp', 
+        endpoint: '/api/execute',
+        description: 'Execute MCP tools'
+      },
+      'mcp-auth': {
+        type: 'mcp',
+        endpoint: '/auth/cli-login',
+        description: 'MCP authentication'
+      },
+      'mcp-memory': {
+        type: 'mcp',
+        endpoint: '/memory',
+        description: 'MCP memory operations'
+      },
+      
+      // All other services (via api.lanonasis.com Netlify functions)
+      'auth': {
+        type: 'api',
+        endpoint: '/api/auth',
+        description: 'Authentication services'
+      },
+      'memory': {
+        type: 'api',
+        endpoint: '/api/memory',
+        description: 'Memory services via Netlify'
       },
       
       // Audio Services
