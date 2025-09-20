@@ -201,7 +201,19 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Parse URL parameters
             const urlParams = new URLSearchParams(window.location.search);
-            redirectUrl = urlParams.get('redirect_url') || urlParams.get('return_to') || window.location.origin;
+
+            // For dashboard platform, use return_to for final destination
+            const returnTo = urlParams.get('return_to');
+            const callbackUrl = urlParams.get('redirect_url');
+
+            if (returnTo === 'dashboard') {
+                redirectUrl = 'https://dashboard.lanonasis.com/';
+            } else if (returnTo) {
+                redirectUrl = returnTo;
+            } else {
+                redirectUrl = callbackUrl || window.location.origin;
+            }
+
             platform = urlParams.get('platform') || 'dashboard';
             
             // Update UI based on platform

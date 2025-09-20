@@ -57,11 +57,12 @@ exports.handler = async (event, context) => {
         const decoded = jwt.verify(token, jwtSecret);
         console.log('Token valid, redirecting to dashboard');
         
-        // Redirect to dashboard with token
+        // Redirect to dashboard with token and set secure cookie
         return {
           statusCode: 302,
           headers: {
-            'Location': `${dashboardUrl}/?auth_token=${token}&user_id=${decoded.sub || decoded.id}`
+            'Location': `${dashboardUrl}/?auth_success=true&user_id=${decoded.sub || decoded.id}`,
+            'Set-Cookie': `auth_token=${token}; Path=/; Domain=.lanonasis.com; Max-Age=86400; SameSite=Lax; Secure`
           }
         };
       } catch (err) {
@@ -122,11 +123,12 @@ exports.handler = async (event, context) => {
               .update({ is_used: true, used_at: new Date().toISOString() })
               .eq('state', state || code);
 
-            // Redirect with token
+            // Redirect with token and set secure cookie
             return {
               statusCode: 302,
               headers: {
-                'Location': `${dashboardUrl}/?auth_token=${accessToken}&auth_success=true`
+                'Location': `${dashboardUrl}/?auth_success=true`,
+                'Set-Cookie': `auth_token=${accessToken}; Path=/; Domain=.lanonasis.com; Max-Age=86400; SameSite=Lax; Secure`
               }
             };
           }
@@ -156,11 +158,12 @@ exports.handler = async (event, context) => {
 
           console.log('Token generated, redirecting to dashboard');
           
-          // Redirect to dashboard with token
+          // Redirect to dashboard with token and set secure cookie
           return {
             statusCode: 302,
             headers: {
-              'Location': `${dashboardUrl}/?auth_token=${accessToken}&auth_success=true`
+              'Location': `${dashboardUrl}/?auth_success=true`,
+              'Set-Cookie': `auth_token=${accessToken}; Path=/; Domain=.lanonasis.com; Max-Age=86400; SameSite=Lax; Secure`
             }
           };
         }
@@ -180,7 +183,8 @@ exports.handler = async (event, context) => {
       return {
         statusCode: 302,
         headers: {
-          'Location': `${dashboardUrl}/?auth_token=${fallbackToken}&auth_warning=temporary_token`
+          'Location': `${dashboardUrl}/?auth_warning=temporary_token`,
+          'Set-Cookie': `auth_token=${fallbackToken}; Path=/; Domain=.lanonasis.com; Max-Age=3600; SameSite=Lax; Secure`
         }
       };
     }
