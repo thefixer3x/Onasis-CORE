@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Authentication Flow</title>
+    <style>
+        body {
+            background: #0a0a0a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 40px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        button {
+            background: transparent;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        button:hover {
+            background: #00ff00;
+            color: #0a0a0a;
+        }
+        .response {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            padding: 20px;
+            margin: 20px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        input {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #fff;
+            padding: 8px;
+            margin: 5px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Lanonasis Authentication Flow Test</h1>
+        
+        <h2>Test Configuration</h2>
+        <div>
+            <label>Backend URL:</label>
+            <input type="text" id="backendUrl" value="https://4000-i9hl0dxks47udja9cy6pd-6532622b.e2b.dev" />
+        </div>
+        <div>
+            <label>Redirect URL:</label>
+            <input type="text" id="redirectUrl" value="https://dashboard.lanonasis.com/auth/callback" />
+        </div>
+        
+        <h2>Test Actions</h2>
+        
+        <button onclick="testDirectLogin()">1. Test Direct API Login (JSON)</button>
+        <button onclick="testWebLogin()">2. Test Web Login (HTML Redirect)</button>
+        <button onclick="testLoginPage()">3. Open Login Page</button>
+        <button onclick="testAuthCallback()">4. Test Auth Callback</button>
+        
+        <h2>Response</h2>
+        <div id="response" class="response">Ready to test...</div>
+        
+        <h2>Token Status</h2>
+        <div id="tokenStatus" class="response">
+            <div>localStorage Token: <span id="localToken">None</span></div>
+            <div>sessionStorage Token: <span id="sessionToken">None</span></div>
+            <div>Cookie Token: <span id="cookieToken">None</span></div>
+        </div>
+    </div>
+    
+    <script>
+        function updateTokenStatus() {
+            document.getElementById('localToken').textContent = 
+                localStorage.getItem('lanonasis_token') || 'None';
+            document.getElementById('sessionToken').textContent = 
+                sessionStorage.getItem('lanonasis_token') || 'None';
+            
+            const cookieValue = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('lanonasis_token='));
+            document.getElementById('cookieToken').textContent = 
+                cookieValue ? cookieValue.split('=')[1] : 'None';
+        }
+        
+        async function testDirectLogin() {
+            const backendUrl = document.getElementById('backendUrl').value;
+            const responseDiv = document.getElementById('response');
+            
+            responseDiv.textContent = 'Testing direct API login...';
+            
+            try {
+                const response = await fetch(`${backendUrl}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'demo@lanonasis.com',
+                        password: 'demo123'
+                    })
+                });
+                
+                const data = await response.json();
+                responseDiv.textContent = JSON.stringify(data, null, 2);
+                
+                if (data.access_token) {
+                    localStorage.setItem('lanonasis_token', data.access_token);
+                    updateTokenStatus();
+                }
+            } catch (error) {
+                responseDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        async function testWebLogin() {
+            const backendUrl = document.getElementById('backendUrl').value;
+            const redirectUrl = document.getElementById('redirectUrl').value;
+            const responseDiv = document.getElementById('response');
+            
+            responseDiv.textContent = 'Testing web login with redirect...';
+            
+            try {
+                const response = await fetch(`${backendUrl}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/html'
+                    },
+                    body: JSON.stringify({
+                        email: 'demo@lanonasis.com',
+                        password: 'demo123',
+                        platform: 'dashboard',
+                        redirect_url: redirectUrl
+                    })
+                });
+                
+                const html = await response.text();
+                responseDiv.textContent = 'Received HTML redirect page:\n\n' + html.substring(0, 500) + '...';
+                
+                // Extract token from HTML if present
+                const tokenMatch = html.match(/lanonasis_token['"]\s*,\s*['"]([^'"]+)/);
+                if (tokenMatch) {
+                    localStorage.setItem('lanonasis_token', tokenMatch[1]);
+                    updateTokenStatus();
+                }
+            } catch (error) {
+                responseDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function testLoginPage() {
+            const backendUrl = document.getElementById('backendUrl').value;
+            const redirectUrl = document.getElementById('redirectUrl').value;
+            
+            const loginUrl = `${backendUrl}/auth/login?platform=dashboard&redirect_url=${encodeURIComponent(redirectUrl)}`;
+            
+            document.getElementById('response').textContent = 
+                `Opening login page in new window:\n${loginUrl}`;
+            
+            window.open(loginUrl, '_blank');
+        }
+        
+        function testAuthCallback() {
+            const token = localStorage.getItem('lanonasis_token');
+            
+            if (token) {
+                document.getElementById('response').textContent = 
+                    `Token found! Would redirect to dashboard with token:\n${token}`;
+            } else {
+                document.getElementById('response').textContent = 
+                    'No token found. Please login first.';
+            }
+            
+            updateTokenStatus();
+        }
+        
+        // Update token status on load
+        updateTokenStatus();
+        setInterval(updateTokenStatus, 1000);
+    </script>
+</body>
+</html>

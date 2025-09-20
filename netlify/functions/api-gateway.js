@@ -169,6 +169,9 @@ async function routeRequest(path, method, headers, body, query) {
     };
   }
 
+  // Authentication endpoints are handled by dedicated auth-api function
+  // This catch-all should not interfere with /v1/auth/* routes
+
   // Default 404 response
   return {
     statusCode: 404,
@@ -182,9 +185,13 @@ async function routeRequest(path, method, headers, body, query) {
         '/health',
         '/info',
         '/api/v1/models',
+        '/api/v1/memory',
+        '/api/v1/memory/:id',
+        '/api/v1/memory/search',
+        '/api/v1/memory/stats',
         '/v1/auth'
       ],
-      documentation: 'https://docs.onasis.io',
+      documentation: 'https://docs.lanonasis.com/cli',
       request_id: requestId
     }
   };

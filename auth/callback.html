@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authenticating - Lanonasis</title>
+    <meta name="description" content="Processing your authentication..." />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0A1930, #1a2332);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .callback-container {
+            text-align: center;
+            background: rgba(26, 35, 50, 0.9);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            border-radius: 16px;
+            padding: 60px 40px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 212, 170, 0.3);
+            border-top: 4px solid #00D4AA;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status-message {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+        
+        .status-detail {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.9rem;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .error-message {
+            color: #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .retry-button {
+            background: linear-gradient(135deg, #00D4AA, #00B4D8);
+            color: #ffffff;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .retry-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 212, 170, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="callback-container">
+        <div class="logo">🧠</div>
+        <div class="spinner" id="spinner"></div>
+        <div class="status-message" id="statusMessage">Authenticating...</div>
+        <div class="status-detail" id="statusDetail">Please wait while we process your authentication.</div>
+        <div class="error-message" id="errorMessage" style="display: none;"></div>
+        <button class="retry-button" id="retryButton" onclick="retryAuth()" style="display: none;">Try Again</button>
+    </div>
+    
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const access_token = urlParams.get('access_token');
+        const error = urlParams.get('error');
+        const error_description = urlParams.get('error_description');
+        const return_to = urlParams.get('return_to');
+        
+        // Elements
+        const spinner = document.getElementById('spinner');
+        const statusMessage = document.getElementById('statusMessage');
+        const statusDetail = document.getElementById('statusDetail');
+        const errorMessage = document.getElementById('errorMessage');
+        const retryButton = document.getElementById('retryButton');
+        
+        // Handle different callback scenarios
+        if (error) {
+            // Authentication error
+            handleAuthError(error, error_description);
+        } else if (code || access_token) {
+            // Successful authentication - process the callback
+            handleAuthSuccess(code, access_token, return_to);
+        } else {
+            // No auth parameters - redirect to login
+            setTimeout(() => {
+                window.location.href = '/auth/login';
+            }, 2000);
+        }
+        
+        function handleAuthError(error, description) {
+            spinner.style.display = 'none';
+            statusMessage.textContent = 'Authentication Failed';
+            statusDetail.textContent = 'There was an error during authentication.';
+            
+            errorMessage.style.display = 'block';
+            errorMessage.innerHTML = `
+                <strong>Error:</strong> ${error}<br>
+                ${description ? `<span style="font-size: 0.8rem;">${description}</span>` : ''}
+            `;
+            
+            retryButton.style.display = 'inline-block';
+        }
+        
+        function handleAuthSuccess(code, accessToken, returnTo) {
+            statusMessage.textContent = 'Authentication Successful!';
+            statusDetail.textContent = 'Redirecting you to your dashboard...';
+            
+            // Simulate processing time
+            setTimeout(() => {
+                // Determine redirect destination based on return_to parameter
+                let redirectUrl = 'https://dashboard.lanonasis.com';
+                
+                if (returnTo === 'dashboard') {
+                    redirectUrl = 'https://dashboard.lanonasis.com';
+                } else if (returnTo === 'console') {
+                    redirectUrl = 'https://api.lanonasis.com/console';
+                } else if (returnTo === 'vortexcore') {
+                    redirectUrl = 'https://auth.vortexcore.app';
+                }
+                
+                // Log the successful authentication
+                console.log('Authentication successful:', {
+                    code: code ? 'received' : null,
+                    accessToken: accessToken ? 'received' : null,
+                    returnTo,
+                    redirectUrl
+                });
+                
+                // In production, you would:
+                // 1. Exchange the code for tokens via Supabase
+                // 2. Set session cookies/localStorage
+                // 3. Redirect to the appropriate destination
+                
+                window.location.href = redirectUrl;
+            }, 1500);
+        }
+        
+        function retryAuth() {
+            window.location.href = '/auth/login';
+        }
+        
+        // Log callback information for debugging
+        console.log('OAuth callback received:', {
+            code: code ? 'present' : 'missing',
+            access_token: access_token ? 'present' : 'missing',
+            error: error || 'none',
+            return_to: return_to || 'default'
+        });
+    </script>
+</body>
+</html>

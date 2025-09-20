@@ -1,0 +1,73 @@
+{
+  "name": "onasis-api-gateway",
+  "alias": ["api.lanonasis.com"],
+  "version": 2,
+  "builds": [
+    {
+      "src": "auth.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "src/mcp/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/auth/login",
+      "dest": "/auth.html",
+      "headers": {
+        "Content-Type": "text/html",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/auth/(.*)",
+      "dest": "/auth.html",
+      "headers": {
+        "Content-Type": "text/html",
+        "Access-Control-Allow-Origin": "*"
+      }
+    },
+    {
+      "src": "/mcp/sse",
+      "dest": "/src/mcp/index.ts",
+      "headers": {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, X-API-Key, X-Client-Id, X-MCP-Capabilities"
+      }
+    },
+    {
+      "src": "/mcp/(.*)",
+      "dest": "/src/mcp/index.ts",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type, X-API-Key, X-Client-Id, X-MCP-Capabilities",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/src/mcp/index.ts"
+    }
+  ],
+  "env": {
+    "SUPABASE_URL=https://<project-ref>.supabase.co
+    "SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    "OPENAI_API_KEY": "@openai-api-key",
+    "MCP_ENDPOINT": "https://mcp.lanonasis.com",
+    "DASHBOARD_REDIRECT_URL": "https://dashboard.lanonasis.com/auth/callback",
+    "API_REDIRECT_URL": "https://api.lanonasis.com/auth/callback"
+  },
+  "regions": ["iad1"],
+  "functions": {
+    "src/mcp/index.ts": {
+      "maxDuration": 300,
+      "memory": 1024
+    }
+  }
+}

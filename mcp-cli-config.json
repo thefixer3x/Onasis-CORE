@@ -1,0 +1,48 @@
+{
+  "name": "Lanonasis MCP CLI Configuration",
+  "version": "1.0.0",
+  "endpoints": {
+    "local": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["../onasis-mcp-server/dist/unified-mcp-server.js", "--stdio"],
+      "description": "Local MCP server via stdio"
+    },
+    "websocket": {
+      "type": "ws",
+      "url": "ws://localhost:4000/mcp",
+      "description": "WebSocket connection to local backend"
+    },
+    "remote": {
+      "type": "http",
+      "url": "https://4000-i9hl0dxks47udja9cy6pd-6532622b.e2b.dev/mcp",
+      "auth": {
+        "type": "bearer",
+        "token": "${LANONASIS_API_TOKEN}"
+      },
+      "description": "Remote MCP server via HTTP"
+    },
+    "production": {
+      "type": "http",
+      "url": "https://mcp.lanonasis.com",
+      "auth": {
+        "type": "bearer",
+        "token": "${LANONASIS_API_TOKEN}"
+      },
+      "description": "Production MCP server"
+    }
+  },
+  "authentication": {
+    "baseUrl": "https://4000-i9hl0dxks47udja9cy6pd-6532622b.e2b.dev",
+    "endpoints": {
+      "login": "/auth/login",
+      "token": "/auth/token",
+      "refresh": "/auth/refresh"
+    }
+  },
+  "defaults": {
+    "endpoint": "websocket",
+    "timeout": 30000,
+    "retries": 3
+  }
+}
