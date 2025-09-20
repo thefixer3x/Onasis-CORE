@@ -589,7 +589,7 @@ app.use((error, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     error: 'MaaS endpoint not found',
     code: 'MAAS_ENDPOINT_NOT_FOUND',
