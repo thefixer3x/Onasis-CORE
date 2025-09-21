@@ -141,15 +141,16 @@ async function handleHealth() {
 
 async function handleSignup(body, headers) {
   try {
-    const { email, password, name } = body;
+    const { email, password, name, organization_name } = body;
+    const organizationName = organization_name || name; // Support both field names
     const projectScope = headers['x-project-scope'] || 'lanonasis-maas';
 
-    console.log('Signup attempt:', { email, hasPassword: !!password, name, projectScope });
+    console.log('Signup attempt:', { email, hasPassword: !!password, organizationName, projectScope });
 
-    if (!email || !password || !name) {
+    if (!email || !password || !organizationName) {
       return {
         statusCode: 400,
-        body: { error: 'Email, password, and name are required', code: 'MISSING_FIELDS' }
+        body: { error: 'Email, password, and organization name are required', code: 'MISSING_FIELDS' }
       };
     }
 
@@ -164,7 +165,7 @@ async function handleSignup(body, headers) {
     console.log('Using simple auth system for basic PostgreSQL database...');
     
     // Try simple approach first - create a basic users table if needed
-    return await handleSimpleSignup(email, password, name, projectScope);
+    return await handleSimpleSignup(email, password, organizationName, projectScope);
 
     // Check if user already exists in MaaS schema
     const { data: existingUser } = await supabase
