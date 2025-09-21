@@ -618,7 +618,7 @@ app.post('/auth/login', async (req, res) => {
         maxAge: 604800000 // 7 days
       });
       
-      // Build redirect URL
+      // Build redirect URL with user-specific session identification
       let redirectTo;
       try {
         redirectTo = new URL(redirect_url);
@@ -627,8 +627,16 @@ app.post('/auth/login', async (req, res) => {
         redirectTo = new URL('https://dashboard.lanonasis.com/auth/callback');
       }
       
+      // Generate unique session identifier for this authentication
+      const userId = response.user.id;
+      const sessionId = `sess_${Date.now()}_${userId.substr(0, 8)}`;
+      
+      // Add user-specific parameters to callback URL
+      redirectTo.searchParams.append('session', sessionId);
+      redirectTo.searchParams.append('user_id', userId);
       redirectTo.searchParams.append('token', token);
       redirectTo.searchParams.append('platform', platform || 'dashboard');
+      redirectTo.searchParams.append('timestamp', Date.now().toString());
       
       // Send HTML with JavaScript redirect for better browser compatibility
       return res.send(`
@@ -672,9 +680,11 @@ app.post('/auth/login', async (req, res) => {
             <p style="color: #666; font-size: 12px;">If you are not redirected, <a href="${redirectTo.toString()}" style="color: #00ff00;">click here</a></p>
           </div>
           <script>
-            // Store token and redirect
+            // Store authentication data with session tracking
             localStorage.setItem('lanonasis_token', '${token}');
             localStorage.setItem('lanonasis_user', '${JSON.stringify(response.user).replace(/'/g, "\\'")}');
+            localStorage.setItem('lanonasis_session', '${sessionId}');
+            localStorage.setItem('lanonasis_auth_time', '${Date.now()}');
             setTimeout(function() {
               window.location.href = '${redirectTo.toString()}';
             }, 1000);
