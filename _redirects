@@ -29,6 +29,8 @@
 
 # Health check endpoints
 /health           /.netlify/functions/health                    200
+/auth/health      /.netlify/functions/auth-health               200
+/api/v1/health    /.netlify/functions/health                    200
 /info             /.netlify/functions/info                      200
 /migrate          /.netlify/functions/apply-migration           200
 /setup            /.netlify/functions/setup-defaults            200
