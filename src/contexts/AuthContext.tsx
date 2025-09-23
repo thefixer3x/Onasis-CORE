@@ -46,13 +46,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   
   // Set up token refresh interval
   useEffect(() => {
-    if (!isAuthenticated()) return
+    if (!isAuthenticated()) return;
     
-    const refreshInterval = setInterval(() => {
-      refreshAuth()
-    }, 30 * 60 * 1000) // Refresh every 30 minutes
+    const expiry = localStorage.getItem(authConfig.session.expiryKey);
+    if (!expiry) return;
     
-    return () => clearInterval(refreshInterval)
+    const remainingTime = new Date(expiry).getTime() - Date.now() - 30000; // Refresh 30s before expiry
+    
+    if (remainingTime > 0) {
+      const refreshTimer = setTimeout(() => {
+        refreshAuth();
+      }, remainingTime);
+      
+      return () => clearTimeout(refreshTimer);
+    } else {
+      refreshAuth(); // Immediate refresh if already expired
+    }
   }, [user])
   
   const initializeAuth = async () => {
