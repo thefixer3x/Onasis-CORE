@@ -77,12 +77,17 @@ class AuthService {
       return data
     } catch (error) {
       console.error('Login error:', error)
-      // If it's a network error, try alternate URL
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        toast.error('Cannot connect to authentication server. Please check your connection.')
-      } else {
-        toast.error(error instanceof Error ? error.message : 'Login failed')
+      let message = 'Login failed'
+      if (error instanceof TypeError) {
+        message = 'Network error - check your connection'
+      } else if (error.message.includes('401')) {
+        message = 'Invalid email or password'
+      } else if (error.message.includes('403')) {
+        message = 'Account not verified - check your email'
+      } else if (error.message.includes('429')) {
+        message = 'Too many attempts - try again later'
       }
+      toast.error(message)
       throw error
     }
   }
@@ -335,19 +340,31 @@ class AuthService {
    * Store authentication data in localStorage
    */
   private storeAuthData(data: AuthResponse): void {
-    localStorage.setItem(authConfig.session.tokenKey, data.access_token)
+    // Set secure, httpOnly cookies instead of localStorage
+    this.setSecureCookie(authConfig.session.tokenKey, data.access_token, data.expires_in);
     
     if (data.refresh_token) {
-      localStorage.setItem(authConfig.session.refreshTokenKey, data.refresh_token)
+      this.setSecureCookie(authConfig.session.refreshTokenKey, data.refresh_token, 30 * 24 * 60 * 60); // 30 days
     }
     
     if (data.user) {
-      localStorage.setItem(authConfig.session.userKey, JSON.stringify(data.user))
+      // Only store non-sensitive user data in localStorage
+      const safeUserData = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name,
+        avatar: data.user.avatar
+      };
+      localStorage.setItem(authConfig.session.userKey, JSON.stringify(safeUserData));
     }
     
     // Calculate and store expiry time
     const expiryTime = new Date(Date.now() + data.expires_in * 1000)
     localStorage.setItem(authConfig.session.expiryKey, expiryTime.toISOString())
+  }
+  
+  private setSecureCookie(name: string, value: string, maxAge: number): void {
+    document.cookie = `${name}=${value}; Max-Age=${maxAge}; Path=/; Secure; SameSite=Strict; HttpOnly`;
   }
   
   /**
