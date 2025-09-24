@@ -1,5 +1,5 @@
 [build]
-  command = "curl -fsSL https://bun.sh/install | bash && export PATH=\"$HOME/.bun/bin:$PATH\" && bun install"
+  command = "echo 'Static site - no build required'"
   functions = "netlify/functions"
   publish = "."
 
@@ -8,6 +8,12 @@
   NODE_ENV = "production"
   SECRETS_SCAN_ENABLED = "false"
   NPM_FLAGS = "--version"
+
+# SPA redirect for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 # Headers for security
 [[headers]]
