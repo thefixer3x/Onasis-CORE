@@ -6,6 +6,7 @@
 import { authConfig, buildAuthUrl, clearAuthStorage } from '@/config/auth.config'
 import toast from 'react-hot-toast'
 
+// HTTP status code to user message mapping
 const DEFAULT_STATUS_MESSAGES: Record<number, string> = {
   400: 'Bad request',
   401: 'Invalid credentials',
@@ -16,6 +17,7 @@ const DEFAULT_STATUS_MESSAGES: Record<number, string> = {
   500: 'Authentication service unavailable',
 }
 
+// Custom error class for HTTP errors
 class AuthHttpError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message)
@@ -23,24 +25,34 @@ class AuthHttpError extends Error {
   }
 }
 
+// Type guards
 const isError = (error: unknown): error is Error => error instanceof Error
 const isTypeError = (error: unknown): error is TypeError => error instanceof TypeError
-const isErrorWithStatus = (error: unknown, code: number) =>
-  isError(error) && error.message.includes(code.toString())
 
-const resolveStatusMessage = (
-  error: unknown,
-  messages: Record<number, string>
-): string | null => {
-  for (const [status, message] of Object.entries(messages)) {
-    if (isErrorWithStatus(error, Number(status))) {
-      return message
-    }
+// Centralized HTTP response handler
+const parseResponse = async <T>(response: Response): Promise<T> => {
+  try {
+    const text = await response.text()
+    return text ? JSON.parse(text) : null
+  } catch (error) {
+    console.error('Failed to parse response:', error)
+    throw new AuthHttpError('Invalid response format', response.status)
   }
-  return null
 }
 
-const getNetworkErrorMessage = (
+// Create structured HTTP error
+const createHttpError = async (response: Response, fallback: string): Promise<AuthHttpError> => {
+  try {
+    const errorData = await parseResponse<{ message?: string; error_description?: string }>(response)
+    const message = errorData?.message || errorData?.error_description || fallback
+    return new AuthHttpError(message, response.status)
+  } catch {
+    return new AuthHttpError(fallback, response.status)
+  }
+}
+
+// Get user-friendly error message
+const getErrorMessage = (
   error: unknown,
   fallback: string,
   overrides: Record<number, string> = {}
@@ -49,37 +61,29 @@ const getNetworkErrorMessage = (
     return 'Network error - check your connection'
   }
 
-  const mergedMessages = { ...DEFAULT_STATUS_MESSAGES, ...overrides }
-
   if (error instanceof AuthHttpError) {
-    return mergedMessages[error.status] ?? error.message ?? fallback
+    const messages = { ...DEFAULT_STATUS_MESSAGES, ...overrides }
+    return messages[error.status] || error.message || fallback
   }
 
-  const statusMessage = resolveStatusMessage(error, mergedMessages)
-  if (statusMessage) {
-    return statusMessage
-  }
-
-  if (isError(error) && error.message) {
-    return error.message
+  if (isError(error)) {
+    return error.message || fallback
   }
 
   return fallback
 }
 
+// Centralized error handler
 const handleAuthError = (
   error: unknown,
   context: string,
   fallback: string,
   overrides: Record<number, string> = {}
 ): never => {
-  const message = getNetworkErrorMessage(error, fallback, overrides)
+  const message = getErrorMessage(error, fallback, overrides)
   console.error(`${context} error:`, error)
   toast.error(message)
-  if (isError(error)) {
-    throw error
-  }
-  throw new Error(message)
+  throw isError(error) ? error : new Error(message)
 }
 
 export interface LoginCredentials {
@@ -110,7 +114,7 @@ export interface AuthResponse {
 }
 
 class AuthService {
-  private baseUrl: string
+  private readonly baseUrl: string
   
   constructor() {
     this.baseUrl = authConfig.apiBaseUrl
@@ -124,53 +128,54 @@ class AuthService {
     const cleanPath = path.startsWith('/') ? path : `/${path}`
     return `${cleanBase}${cleanPath}`
   }
+
+  /**
+   * Ensure HTTP response is successful and parse data
+   */
+  private async ensureSuccess<T>(response: Response, fallback: string): Promise<T> {
+    if (!response.ok) {
+      const httpError = await createHttpError(response, fallback)
+      throw httpError
+    }
+    return parseResponse<T>(response)
+  }
   
   /**
    * Login with email and password
-   * FIXED: Now uses internal Lanonasis authentication
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      const response = await fetch(this.joinUrl(this.baseUrl, '/auth/login'), {
+      const response = await fetch(this.joinUrl('/auth/login'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       })
       
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Login failed')
-      }
+      const data = await this.ensureSuccess<AuthResponse>(response, 'Login failed')
       
-      const data = await response.json()
-      
-      // Store authentication data
       this.storeAuthData(data)
-      
       return data
     } catch (error) {
-      handleCatch(error, 'Login error')
+      return handleAuthError(error, 'Login', 'Login failed', {
+        401: 'Invalid email or password',
+        403: 'Account not verified - check your email',
+        429: 'Too many attempts - try again later',
+      })
     }
   }
   
   /**
    * Signup new user
-   * FIXED: Creates account in Lanonasis system
    */
   async signup(credentials: SignupCredentials): Promise<AuthResponse> {
     try {
-      // Validate passwords match
       if (credentials.password !== credentials.confirmPassword) {
         throw new Error('Passwords do not match')
       }
       
-      const response = await fetch(this.joinUrl(this.baseUrl, '/auth/signup'), {
+      const response = await fetch(this.joinUrl('/auth/signup'), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: credentials.email,
           password: credentials.password,
@@ -178,42 +183,32 @@ class AuthService {
         }),
       })
       
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Signup failed')
-      }
+      const data = await this.ensureSuccess<AuthResponse>(response, 'Signup failed')
       
-      const data = await response.json()
-      
-      // Store authentication data
       this.storeAuthData(data)
-      
       return data
     } catch (error) {
-      console.error('Signup error:', error)
-      toast.error(getNetworkErrorMessage(error, 'Signup failed'))
-      throw error
+      return handleAuthError(error, 'Signup', 'Signup failed', {
+        400: 'Invalid signup information',
+        409: 'An account with this email already exists',
+      })
     }
   }
   
   /**
-   * OAuth login flow
-   * FIXED: Redirects to Lanonasis OAuth endpoint
+   * OAuth login flow - stores state/verifier in localStorage for persistence
    */
   async loginWithOAuth(): Promise<void> {
     try {
       const { oauth } = authConfig
-      
-      // Generate state for CSRF protection
       const state = this.generateState()
-      sessionStorage.setItem('oauth_state', state)
-      
-      // Generate PKCE challenge
       const codeVerifier = this.generateCodeVerifier()
       const codeChallenge = await this.generateCodeChallenge(codeVerifier)
-      sessionStorage.setItem('oauth_code_verifier', codeVerifier)
       
-      // Build authorization URL
+      // Store in localStorage for persistence across page refreshes
+      localStorage.setItem('oauth_state', state)
+      localStorage.setItem('oauth_code_verifier', codeVerifier)
+      
       const params = new URLSearchParams({
         client_id: oauth.clientId,
         redirect_uri: oauth.redirectUri,
@@ -224,41 +219,32 @@ class AuthService {
         code_challenge_method: 'S256',
       })
       
-      const authUrl = buildAuthUrl(`${oauth.endpoints.authorize}?${params}`)
-      
-      // Redirect to authorization endpoint
-      window.location.href = authUrl
+      window.location.href = buildAuthUrl(`${oauth.endpoints.authorize}?${params.toString()}`)
     } catch (error) {
-      console.error('OAuth login error:', error)
-      toast.error(getNetworkErrorMessage(error, 'Failed to initiate OAuth login'))
-      throw error
+      handleAuthError(error, 'OAuth login', 'Failed to initiate OAuth login')
     }
   }
   
   /**
    * Handle OAuth callback
-   * FIXED: Processes callback from Lanonasis OAuth
    */
   async handleOAuthCallback(code: string, state: string): Promise<AuthResponse> {
     try {
-      // Verify state
-      const savedState = sessionStorage.getItem('oauth_state')
+      // Verify state from localStorage
+      const savedState = localStorage.getItem('oauth_state')
       if (state !== savedState) {
         throw new Error('Invalid state - possible CSRF attack')
       }
       
-      // Get code verifier
-      const codeVerifier = sessionStorage.getItem('oauth_code_verifier')
+      const codeVerifier = localStorage.getItem('oauth_code_verifier')
       if (!codeVerifier) {
         throw new Error('Code verifier not found')
       }
       
       // Exchange code for token
-      const response = await fetch(buildAuthUrl(authConfig.oauth.endpoints.token), {
+      const tokenResponse = await fetch(buildAuthUrl(authConfig.oauth.endpoints.token), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grant_type: 'authorization_code',
           code,
@@ -268,72 +254,51 @@ class AuthService {
         }),
       })
       
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error_description || 'Token exchange failed')
-      }
-      
-      const tokenData = await response.json()
+      const tokenData = await this.ensureSuccess<AuthResponse>(tokenResponse, 'Token exchange failed')
       
       // Get user info
       const userResponse = await fetch(buildAuthUrl(authConfig.oauth.endpoints.userInfo), {
-        headers: {
-          'Authorization': `Bearer ${tokenData.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
       })
       
-      if (!userResponse.ok) {
-        throw new Error('Failed to fetch user info')
-      }
+      const userData = await this.ensureSuccess<User>(userResponse, 'Failed to fetch user info')
       
-      const userData = await userResponse.json()
-      
-      const authData: AuthResponse = {
-        ...tokenData,
-        user: userData,
-      }
-      
-      // Store authentication data
+      const authData: AuthResponse = { ...tokenData, user: userData }
       this.storeAuthData(authData)
       
-      // Clean up session storage
-      sessionStorage.removeItem('oauth_state')
-      sessionStorage.removeItem('oauth_code_verifier')
+      // Clean up OAuth state
+      localStorage.removeItem('oauth_state')
+      localStorage.removeItem('oauth_code_verifier')
       
       return authData
     } catch (error) {
-      console.error('OAuth callback error:', error)
-      toast.error(getNetworkErrorMessage(error, 'OAuth callback failed'))
-      throw error
+      return handleAuthError(error, 'OAuth callback', 'OAuth callback failed')
     }
   }
   
   /**
    * Logout user
-   * FIXED: Properly clears session and redirects
    */
   async logout(): Promise<void> {
     try {
       const token = localStorage.getItem(authConfig.session.tokenKey)
       
       if (token) {
-        // Revoke token on server
-        await fetch(buildAuthUrl(authConfig.oauth.endpoints.logout), {
+        const response = await fetch(buildAuthUrl(authConfig.oauth.endpoints.logout), {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         })
+        
+        // Don't throw on logout endpoint errors - still clear local storage
+        if (!response.ok) {
+          console.warn('Server logout failed, clearing local storage anyway')
+        }
       }
     } catch (error) {
+      // Log but don't throw - we want to clear storage regardless
       console.error('Logout error:', error)
-      toast.error(getNetworkErrorMessage(error, 'Logout failed'))
-      throw error
     } finally {
-      // Always clear local storage
       clearAuthStorage()
-      
-      // Redirect to home
       window.location.href = authConfig.routes.home
     }
   }
@@ -344,16 +309,13 @@ class AuthService {
   async refreshToken(): Promise<AuthResponse> {
     try {
       const refreshToken = localStorage.getItem(authConfig.session.refreshTokenKey)
-      
       if (!refreshToken) {
         throw new Error('No refresh token available')
       }
       
       const response = await fetch(buildAuthUrl(authConfig.oauth.endpoints.token), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           grant_type: 'refresh_token',
           refresh_token: refreshToken,
@@ -361,29 +323,13 @@ class AuthService {
         }),
       })
       
-      if (!response.ok) {
-        throw new Error('Token refresh failed')
-      }
-      
-      const data = await response.json()
-      
-      // Update stored tokens
-      localStorage.setItem(authConfig.session.tokenKey, data.access_token)
-      if (data.refresh_token) {
-        localStorage.setItem(authConfig.session.refreshTokenKey, data.refresh_token)
-      }
-      
-      // Update expiry
-      const expiryTime = new Date(Date.now() + data.expires_in * 1000)
-      localStorage.setItem(authConfig.session.expiryKey, expiryTime.toISOString())
-      
+      const data = await this.ensureSuccess<AuthResponse>(response, 'Token refresh failed')
+      this.storeAuthData(data)
       return data
     } catch (error) {
-      console.error('Token refresh error:', error)
-      toast.error(getNetworkErrorMessage(error, 'Token refresh failed'))
       clearAuthStorage()
       window.location.href = authConfig.routes.login
-      throw error
+      return handleAuthError(error, 'Token refresh', 'Token refresh failed')
     }
   }
   
@@ -402,34 +348,29 @@ class AuthService {
   }
   
   /**
-   * Store authentication data in localStorage
+   * Store authentication data consistently in localStorage
    */
   private storeAuthData(data: AuthResponse): void {
-    // Set secure, httpOnly cookies instead of localStorage
-    this.setSecureCookie(authConfig.session.tokenKey, data.access_token, data.expires_in);
+    localStorage.setItem(authConfig.session.tokenKey, data.access_token)
     
     if (data.refresh_token) {
-      this.setSecureCookie(authConfig.session.refreshTokenKey, data.refresh_token, 30 * 24 * 60 * 60); // 30 days
+      localStorage.setItem(authConfig.session.refreshTokenKey, data.refresh_token)
     }
     
     if (data.user) {
-      // Only store non-sensitive user data in localStorage
       const safeUserData = {
         id: data.user.id,
         email: data.user.email,
         name: data.user.name,
-        avatar: data.user.avatar
-      };
-      localStorage.setItem(authConfig.session.userKey, JSON.stringify(safeUserData));
+        avatar: data.user.avatar,
+        role: data.user.role,
+        createdAt: data.user.createdAt
+      }
+      localStorage.setItem(authConfig.session.userKey, JSON.stringify(safeUserData))
     }
     
-    // Calculate and store expiry time
     const expiryTime = new Date(Date.now() + data.expires_in * 1000)
     localStorage.setItem(authConfig.session.expiryKey, expiryTime.toISOString())
-  }
-  
-  private setSecureCookie(name: string, value: string, maxAge: number): void {
-    document.cookie = `${name}=${value}; Max-Age=${maxAge}; Path=/; Secure; SameSite=Strict; HttpOnly`;
   }
   
   /**
