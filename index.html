@@ -1,178 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lanonasis API Gateway</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 3rem;
-        }
-        .header h1 {
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-        .header p {
-            font-size: 1.2rem;
-            opacity: 0.9;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        .api-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin-bottom: 3rem;
-        }
-        .api-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        .api-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
-        }
-        .api-card h3 {
-            color: #333;
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-        }
-        .api-card .icon {
-            margin-right: 0.5rem;
-            font-size: 1.5rem;
-        }
-        .api-card p {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
-        }
-        .api-card a {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 6px;
-            font-weight: 500;
-            transition: background 0.3s ease;
-        }
-        .api-card a:hover {
-            background: #5a67d8;
-        }
-        .status-bar {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-            color: white;
-            backdrop-filter: blur(10px);
-        }
-        .status-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #10b981;
-            border-radius: 50%;
-            margin-right: 8px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .footer {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.8);
-            margin-top: 2rem;
-            font-size: 0.9rem;
-        }
-        @media (max-width: 768px) {
-            .header h1 { font-size: 2rem; }
-            .container { padding: 1rem; }
-            .api-grid { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🚀 Lanonasis API Gateway</h1>
-            <p>Secure, scalable APIs for modern applications. Enterprise-grade authentication, memory services, and MCP integration.</p>
-        </div>
-        
-        <div class="api-grid">
-            <div class="api-card">
-                <h3><span class="icon">🔐</span>Authentication API</h3>
-                <p>Secure user authentication, OAuth flows, and session management with JWT tokens.</p>
-                <a href="/api/v1/auth/health">Check Auth Status</a>
-            </div>
-            
-            <div class="api-card">
-                <h3><span class="icon">🧠</span>Memory Services</h3>
-                <p>Intelligent memory management and retrieval with AI-powered search capabilities.</p>
-                <a href="/api/v1/memories">Access Memory API</a>
-            </div>
-            
-            <div class="api-card">
-                <h3><span class="icon">🔑</span>API Key Management</h3>
-                <p>Generate, manage, and monitor API keys with fine-grained permissions and usage analytics.</p>
-                <a href="/api/v1/keys">Manage Keys</a>
-            </div>
-            
-            <div class="api-card">
-                <h3><span class="icon">🤖</span>MCP Integration</h3>
-                <p>Model Context Protocol endpoints for AI applications and CLI tool integration.</p>
-                <a href="/api/mcp">MCP Services</a>
-            </div>
-            
-            <div class="api-card">
-                <h3><span class="icon">📊</span>Dashboard</h3>
-                <p>Access your personalized dashboard to manage all services, view analytics, and generate API keys.</p>
-                <a href="https://dashboard.lanonasis.com">Open Dashboard</a>
-            </div>
-            
-            <div class="api-card">
-                <h3><span class="icon">📚</span>Documentation</h3>
-                <p>Comprehensive API documentation, SDKs, and integration guides for developers.</p>
-                <a href="https://docs.lanonasis.com">View Docs</a>
-            </div>
-        </div>
-        
-        <div class="status-bar">
-            <span class="status-indicator"></span>
-            <strong>System Status:</strong> All services operational
-            <span style="margin-left: 2rem;">
-                <strong>Uptime:</strong> 99.9%
-            </span>
-        </div>
-        
-        <div class="footer">
-            <p>Powered by Onasis-CORE Authentication • <a href="/health" style="color: rgba(255,255,255,0.8);">Health Check</a></p>
-        </div>
-    </div>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lanonasis API Platform</title>
+    <meta name="description" content="Professional Memory as a Service (MaaS) platform with self-service API key management and comprehensive memory operations." />
+    <meta name="author" content="Lanonasis" />
+    <meta property="og:title" content="Lanonasis Memory Service - Memory-as-a-Service Platform" />
+    <meta property="og:description" content="Vector-enabled memory storage, secure API key management, and MCP integration for building intelligent AI applications." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://api.lanonasis.com/assets/og-image.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@lanonasis" />
+    <meta name="twitter:image" content="https://api.lanonasis.com/assets/og-image.png" />
+    <meta name="theme-color" content="#0A1930" />
+    <meta name="msapplication-TileColor" content="#0A1930" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
