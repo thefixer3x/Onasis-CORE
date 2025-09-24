@@ -33,7 +33,10 @@ const isTypeError = (error: unknown): error is TypeError => error instanceof Typ
 const parseResponse = async <T>(response: Response): Promise<T> => {
   try {
     const text = await response.text()
-    return text ? JSON.parse(text) : null
+    if (!text) {
+      throw new AuthHttpError('Empty response', response.status)
+    }
+    return JSON.parse(text) as T
   } catch (error) {
     console.error('Failed to parse response:', error)
     throw new AuthHttpError('Invalid response format', response.status)
@@ -115,11 +118,11 @@ export interface AuthResponse {
 
 class AuthService {
   private readonly baseUrl: string
-  
+
   constructor() {
     this.baseUrl = authConfig.apiBaseUrl
   }
-  
+
   /**
    * Helper to properly join URL paths without double slashes
    */
@@ -139,7 +142,7 @@ class AuthService {
     }
     return parseResponse<T>(response)
   }
-  
+
   /**
    * Login with email and password
    */
@@ -150,9 +153,9 @@ class AuthService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
       })
-      
+
       const data = await this.ensureSuccess<AuthResponse>(response, 'Login failed')
-      
+
       this.storeAuthData(data)
       return data
     } catch (error) {
@@ -163,7 +166,7 @@ class AuthService {
       })
     }
   }
-  
+
   /**
    * Signup new user
    */
@@ -172,7 +175,7 @@ class AuthService {
       if (credentials.password !== credentials.confirmPassword) {
         throw new Error('Passwords do not match')
       }
-      
+
       const response = await fetch(this.joinUrl('/auth/signup'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -182,9 +185,9 @@ class AuthService {
           name: credentials.name,
         }),
       })
-      
+
       const data = await this.ensureSuccess<AuthResponse>(response, 'Signup failed')
-      
+
       this.storeAuthData(data)
       return data
     } catch (error) {
@@ -194,7 +197,7 @@ class AuthService {
       })
     }
   }
-  
+
   /**
    * OAuth login flow - stores state/verifier in localStorage for persistence
    */
@@ -204,11 +207,11 @@ class AuthService {
       const state = this.generateState()
       const codeVerifier = this.generateCodeVerifier()
       const codeChallenge = await this.generateCodeChallenge(codeVerifier)
-      
+
       // Store in localStorage for persistence across page refreshes
       localStorage.setItem('oauth_state', state)
       localStorage.setItem('oauth_code_verifier', codeVerifier)
-      
+
       const params = new URLSearchParams({
         client_id: oauth.clientId,
         redirect_uri: oauth.redirectUri,
@@ -218,13 +221,13 @@ class AuthService {
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
       })
-      
+
       window.location.href = buildAuthUrl(`${oauth.endpoints.authorize}?${params.toString()}`)
     } catch (error) {
       handleAuthError(error, 'OAuth login', 'Failed to initiate OAuth login')
     }
   }
-  
+
   /**
    * Handle OAuth callback
    */
@@ -235,12 +238,12 @@ class AuthService {
       if (state !== savedState) {
         throw new Error('Invalid state - possible CSRF attack')
       }
-      
+
       const codeVerifier = localStorage.getItem('oauth_code_verifier')
       if (!codeVerifier) {
         throw new Error('Code verifier not found')
       }
-      
+
       // Exchange code for token
       const tokenResponse = await fetch(buildAuthUrl(authConfig.oauth.endpoints.token), {
         method: 'POST',
@@ -253,42 +256,42 @@ class AuthService {
           code_verifier: codeVerifier,
         }),
       })
-      
+
       const tokenData = await this.ensureSuccess<AuthResponse>(tokenResponse, 'Token exchange failed')
-      
+
       // Get user info
       const userResponse = await fetch(buildAuthUrl(authConfig.oauth.endpoints.userInfo), {
         headers: { Authorization: `Bearer ${tokenData.access_token}` },
       })
-      
+
       const userData = await this.ensureSuccess<User>(userResponse, 'Failed to fetch user info')
-      
+
       const authData: AuthResponse = { ...tokenData, user: userData }
       this.storeAuthData(authData)
-      
+
       // Clean up OAuth state
       localStorage.removeItem('oauth_state')
       localStorage.removeItem('oauth_code_verifier')
-      
+
       return authData
     } catch (error) {
       return handleAuthError(error, 'OAuth callback', 'OAuth callback failed')
     }
   }
-  
+
   /**
    * Logout user
    */
   async logout(): Promise<void> {
     try {
       const token = localStorage.getItem(authConfig.session.tokenKey)
-      
+
       if (token) {
         const response = await fetch(buildAuthUrl(authConfig.oauth.endpoints.logout), {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
         })
-        
+
         // Don't throw on logout endpoint errors - still clear local storage
         if (!response.ok) {
           console.warn('Server logout failed, clearing local storage anyway')
@@ -302,7 +305,7 @@ class AuthService {
       window.location.href = authConfig.routes.home
     }
   }
-  
+
   /**
    * Refresh access token
    */
@@ -312,7 +315,7 @@ class AuthService {
       if (!refreshToken) {
         throw new Error('No refresh token available')
       }
-      
+
       const response = await fetch(buildAuthUrl(authConfig.oauth.endpoints.token), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -322,7 +325,7 @@ class AuthService {
           client_id: authConfig.oauth.clientId,
         }),
       })
-      
+
       const data = await this.ensureSuccess<AuthResponse>(response, 'Token refresh failed')
       this.storeAuthData(data)
       return data
@@ -332,31 +335,31 @@ class AuthService {
       return handleAuthError(error, 'Token refresh', 'Token refresh failed')
     }
   }
-  
+
   /**
    * Get current user
    */
   getCurrentUser(): User | null {
     const userStr = localStorage.getItem(authConfig.session.userKey)
     if (!userStr) return null
-    
+
     try {
-      return JSON.parse(userStr)
+      return JSON.parse(userStr) as User
     } catch {
       return null
     }
   }
-  
+
   /**
    * Store authentication data consistently in localStorage
    */
   private storeAuthData(data: AuthResponse): void {
     localStorage.setItem(authConfig.session.tokenKey, data.access_token)
-    
+
     if (data.refresh_token) {
       localStorage.setItem(authConfig.session.refreshTokenKey, data.refresh_token)
     }
-    
+
     if (data.user) {
       const safeUserData = {
         id: data.user.id,
@@ -368,11 +371,11 @@ class AuthService {
       }
       localStorage.setItem(authConfig.session.userKey, JSON.stringify(safeUserData))
     }
-    
+
     const expiryTime = new Date(Date.now() + data.expires_in * 1000)
     localStorage.setItem(authConfig.session.expiryKey, expiryTime.toISOString())
   }
-  
+
   /**
    * Generate random state for OAuth
    */
@@ -381,7 +384,7 @@ class AuthService {
     crypto.getRandomValues(array)
     return this.base64URLEncode(array)
   }
-  
+
   /**
    * Generate PKCE code verifier
    */
@@ -390,7 +393,7 @@ class AuthService {
     crypto.getRandomValues(array)
     return this.base64URLEncode(array)
   }
-  
+
   /**
    * Generate PKCE code challenge
    */
@@ -400,7 +403,7 @@ class AuthService {
     const hash = await crypto.subtle.digest('SHA-256', data)
     return this.base64URLEncode(hash)
   }
-  
+
   /**
    * Base64 URL encode
    */
