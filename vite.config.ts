@@ -33,4 +33,8 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
+  // Use the template.html file as the entry point
+  appType: 'spa',
+  root: './',
+  publicDir: 'public',
 })
