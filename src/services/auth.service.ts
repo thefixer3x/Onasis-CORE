@@ -351,6 +351,36 @@ class AuthService {
   }
 
   /**
+   * Check API health status
+   */
+  async checkHealth(): Promise<{ status: string; timestamp: string }> {
+    try {
+      const response = await fetch(this.joinUrl('/v1/health'), {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Health check failed: ${response.status}`)
+      }
+
+      const data = await this.ensureSuccess<{ status: string; timestamp: string }>(
+        response,
+        'Health check failed'
+      )
+
+      return data
+    } catch (error) {
+      console.warn('Health check failed:', error)
+      // Return a fallback instead of throwing
+      return {
+        status: 'unknown',
+        timestamp: new Date().toISOString()
+      }
+    }
+  }
+
+  /**
    * Store authentication data consistently in localStorage
    */
   private storeAuthData(data: AuthResponse): void {
