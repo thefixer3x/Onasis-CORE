@@ -1,11 +1,86 @@
 /**
  * Authentication Service
- * Handles all authentication operations with proper error handling
- * and session management. Fixes the authentication flow issues.
+ * Provides structured error handling and consistent session persistence.
  */
 
 import { authConfig, buildAuthUrl, clearAuthStorage } from '@/config/auth.config'
 import toast from 'react-hot-toast'
+
+const DEFAULT_STATUS_MESSAGES: Record<number, string> = {
+  400: 'Bad request',
+  401: 'Invalid credentials',
+  403: 'Account not verified - check your email',
+  404: 'Requested resource not found',
+  409: 'Conflict detected',
+  429: 'Too many attempts - try again later',
+  500: 'Authentication service unavailable',
+}
+
+class AuthHttpError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message)
+    this.name = 'AuthHttpError'
+  }
+}
+
+const isError = (error: unknown): error is Error => error instanceof Error
+const isTypeError = (error: unknown): error is TypeError => error instanceof TypeError
+const isErrorWithStatus = (error: unknown, code: number) =>
+  isError(error) && error.message.includes(code.toString())
+
+const resolveStatusMessage = (
+  error: unknown,
+  messages: Record<number, string>
+): string | null => {
+  for (const [status, message] of Object.entries(messages)) {
+    if (isErrorWithStatus(error, Number(status))) {
+      return message
+    }
+  }
+  return null
+}
+
+const getNetworkErrorMessage = (
+  error: unknown,
+  fallback: string,
+  overrides: Record<number, string> = {}
+): string => {
+  if (isTypeError(error)) {
+    return 'Network error - check your connection'
+  }
+
+  const mergedMessages = { ...DEFAULT_STATUS_MESSAGES, ...overrides }
+
+  if (error instanceof AuthHttpError) {
+    return mergedMessages[error.status] ?? error.message ?? fallback
+  }
+
+  const statusMessage = resolveStatusMessage(error, mergedMessages)
+  if (statusMessage) {
+    return statusMessage
+  }
+
+  if (isError(error) && error.message) {
+    return error.message
+  }
+
+  return fallback
+}
+
+const handleAuthError = (
+  error: unknown,
+  context: string,
+  fallback: string,
+  overrides: Record<number, string> = {}
+): never => {
+  const message = getNetworkErrorMessage(error, fallback, overrides)
+  console.error(`${context} error:`, error)
+  toast.error(message)
+  if (isError(error)) {
+    throw error
+  }
+  throw new Error(message)
+}
 
 export interface LoginCredentials {
   email: string
@@ -44,8 +119,8 @@ class AuthService {
   /**
    * Helper to properly join URL paths without double slashes
    */
-  private joinUrl(base: string, path: string): string {
-    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base
+  private joinUrl(path: string): string {
+    const cleanBase = this.baseUrl.endsWith('/') ? this.baseUrl.slice(0, -1) : this.baseUrl
     const cleanPath = path.startsWith('/') ? path : `/${path}`
     return `${cleanBase}${cleanPath}`
   }
@@ -76,19 +151,7 @@ class AuthService {
       
       return data
     } catch (error) {
-      console.error('Login error:', error)
-      let message = 'Login failed'
-      if (error instanceof TypeError) {
-        message = 'Network error - check your connection'
-      } else if (error.message.includes('401')) {
-        message = 'Invalid email or password'
-      } else if (error.message.includes('403')) {
-        message = 'Account not verified - check your email'
-      } else if (error.message.includes('429')) {
-        message = 'Too many attempts - try again later'
-      }
-      toast.error(message)
-      throw error
+      handleCatch(error, 'Login error')
     }
   }
   
@@ -128,7 +191,7 @@ class AuthService {
       return data
     } catch (error) {
       console.error('Signup error:', error)
-      toast.error(error instanceof Error ? error.message : 'Signup failed')
+      toast.error(getNetworkErrorMessage(error, 'Signup failed'))
       throw error
     }
   }
@@ -167,7 +230,7 @@ class AuthService {
       window.location.href = authUrl
     } catch (error) {
       console.error('OAuth login error:', error)
-      toast.error('Failed to initiate OAuth login')
+      toast.error(getNetworkErrorMessage(error, 'Failed to initiate OAuth login'))
       throw error
     }
   }
@@ -240,7 +303,7 @@ class AuthService {
       return authData
     } catch (error) {
       console.error('OAuth callback error:', error)
-      toast.error(error instanceof Error ? error.message : 'OAuth callback failed')
+      toast.error(getNetworkErrorMessage(error, 'OAuth callback failed'))
       throw error
     }
   }
@@ -264,6 +327,8 @@ class AuthService {
       }
     } catch (error) {
       console.error('Logout error:', error)
+      toast.error(getNetworkErrorMessage(error, 'Logout failed'))
+      throw error
     } finally {
       // Always clear local storage
       clearAuthStorage()
@@ -315,7 +380,7 @@ class AuthService {
       return data
     } catch (error) {
       console.error('Token refresh error:', error)
-      // Clear auth and redirect to login
+      toast.error(getNetworkErrorMessage(error, 'Token refresh failed'))
       clearAuthStorage()
       window.location.href = authConfig.routes.login
       throw error
