@@ -71,21 +71,69 @@ const getOAuthState = async (state) => {
   }
 };
 
+const getAuthCodeSession = async (authorizationCode) => {
+  try {
+    const { data, error } = await supabase
+      .from('oauth_sessions')
+      .select('*')
+      .eq('authorization_code', authorizationCode)
+      .eq('is_used', false)
+      .gt('expires_at', new Date().toISOString())
+      .single();
+
+    if (error || !data) {
+      console.log('Authorization code not found or expired:', error?.message);
+      return null;
+    }
+
+    return data; // Return full data including session_data
+  } catch (err) {
+    console.error('Authorization code retrieval error:', err);
+    return null;
+  }
+};
+
 const markOAuthStateUsed = async (state) => {
   try {
     const { error } = await supabase
       .from('oauth_sessions')
-      .update({ 
-        is_used: true, 
-        used_at: new Date().toISOString() 
+      .update({
+        is_used: true,
+        used_at: new Date().toISOString()
       })
       .eq('state', state);
-    
+
     if (error) {
       console.error('Failed to mark OAuth state as used:', error);
+      throw new Error('Failed to mark OAuth state as used');
     }
+
+    return true; // Success
   } catch (err) {
     console.error('OAuth state update error:', err);
+    throw new Error('OAuth state update failed');
+  }
+};
+
+const markAuthCodeUsed = async (authorizationCode) => {
+  try {
+    const { error } = await supabase
+      .from('oauth_sessions')
+      .update({
+        is_used: true,
+        used_at: new Date().toISOString()
+      })
+      .eq('authorization_code', authorizationCode);
+
+    if (error) {
+      console.error('Failed to mark authorization code as used:', error);
+      throw new Error('Failed to mark authorization code as used');
+    }
+
+    return true; // Success
+  } catch (err) {
+    console.error('Authorization code update error:', err);
+    throw new Error('Authorization code update failed');
   }
 };
 
@@ -517,21 +565,29 @@ async function callback(event) {
     // Generate authorization code
     const authCode = crypto.randomBytes(32).toString('base64url');
     
-    // Mark OAuth state as used
-    await markOAuthStateUsed(state);
+    // Mark OAuth state as used - prevent replay attacks
+    try {
+      await markOAuthStateUsed(state);
+    } catch (error) {
+      console.error('Failed to mark OAuth state as used, preventing further processing:', error);
+      throw error; // Re-throw to prevent continuation
+    }
     
     // Store auth code for token exchange in Supabase
     const { error: codeError } = await supabase
       .from('oauth_sessions')
       .insert({
-        state: authCode, // Use auth code as new state for token exchange
+        state: state, // Keep original state for CSRF protection
+        authorization_code: authCode, // Store auth code in proper column
         session_data: {
-          ...session,
+          // Only essential fields needed for token exchange
           userId,
           organizationId,
           vendorCode,
-          authCode,
-          timestamp: Date.now()
+          clientId: session.clientId,
+          scope: session.scope,
+          codeChallenge: session.codeChallenge,
+          codeChallengeMethod: session.codeChallengeMethod
         },
         client_id: session.clientId,
         expires_at: new Date(Date.now() + 300000).toISOString() // 5 minutes for token exchange
@@ -584,8 +640,8 @@ async function token(event) {
     const body = JSON.parse(event.body);
     const { code, code_verifier, client_id, redirect_uri } = body;
 
-    // Get auth session from persistent storage
-    const sessionData = await getOAuthState(code);
+    // Get auth session using authorization code (not state)
+    const sessionData = await getAuthCodeSession(code);
     if (!sessionData) {
       throw new Error('Invalid authorization code');
     }
@@ -612,8 +668,13 @@ async function token(event) {
     // Generate refresh token
     const refreshToken = crypto.randomBytes(32).toString('base64url');
     
-    // Mark auth code as used
-    await markOAuthStateUsed(code);
+    // Mark authorization code as used - prevent replay attacks
+    try {
+      await markAuthCodeUsed(code);
+    } catch (error) {
+      console.error('Failed to mark authorization code as used, preventing further processing:', error);
+      throw error; // Re-throw to prevent continuation
+    }
 
     return {
       statusCode: 200,
