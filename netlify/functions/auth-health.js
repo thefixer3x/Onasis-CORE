@@ -21,7 +21,7 @@ exports.handler = async (event, context) => {
   // Auth health check response - Always return OK to unblock auth flow
   // Perform basic health checks
   let authStatus = 'available';
-  let statusCode = 200;
+  const statusCode = 200;
   
   try {
     // Check if auth service environment variables are set

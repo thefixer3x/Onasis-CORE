@@ -7,8 +7,7 @@
 
 import 'dotenv/config';
 // import { spawn } from 'child_process'; // Unused - removed to fix lint
--import WebSocket from 'ws';
-+import { WebSocket } from 'undici'; // Node 18+ ships the same global; this keeps compatibility
+import { WebSocket } from 'undici'; // Node 18+ ships the same global; this keeps compatibility
 
 class OnasisCoreMCPClient {
   constructor(options = {}) {

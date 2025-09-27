@@ -13,15 +13,23 @@ import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
 import { Resource } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
 import { metrics } from '@opentelemetry/api';
+import { randomBytes } from 'crypto';
+import axios from 'axios';
 import pino from 'pino';
 import { StatsD } from 'node-statsd';
+
+// Statically import OpenTelemetry instrumentations
+import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
+import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
+import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
+import { RedisInstrumentation } from '@opentelemetry/instrumentation-redis';
 
 /**
  * OpenTelemetry Configuration
  */
 export class TelemetryService {
   private static sdk: NodeSDK;
-  
+
   /**
    * Initialize OpenTelemetry with Jaeger and Prometheus
    */
@@ -34,39 +42,35 @@ export class TelemetryService {
       [SemanticResourceAttributes.SERVICE_NAMESPACE]: 'memory-service',
       [SemanticResourceAttributes.SERVICE_INSTANCE_ID]: process.env.INSTANCE_ID || 'default',
     });
-    
+
     // Jaeger exporter for traces
     const jaegerExporter = new JaegerExporter({
       endpoint: process.env.JAEGER_ENDPOINT || 'http://localhost:14268/api/traces',
       serviceName: 'lanonasis-maas',
     });
-    
+
     // Prometheus exporter for metrics
     const prometheusExporter = new PrometheusExporter({
-      port: parseInt(process.env.METRICS_PORT || '9090'),
-      endpoint: '/metrics',
-    }, () => {
-      console.log('Prometheus metrics available at :9090/metrics');
+      port: process.env.PROMETHEUS_PORT ? parseInt(process.env.PROMETHEUS_PORT) : 9464,
+      startServer: true,
     });
-    
-    // Initialize SDK
+
     this.sdk = new NodeSDK({
       resource,
       traceExporter: jaegerExporter,
       metricReader: prometheusExporter,
       instrumentations: [
-        // Auto-instrumentation for common libraries
-        require('@opentelemetry/instrumentation-http').HttpInstrumentation,
-        require('@opentelemetry/instrumentation-express').ExpressInstrumentation,
-        require('@opentelemetry/instrumentation-pg').PgInstrumentation,
-        require('@opentelemetry/instrumentation-redis').RedisInstrumentation,
+        new HttpInstrumentation(),
+        new ExpressInstrumentation(),
+        new PgInstrumentation(),
+        new RedisInstrumentation(),
       ],
     });
-    
+
     // Start SDK
     this.sdk.start();
   }
-  
+
   /**
    * Shutdown telemetry gracefully
    */
@@ -80,7 +84,7 @@ export class TelemetryService {
  */
 export class LoggingService {
   private static logger: pino.Logger;
-  
+
   /**
    * Initialize structured logger
    */
@@ -144,7 +148,7 @@ export class LoggingService {
       },
     });
   }
-  
+
   /**
    * Get logger instance
    */
@@ -162,7 +166,7 @@ export class LoggingService {
 export class MetricsService {
   private static statsd: StatsD;
   private static customMetrics: Map<string, any> = new Map();
-  
+
   /**
    * Initialize StatsD client
    */
@@ -176,50 +180,50 @@ export class MetricsService {
       cacheDns: true,
       mock: process.env.NODE_ENV === 'test',
     });
-    
+
     // Initialize custom metrics
     this.initializeCustomMetrics();
   }
-  
+
   /**
    * Initialize custom Prometheus metrics
    */
   private static initializeCustomMetrics() {
     const meter = metrics.getMeter('lanonasis-maas', '1.0.0');
-    
+
     // Request counter
     this.customMetrics.set('request_counter', meter.createCounter('http_requests_total', {
       description: 'Total number of HTTP requests',
     }));
-    
+
     // Request duration histogram
     this.customMetrics.set('request_duration', meter.createHistogram('http_request_duration_seconds', {
       description: 'HTTP request duration in seconds',
       boundaries: [0.1, 0.5, 1, 2, 5, 10],
     }));
-    
+
     // Active connections gauge
     this.customMetrics.set('active_connections', meter.createUpDownCounter('active_connections', {
       description: 'Number of active connections',
     }));
-    
+
     // Memory usage gauge
     this.customMetrics.set('memory_usage', meter.createObservableGauge('memory_usage_bytes', {
       description: 'Process memory usage in bytes',
     }));
-    
+
     // Vector operations counter
     this.customMetrics.set('vector_operations', meter.createCounter('vector_operations_total', {
       description: 'Total number of vector operations',
     }));
-    
+
     // Embedding latency histogram
     this.customMetrics.set('embedding_latency', meter.createHistogram('embedding_latency_seconds', {
       description: 'Embedding generation latency in seconds',
       boundaries: [0.5, 1, 2, 5, 10, 30],
     }));
   }
-  
+
   /**
    * Record HTTP request
    */
@@ -230,16 +234,16 @@ export class MetricsService {
       status_code: statusCode.toString(),
       tenant_id: tenantId || 'unknown',
     };
-    
+
     // Prometheus metrics
     this.customMetrics.get('request_counter')?.add(1, labels);
     this.customMetrics.get('request_duration')?.record(duration / 1000, labels);
-    
+
     // StatsD metrics
     this.statsd?.increment(`requests.${method}.${statusCode}`);
     this.statsd?.timing(`request_duration.${method}`, duration);
   }
-  
+
   /**
    * Record vector operation
    */
@@ -248,12 +252,12 @@ export class MetricsService {
       operation,
       tenant_id: tenantId || 'unknown',
     };
-    
+
     this.customMetrics.get('vector_operations')?.add(count, labels);
     this.statsd?.increment(`vectors.${operation}`, count);
     this.statsd?.timing(`vector_operation.${operation}`, duration);
   }
-  
+
   /**
    * Record business metrics
    */
@@ -267,14 +271,14 @@ export class MetricsService {
  */
 export class HealthCheckService {
   private static checks: Map<string, () => Promise<boolean>> = new Map();
-  
+
   /**
    * Register a health check
    */
   static registerCheck(name: string, check: () => Promise<boolean>) {
     this.checks.set(name, check);
   }
-  
+
   /**
    * Run all health checks
    */
@@ -286,7 +290,7 @@ export class HealthCheckService {
   }> {
     const results: Record<string, boolean> = {};
     let failedChecks = 0;
-    
+
     for (const [name, check] of this.checks) {
       try {
         results[name] = await check();
@@ -296,10 +300,10 @@ export class HealthCheckService {
         failedChecks++;
       }
     }
-    
+
     const totalChecks = this.checks.size;
     let status: 'healthy' | 'degraded' | 'unhealthy';
-    
+
     if (failedChecks === 0) {
       status = 'healthy';
     } else if (failedChecks < totalChecks / 2) {
@@ -307,7 +311,7 @@ export class HealthCheckService {
     } else {
       status = 'unhealthy';
     }
-    
+
     return {
       status,
       checks: results,
@@ -315,7 +319,7 @@ export class HealthCheckService {
       version: process.env.APP_VERSION || '1.0.0',
     };
   }
-  
+
   /**
    * Initialize default health checks
    */
@@ -329,7 +333,7 @@ export class HealthCheckService {
         return false;
       }
     });
-    
+
     // Redis health check
     this.registerCheck('redis', async () => {
       try {
@@ -339,14 +343,14 @@ export class HealthCheckService {
         return false;
       }
     });
-    
+
     // Memory health check
     this.registerCheck('memory', async () => {
       const used = process.memoryUsage();
       const limit = 2 * 1024 * 1024 * 1024; // 2GB
       return used.heapUsed < limit;
     });
-    
+
     // Disk space health check
     this.registerCheck('disk', async () => {
       // TODO: Implement disk space check
@@ -360,7 +364,7 @@ export class HealthCheckService {
  */
 export class AlertingService {
   private static alertChannels: Map<string, (alert: any) => Promise<void>> = new Map();
-  
+
   /**
    * Initialize alerting channels
    */
@@ -368,7 +372,6 @@ export class AlertingService {
     // Slack integration
     if (process.env.SLACK_WEBHOOK_URL) {
       this.alertChannels.set('slack', async (alert) => {
-        const axios = require('axios');
         await axios.post(process.env.SLACK_WEBHOOK_URL, {
           text: `🚨 Alert: ${alert.title}`,
           attachments: [{
@@ -383,11 +386,10 @@ export class AlertingService {
         });
       });
     }
-    
+
     // PagerDuty integration
     if (process.env.PAGERDUTY_INTEGRATION_KEY) {
       this.alertChannels.set('pagerduty', async (alert) => {
-        const axios = require('axios');
         await axios.post('https://events.pagerduty.com/v2/enqueue', {
           routing_key: process.env.PAGERDUTY_INTEGRATION_KEY,
           event_action: 'trigger',
@@ -400,7 +402,7 @@ export class AlertingService {
         });
       });
     }
-    
+
     // Email integration
     if (process.env.ALERT_EMAIL) {
       this.alertChannels.set('email', async (alert) => {
@@ -409,7 +411,7 @@ export class AlertingService {
       });
     }
   }
-  
+
   /**
    * Send alert to all configured channels
    */
@@ -426,7 +428,7 @@ export class AlertingService {
       environment: process.env.NODE_ENV || 'production',
       instance_id: process.env.INSTANCE_ID,
     };
-    
+
     for (const [channel, sender] of this.alertChannels) {
       try {
         await sender(enrichedAlert);
@@ -447,7 +449,7 @@ export class PerformanceMonitor {
     cpu_usage_percent: 80,
     error_rate_percent: 1,
   };
-  
+
   /**
    * Monitor response times
    */
@@ -462,14 +464,14 @@ export class PerformanceMonitor {
       });
     }
   }
-  
+
   /**
    * Monitor memory usage
    */
   static checkMemoryUsage() {
     const used = process.memoryUsage();
     const usedMB = used.heapUsed / 1024 / 1024;
-    
+
     if (usedMB > this.thresholds.memory_usage_mb) {
       AlertingService.sendAlert({
         title: 'High Memory Usage',
@@ -480,14 +482,14 @@ export class PerformanceMonitor {
       });
     }
   }
-  
+
   /**
    * Start periodic monitoring
    */
   static startMonitoring() {
     // Memory monitoring every minute
     setInterval(() => this.checkMemoryUsage(), 60000);
-    
+
     // Custom business metrics every 5 minutes
     setInterval(() => {
       // TODO: Collect and report business metrics
@@ -513,21 +515,21 @@ export class TracingUtils {
       flags: headers['x-trace-flags'] || '01',
     };
   }
-  
+
   /**
    * Generate trace ID
    */
   static generateTraceId(): string {
-    return require('crypto').randomBytes(16).toString('hex');
+    return randomBytes(16).toString('hex');
   }
-  
+
   /**
    * Generate span ID
    */
   static generateSpanId(): string {
-    return require('crypto').randomBytes(8).toString('hex');
+    return randomBytes(8).toString('hex');
   }
-  
+
   /**
    * Inject trace context into headers
    */

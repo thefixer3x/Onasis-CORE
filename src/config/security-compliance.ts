@@ -10,8 +10,9 @@
 import { z } from 'zod';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, pbkdf2Sync } from 'crypto';
 import jwt from 'jsonwebtoken';
+import * as speakeasy from 'speakeasy';
 
 /**
  * Data Residency Configuration
@@ -60,7 +61,7 @@ export const DataResidencyConfig = {
       retention_days: 2555, // 7 years
     }
   },
-  
+
   /**
    * Get region for a given country/state code
    */
@@ -73,18 +74,18 @@ export const DataResidencyConfig = {
       }
       return 'US';
     }
-    
+
     // Check each region's allowed countries
     for (const [region, config] of Object.entries(this.regions)) {
       if ('allowed_countries' in config && config.allowed_countries.includes(countryCode)) {
         return region;
       }
     }
-    
+
     // Default to US for unknown locations
     return 'US';
   },
-  
+
   /**
    * Get compliance requirements for a region
    */
@@ -108,12 +109,12 @@ export class GDPRCompliance {
   }> {
     const erasureId = randomBytes(16).toString('hex');
     const timestamp = new Date().toISOString();
-    
+
     // Generate erasure certificate
     const certificate = createHash('sha256')
       .update(`${userId}-${tenantId}-${timestamp}-${erasureId}`)
       .digest('hex');
-    
+
     // Log the erasure request for audit
     console.log({
       event: 'gdpr_erasure_request',
@@ -123,7 +124,7 @@ export class GDPRCompliance {
       timestamp,
       certificate
     });
-    
+
     return {
       success: true,
       erasedRecords: 0, // Will be updated after actual deletion
@@ -131,7 +132,7 @@ export class GDPRCompliance {
       certificate
     };
   }
-  
+
   /**
    * Data portability - export user data
    */
@@ -146,17 +147,17 @@ export class GDPRCompliance {
       exportDate: new Date().toISOString(),
       data: {}, // Will be populated with actual data
     };
-    
+
     const dataString = JSON.stringify(exportedData);
     const checksum = createHash('sha256').update(dataString).digest('hex');
-    
+
     return {
       data: exportedData,
       format: 'json',
       checksum
     };
   }
-  
+
   /**
    * Consent tracking and management
    */
@@ -169,7 +170,7 @@ export class GDPRCompliance {
       version: z.string(),
       withdrawn: z.boolean().optional()
     });
-    
+
     try {
       consentSchema.parse(consent);
       return true;
@@ -193,14 +194,14 @@ export class CCPACompliance {
   }> {
     const validCategories = ['sale', 'sharing', 'targeting', 'profiling'];
     const optedOut = categories.filter(cat => validCategories.includes(cat));
-    
+
     return {
       success: true,
       optedOutCategories: optedOut,
       effectiveDate: new Date().toISOString()
     };
   }
-  
+
   /**
    * Data disclosure audit trail
    */
@@ -264,7 +265,7 @@ export const RateLimiters = {
     standardHeaders: true,
     legacyHeaders: false,
   }),
-  
+
   // Strict rate limiter for auth endpoints
   auth: rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -272,7 +273,7 @@ export const RateLimiters = {
     message: 'Too many authentication attempts, please try again later.',
     skipSuccessfulRequests: true,
   }),
-  
+
   // API rate limiter per tenant
   api: rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -280,7 +281,7 @@ export const RateLimiters = {
     keyGenerator: (req) => req.headers['x-tenant-id'] as string || req.ip,
     message: 'API rate limit exceeded for your organization.',
   }),
-  
+
   // Embedding rate limiter (expensive operations)
   embedding: rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -298,7 +299,7 @@ export class EncryptionService {
   private static readonly KEY_LENGTH = 32;
   private static readonly IV_LENGTH = 16;
   private static readonly TAG_LENGTH = 16;
-  
+
   /**
    * Encrypt sensitive data
    */
@@ -307,22 +308,21 @@ export class EncryptionService {
     iv: string;
     tag: string;
   } {
-    const crypto = require('crypto');
-    const iv = crypto.randomBytes(this.IV_LENGTH);
-    const cipher = crypto.createCipheriv(this.ALGORITHM, key, iv);
-    
+    const iv = randomBytes(this.IV_LENGTH);
+    const cipher = createHash.createCipheriv(this.ALGORITHM, key, iv);
+
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    
+
     const tag = cipher.getAuthTag();
-    
+
     return {
       encrypted,
       iv: iv.toString('hex'),
       tag: tag.toString('hex'),
     };
   }
-  
+
   /**
    * Decrypt sensitive data
    */
@@ -333,15 +333,15 @@ export class EncryptionService {
       key,
       Buffer.from(iv, 'hex')
     );
-    
+
     decipher.setAuthTag(Buffer.from(tag, 'hex'));
-    
+
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   }
-  
+
   /**
    * Generate encryption key
    */
@@ -364,7 +364,7 @@ export class AuditLogger {
     'security_alert',
     'compliance_event',
   ];
-  
+
   /**
    * Log audit event
    */
@@ -386,10 +386,10 @@ export class AuditLogger {
       serverVersion: process.env.APP_VERSION || '1.0.0',
       environment: process.env.NODE_ENV || 'production',
     };
-    
+
     // Log to audit system (implement your preferred audit backend)
     console.log(JSON.stringify(auditEntry));
-    
+
     // For SOC2 compliance, ensure critical events are also logged to immutable storage
     if (this.REQUIRED_EVENTS.includes(event.type)) {
       // TODO: Send to immutable audit log storage
@@ -412,7 +412,7 @@ export class InputSanitizer {
       .replace(/\*\//g, '')
       .replace(/\b(DROP|DELETE|INSERT|UPDATE|ALTER|CREATE|EXEC|EXECUTE)\b/gi, '');
   }
-  
+
   /**
    * Sanitize HTML/XSS
    */
@@ -426,7 +426,7 @@ export class InputSanitizer {
       .replace(/`/g, '&#96;')
       .replace(/=/g, '&#x3D;');
   }
-  
+
   /**
    * Validate and sanitize JSON
    */
@@ -474,7 +474,7 @@ export class MFAService {
     });
     return secret.base32;
   }
-  
+
   /**
    * Verify TOTP token
    */
@@ -487,7 +487,7 @@ export class MFAService {
       window: 2, // Allow 2 time steps tolerance
     });
   }
-  
+
   /**
    * Generate backup codes
    */

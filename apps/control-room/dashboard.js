@@ -89,7 +89,7 @@ if (!SUPABASE_SERVICE_KEY) {
 }
 
 // Real-time data store
-let platformStatus = {};
+const platformStatus = {};
 let systemMetrics = {
   total_requests: 0,
   total_revenue: 0,
@@ -560,7 +560,7 @@ app.get('/dashboard', (req, res) => {
 app.get('/analytics/:timeframe', async (req, res) => {
   try {
     const { timeframe } = req.params;
-    let startDate = new Date();
+    const startDate = new Date();
     
     switch (timeframe) {
       case '1h':
