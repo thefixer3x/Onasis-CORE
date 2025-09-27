@@ -10,7 +10,7 @@ import fetch from 'node-fetch';
 
 const VPS_SSH_HOST = 'vps';
 const VPS_SSH_PORT = 2222;
-let testResults = [];
+const testResults = [];
 
 class OnasisGatewayViaSSH {
   constructor() {

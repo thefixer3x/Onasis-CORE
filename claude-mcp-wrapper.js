@@ -11,7 +11,7 @@ import { createInterface } from 'readline';
 const MCP_URL = 'ws://localhost:9083/mcp';
 let ws = null;
 let connected = false;
-let messageQueue = [];
+const messageQueue = [];
 
 // Create readline interface for stdio
 const rl = createInterface({

@@ -9,7 +9,7 @@ import fetch from 'node-fetch';
 
 const REMOTE_MCP_URL = 'http://vps:8080'; // nginx proxy to port 3000
 const VPS_DIRECT_URL = 'http://168.231.74.29:8080';
-let testResults = [];
+const testResults = [];
 
 class OnasisGatewayClient {
   constructor(baseUrl) {
