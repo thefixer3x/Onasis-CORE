@@ -28,7 +28,7 @@ if [ "$confirm" != "yes" ]; then
 fi
 
 # Define the sensitive string to remove
-LEAKED_KEY="REDACTED_JWT"
+LEAKED_KEY="[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 REPLACEMENT="[REDACTED_CREDENTIAL_REMOVED_FROM_HISTORY]"
 
 echo ""
@@ -63,7 +63,7 @@ case $method in
 import sys
 import re
 
-leaked_key = b"REDACTED_JWT"
+leaked_key = b"[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 replacement = b"[REDACTED_CREDENTIAL_REMOVED_FROM_HISTORY]"
 
 blob = sys.stdin.buffer.read()

@@ -6,7 +6,7 @@
 echo "🔍 Verifying credential removal from Git history..."
 echo ""
 
-LEAKED_KEY="REDACTED_JWT"
+LEAKED_KEY="[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Check if credentials exist in Git history
 echo "Checking all Git history for leaked credentials..."

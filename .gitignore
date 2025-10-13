@@ -171,3 +171,4 @@ test-output/
 
 # GitGuardian cache
 .cache_ggshield
+.credential-scrub-backup-*

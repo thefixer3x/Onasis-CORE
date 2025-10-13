@@ -13,7 +13,7 @@ Test Supabase credentials were accidentally committed to the Git repository and 
 
 **Supabase Instance:**
 - URL: `https://mxtsdgkwzjzlttpotole.supabase.co`
-- Service Key: `REDACTED_JWT`
+- Service Key: `[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 ## Timeline
 
@@ -80,7 +80,7 @@ git clone --mirror . ../Onasis-CORE-backup
 # Remove the sensitive data
 git filter-repo --path MCP_SERVER_CHECKPOINT.md --invert-paths-callback '
   lambda blob: blob.data.replace(
-    b"REDACTED_JWT",
+    b"[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
     b"[REDACTED]"
   )
 '
@@ -97,7 +97,7 @@ git push origin --force --tags
 wget https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar
 
 # Create a file with the sensitive string
-echo "REDACTED_JWT" > passwords.txt
+echo "[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Run BFG
 java -jar bfg-1.14.0.jar --replace-text passwords.txt Onasis-CORE
@@ -118,7 +118,7 @@ git clone --mirror . ../Onasis-CORE-backup
 # Use filter-branch to rewrite history
 git filter-branch --tree-filter '
   if [ -f MCP_SERVER_CHECKPOINT.md ]; then
-    sed -i "s/REDACTED_JWT/[REDACTED]/g" MCP_SERVER_CHECKPOINT.md
+    sed -i "s/[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
   fi
 ' --tag-name-filter cat -- --all
 

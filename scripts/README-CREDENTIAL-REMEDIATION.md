@@ -88,7 +88,7 @@ pip3 install git-filter-repo
 git clone --mirror . ../Onasis-CORE-backup
 
 # Clean
-git filter-repo --replace-text <(echo "REDACTED_JWT==>***REMOVED***")
+git filter-repo --replace-text <(echo "[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Force push
 git push origin --force --all
@@ -102,7 +102,7 @@ git push origin --force --tags
 wget https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar
 
 # Create passwords file
-echo "REDACTED_JWT" > passwords.txt
+echo "[REDACTED_SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Clean
 java -jar bfg-1.14.0.jar --replace-text passwords.txt
