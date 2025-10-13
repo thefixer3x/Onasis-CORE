@@ -13,7 +13,7 @@ Test Supabase credentials were accidentally committed to the Git repository and 
 
 **Supabase Instance:**
 - URL: `https://mxtsdgkwzjzlttpotole.supabase.co`
-- Service Key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU`
+- Service Key: `[REDACTED_SUPABASE_SERVICE_KEY]
 
 ## Timeline
 
@@ -80,7 +80,7 @@ git clone --mirror . ../Onasis-CORE-backup
 # Remove the sensitive data
 git filter-repo --path MCP_SERVER_CHECKPOINT.md --invert-paths-callback '
   lambda blob: blob.data.replace(
-    b"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU",
+    b"[REDACTED_SUPABASE_SERVICE_KEY]",
     b"[REDACTED]"
   )
 '
@@ -97,7 +97,7 @@ git push origin --force --tags
 wget https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar
 
 # Create a file with the sensitive string
-echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU" > passwords.txt
+echo "[REDACTED_SUPABASE_SERVICE_KEY]" > passwords.txt
 
 # Run BFG
 java -jar bfg-1.14.0.jar --replace-text passwords.txt Onasis-CORE
@@ -118,7 +118,7 @@ git clone --mirror . ../Onasis-CORE-backup
 # Use filter-branch to rewrite history
 git filter-branch --tree-filter '
   if [ -f MCP_SERVER_CHECKPOINT.md ]; then
-    sed -i "s/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU/[REDACTED]/g" MCP_SERVER_CHECKPOINT.md
+    sed -i "s/[REDACTED_SUPABASE_SERVICE_KEY]" MCP_SERVER_CHECKPOINT.md
   fi
 ' --tag-name-filter cat -- --all
 

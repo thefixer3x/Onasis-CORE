@@ -6,7 +6,7 @@
 echo "🔍 Verifying credential removal from Git history..."
 echo ""
 
-LEAKED_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU"
+LEAKED_KEY="[REDACTED_SUPABASE_SERVICE_KEY]"
 
 # Check if credentials exist in Git history
 echo "Checking all Git history for leaked credentials..."

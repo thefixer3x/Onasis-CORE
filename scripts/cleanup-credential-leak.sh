@@ -28,7 +28,7 @@ if [ "$confirm" != "yes" ]; then
 fi
 
 # Define the sensitive string to remove
-LEAKED_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU"
+LEAKED_KEY="[REDACTED_SUPABASE_SERVICE_KEY]"
 REPLACEMENT="[REDACTED_CREDENTIAL_REMOVED_FROM_HISTORY]"
 
 echo ""
@@ -63,7 +63,7 @@ case $method in
 import sys
 import re
 
-leaked_key = b"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU"
+leaked_key = b"[REDACTED_SUPABASE_SERVICE_KEY]"
 replacement = b"[REDACTED_CREDENTIAL_REMOVED_FROM_HISTORY]"
 
 blob = sys.stdin.buffer.read()

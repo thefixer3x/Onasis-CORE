@@ -88,7 +88,7 @@ pip3 install git-filter-repo
 git clone --mirror . ../Onasis-CORE-backup
 
 # Clean
-git filter-repo --replace-text <(echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU==>***REMOVED***")
+git filter-repo --replace-text <(echo "[REDACTED_SUPABASE_SERVICE_KEY]")
 
 # Force push
 git push origin --force --all
@@ -102,7 +102,7 @@ git push origin --force --tags
 wget https://repo1.maven.org/maven2/com/madgag/bfg/1.14.0/bfg-1.14.0.jar
 
 # Create passwords file
-echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU" > passwords.txt
+echo "[REDACTED_SUPABASE_SERVICE_KEY]" > passwords.txt
 
 # Clean
 java -jar bfg-1.14.0.jar --replace-text passwords.txt

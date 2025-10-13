@@ -32,7 +32,7 @@ Test Supabase credentials were accidentally committed to Git on **August 21, 202
 
 **Supabase Service Key** (full admin access):
 ```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dHNkZ2t3emp6bHR0cG90b2xlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NzEwNTI1OSwiZXhwIjoyMDYyNjgxMjU5fQ.Aoob84MEgNV-viFugZHWKodJUjn4JOQNzcSQ57stJFU
+[REDACTED_SUPABASE_SERVICE_KEY]
 ```
 
 **Affected Commits:**
