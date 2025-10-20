@@ -1,10 +1,46 @@
-# Onasis-CORE Static Redirects
-# Auth routes now handled by VPS auth gateway at auth.lanonasis.com
+# Memory service routing - support both singular and plural
+/api/v1/memories/*  /.netlify/functions/maas-api/:splat  200
+/api/v1/memories    /.netlify/functions/maas-api         200
+/api/v1/memory/*    /.netlify/functions/maas-api/:splat  200
+/api/v1/memory      /.netlify/functions/maas-api         200
 
-# Redirect auth requests to VPS
-/auth/*  http://auth.lanonasis.com/:splat  301
-/v1/auth/*  http://auth.lanonasis.com/v1/auth/:splat  301
-/mcp/auth  http://auth.lanonasis.com/mcp/auth  301
+# MCP Authentication routes  
+/sse              /.netlify/functions/mcp-sse                   200
+/message          /.netlify/functions/mcp-message               200
+/oauth/authorize  /.netlify/functions/cli-auth                  200
+/api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
+/api/mcp          /.netlify/functions/mcp                       200
 
-# Keep static site routes for SPA
-/*  /index.html  200
+# Authentication routes (HIGHEST PRIORITY - must be first!)
+/api/v1/auth/login    /.netlify/functions/auth-api    200!
+/api/v1/auth/signup   /.netlify/functions/auth-api    200!
+/api/v1/auth/health   /.netlify/functions/auth-api    200!
+/api/v1/auth/callback /.netlify/functions/auth-api    200!
+
+# Dashboard authentication callback
+/auth/dashboard/callback  /.netlify/functions/dashboard-callback    200
+/dashboard/auth/callback  /.netlify/functions/dashboard-callback    200
+
+# Core Gateway API routes (Higher Priority - specific routes after auth)
+/v1/auth/*        /.netlify/functions/auth-api/:splat           200
+/v1/keys/*        /.netlify/functions/key-manager/:splat        200
+/api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
+/api/v1/auth/*    /.netlify/functions/auth-api/:splat           200
+
+# Health check endpoints
+/health           /.netlify/functions/health                    200
+/auth/health      /.netlify/functions/auth-health               200
+/api/v1/health    /.netlify/functions/health                    200
+/info             /.netlify/functions/info                      200
+/migrate          /.netlify/functions/apply-migration           200
+/setup            /.netlify/functions/setup-defaults            200
+
+# Auth page routing
+/auth/login       /auth.html                                   200
+/auth             /auth.html                                   200
+
+# Root serves index.html
+/                 /index.html                                   200
+
+# Catch-all for API Gateway (LOWEST PRIORITY - catch remaining routes)
+/api/*            /.netlify/functions/api-gateway/:splat        200

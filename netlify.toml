@@ -1,24 +1,25 @@
 [build]
-  publish = "dist"
-  command = "npm run build"
+  command = "echo 'Static site - no build required'"
+  functions = "netlify/functions"
+  publish = "."
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "18"
+  NODE_ENV = "production"
+  SECRETS_SCAN_ENABLED = "false"
+  NPM_FLAGS = "--version"
 
-# No functions - auth handled by VPS
-# No edge functions - auth handled by VPS
+# SPA redirect for client-side routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
+# Headers for security
 [[headers]]
-  for = "/api/*"
+  for = "/*"
   [headers.values]
-    X-Auth-Gateway = "http://auth.lanonasis.com"
-
-[[redirects]]
-  from = "/auth/*"
-  to = "http://auth.lanonasis.com/:splat"
-  status = 301
-
-[[redirects]]
-  from = "/v1/auth/*"
-  to = "http://auth.lanonasis.com/v1/auth/:splat"
-  status = 301
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"

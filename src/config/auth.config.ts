@@ -6,8 +6,8 @@
  */
 
 export const authConfig = {
-  // Base URLs - Separate auth from API services
-  authBaseUrl: (import.meta as any).env?.VITE_AUTH_BASE_URL || 'http://auth.lanonasis.com',
+  // Base URLs - FIXED: Stable production-ready endpoints
+  authBaseUrl: (import.meta as any).env?.VITE_AUTH_BASE_URL || 'https://api.lanonasis.com',
   apiBaseUrl: (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.lanonasis.com',
   
   // OAuth Configuration - FIXED: Proper Lanonasis endpoints
