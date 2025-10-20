@@ -33,10 +33,10 @@ Test Supabase credentials were accidentally committed to the Git repository and 
 ## Impact Assessment
 
 ### Potential Exposure
-- ✅ The credentials are marked as "test credentials" in the issue
-- ⚠️ Anyone with access to the repository history can view these credentials
-- ⚠️ Service key provides full administrative access to the Supabase instance
-- ⚠️ Credentials remain valid until manually rotated
+- The credentials are marked as "test credentials" in the issue
+- Anyone with access to the repository history can view these credentials
+- Service key provides full administrative access to the Supabase instance
+- Credentials remain valid until manually rotated
 
 ### Data at Risk
 - Database tables: memories, organizations, projects, api_keys, users

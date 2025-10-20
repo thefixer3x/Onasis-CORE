@@ -69,7 +69,7 @@ test_endpoint "POST" "/mcp/auth" "Claude-Desktop/MCP" '{"email":"demo@lanonasis.
 test_endpoint "POST" "/auth/api-login" "curl/7.68.0" '{"email":"demo@lanonasis.com","password":"demo123"}' "json" "API login endpoint with curl user agent"
 
 # Test 5: Verify Token endpoint
-token="REDACTED_JWT"
+token="[REDACTED_TEST_TOKEN]"
 test_endpoint "POST" "/auth/verify-token" "MCP/1.0" "{\"token\":\"$token\"}" "json" "Token verification endpoint"
 
 # Test 6: Auth callback with MCP platform
