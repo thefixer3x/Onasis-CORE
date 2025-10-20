@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  auth-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: onasis-auth-gateway
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+    env_file:
+      - .env
+    networks:
+      - onasis-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./logs:/app/logs
+
+networks:
+  onasis-network:
+    external: true

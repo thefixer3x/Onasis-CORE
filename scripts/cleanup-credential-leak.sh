@@ -61,7 +61,6 @@ case $method in
         # Create a temporary Python script for the replacement
         cat > /tmp/filter-script.py << 'EOF'
 import sys
-import re
 
 leaked_key = b"[REDACTED_SUPABASE_SERVICE_KEY]"
 replacement = b"[REDACTED_CREDENTIAL_REMOVED_FROM_HISTORY]"

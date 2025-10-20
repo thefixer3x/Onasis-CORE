@@ -13,7 +13,7 @@ Test Supabase credentials were accidentally committed to the Git repository and 
 
 **Supabase Instance:**
 - URL: `https://mxtsdgkwzjzlttpotole.supabase.co`
-- Service Key: `[REDACTED_SUPABASE_SERVICE_KEY]
+- Service Key: `[REDACTED_SUPABASE_SERVICE_KEY]`
 
 ## Timeline
 
@@ -33,10 +33,10 @@ Test Supabase credentials were accidentally committed to the Git repository and 
 ## Impact Assessment
 
 ### Potential Exposure
-- ✅ The credentials are marked as "test credentials" in the issue
-- ⚠️ Anyone with access to the repository history can view these credentials
-- ⚠️ Service key provides full administrative access to the Supabase instance
-- ⚠️ Credentials remain valid until manually rotated
+- The credentials are marked as "test credentials" in the issue
+- Anyone with access to the repository history can view these credentials
+- Service key provides full administrative access to the Supabase instance
+- Credentials remain valid until manually rotated
 
 ### Data at Risk
 - Database tables: memories, organizations, projects, api_keys, users
@@ -118,7 +118,7 @@ git clone --mirror . ../Onasis-CORE-backup
 # Use filter-branch to rewrite history
 git filter-branch --tree-filter '
   if [ -f MCP_SERVER_CHECKPOINT.md ]; then
-    sed -i "s/[REDACTED_SUPABASE_SERVICE_KEY]" MCP_SERVER_CHECKPOINT.md
+    sed -i "s/[REDACTED_SUPABASE_SERVICE_KEY]/[REDACTED]/g" MCP_SERVER_CHECKPOINT.md
   fi
 ' --tag-name-filter cat -- --all
 

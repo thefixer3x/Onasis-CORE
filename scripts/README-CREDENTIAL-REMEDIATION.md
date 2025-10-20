@@ -63,9 +63,9 @@ This will:
 
 ### What Credentials Were Leaked?
 
-**Supabase Instance:**
+-**Supabase Instance:**
 - URL: `https://mxtsdgkwzjzlttpotole.supabase.co`
-- Service Key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (full key in incident report)
+- Service Key: `[REDACTED_SUPABASE_SERVICE_KEY]`
 
 **Affected Commits:**
 - `376fd79` - Initial commit with credentials (Aug 21, 2025)
