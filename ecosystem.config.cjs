@@ -7,8 +7,8 @@ module.exports = {
     env: {
       NODE_ENV: 'development',
       PORT: 3000,
-      VITE_AUTH_DOMAIN: 'auth.lanonasis.com',
-      VITE_AUTH_BASE_URL: 'http://auth.lanonasis.com',
+      VITE_AUTH_DOMAIN: 'api.lanonasis.com',
+      VITE_AUTH_BASE_URL: 'https://api.lanonasis.com',
       VITE_AUTH_REDIRECT_URI: 'http://localhost:3000/auth/callback',
       VITE_AUTH_CLIENT_ID: 'lanonasis-api-dashboard',
       VITE_API_BASE_URL: 'https://api.lanonasis.com',
