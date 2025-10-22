@@ -1,4 +1,5 @@
-import jwt from 'jsonwebtoken'
+import { type StringValue } from 'ms'
+import jwt, { type JwtPayload, type Secret, type SignOptions } from 'jsonwebtoken'
 import { env } from '../../config/env'
 
 export interface JWTPayload {
@@ -21,17 +22,13 @@ export interface TokenPair {
  * Generate access and refresh tokens for a user
  */
 export function generateTokenPair(payload: Omit<JWTPayload, 'iat' | 'exp'>): TokenPair {
-  const accessToken = jwt.sign(payload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRY,
-  })
+  const secret = env.JWT_SECRET as Secret
+  const accessOptions: SignOptions = { expiresIn: env.JWT_EXPIRY as StringValue }
+  const refreshOptions: SignOptions = { expiresIn: '30d' as StringValue }
 
-  const refreshToken = jwt.sign(
-    { sub: payload.sub, type: 'refresh' },
-    env.JWT_SECRET,
-    {
-      expiresIn: '30d', // Refresh tokens live longer
-    }
-  )
+  const accessToken = jwt.sign(payload as JwtPayload, secret, accessOptions)
+
+  const refreshToken = jwt.sign({ sub: payload.sub, type: 'refresh' } as JwtPayload, secret, refreshOptions)
 
   // Calculate expiry in seconds
   const expiresIn = env.JWT_EXPIRY.endsWith('d')

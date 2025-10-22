@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { supabaseAdmin } from '../../db/client'
 import { generateTokenPair } from '../utils/jwt'
 import { createSession } from '../services/session.service'
+import { upsertUserAccount } from '../services/user.service'
 import { logAuthEvent } from '../services/audit.service'
 
 /**
@@ -43,6 +44,15 @@ export async function mcpAuth(req: Request, res: Response) {
         code: 'AUTH_INVALID_CREDENTIALS',
       })
     }
+
+    await upsertUserAccount({
+      user_id: data.user.id,
+      email: data.user.email!,
+      role: data.user.role || 'authenticated',
+      provider: data.user.app_metadata?.provider,
+      raw_metadata: data.user.user_metadata || {},
+      last_sign_in_at: data.user.last_sign_in_at || null,
+    })
 
     // Generate MCP-specific tokens
     const tokens = generateTokenPair({
@@ -136,6 +146,15 @@ export async function cliLogin(req: Request, res: Response) {
         code: 'AUTH_INVALID_CREDENTIALS',
       })
     }
+
+    await upsertUserAccount({
+      user_id: data.user.id,
+      email: data.user.email!,
+      role: data.user.role || 'authenticated',
+      provider: data.user.app_metadata?.provider,
+      raw_metadata: data.user.user_metadata || {},
+      last_sign_in_at: data.user.last_sign_in_at || null,
+    })
 
     // Generate CLI-specific tokens
     const tokens = generateTokenPair({

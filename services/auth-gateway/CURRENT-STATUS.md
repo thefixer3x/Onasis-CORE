@@ -1,7 +1,12 @@
 # Auth Gateway - Current Status
 
-**Last Updated**: 2025-10-20
+**🚨 CRITICAL FINDINGS**: 2025-10-22 - Architecture correctly deployed - Issue is empty auth.users table causing FK constraints  
+**✅ CONFIGURATION CONFIRMED**: 2025-10-21 - MaaS Dashboard correctly using auth.lanonasis.com  
+**Last Updated**: 2025-10-20  
 **Status**: ✅ OPERATIONAL (App Registration & Admin Features)
+
+> 📋 **See**: [AUTH-SYSTEM-FINDINGS-SUMMARY.md](AUTH-SYSTEM-FINDINGS-SUMMARY.md) for complete analysis  
+> 🔧 **See**: [CRITICAL-CONFIGURATION-FIX.md](CRITICAL-CONFIGURATION-FIX.md) for immediate fix
 
 ---
 

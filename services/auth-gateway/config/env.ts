@@ -5,9 +5,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url('DATABASE_URL must be a valid Postgres connection string URL'),
   DIRECT_DATABASE_URL: z.string().optional(),
   SERVICE_ROLE_DATABASE_URL: z.string().optional(),
-  SUPABASE_URL: z.string().optional(),
-  SUPABASE_ANON_KEY: z.string().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid Supabase project URL'),
+  SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
   SUPABASE_AUTH_URL: z.string().optional(),
   PORT: z
     .string()
