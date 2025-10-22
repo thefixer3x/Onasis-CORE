@@ -126,7 +126,8 @@ export async function revokeSession(token: string): Promise<boolean> {
       `,
       [hashToken(token)]
     )
-    return result.rowCount > 0
+    const affected = result.rowCount ?? 0
+    return affected > 0
   } finally {
     client.release()
   }
@@ -146,7 +147,7 @@ export async function revokeAllUserSessions(userId: string): Promise<number> {
       `,
       [userId]
     )
-    return result.rowCount
+    return result.rowCount ?? 0
   } finally {
     client.release()
   }
@@ -165,7 +166,7 @@ export async function cleanupExpiredSessions(): Promise<number> {
       RETURNING id
       `
     )
-    return result.rowCount
+    return result.rowCount ?? 0
   } finally {
     client.release()
   }
