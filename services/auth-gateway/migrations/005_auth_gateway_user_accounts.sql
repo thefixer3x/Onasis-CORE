@@ -32,6 +32,7 @@ FOR EACH ROW EXECUTE FUNCTION auth_gateway.touch_user_account();
 
 -- Update foreign keys to reference new registry
 ALTER TABLE auth_gateway.sessions
+  DROP CONSTRAINT IF EXISTS sessions_user_accounts_user_id_fkey,
   DROP CONSTRAINT IF EXISTS sessions_user_id_fkey,
   ADD CONSTRAINT sessions_user_accounts_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE CASCADE;
@@ -42,11 +43,13 @@ ALTER TABLE auth_gateway.api_clients
     FOREIGN KEY (owner_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE SET NULL;
 
 ALTER TABLE auth_gateway.auth_codes
+  DROP CONSTRAINT IF EXISTS auth_codes_user_accounts_user_id_fkey,
   DROP CONSTRAINT IF EXISTS auth_codes_user_id_fkey,
   ADD CONSTRAINT auth_codes_user_accounts_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE CASCADE;
 
 ALTER TABLE auth_gateway.audit_log
+  DROP CONSTRAINT IF EXISTS audit_log_user_accounts_user_id_fkey,
   DROP CONSTRAINT IF EXISTS audit_log_user_id_fkey,
   ADD CONSTRAINT audit_log_user_accounts_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE SET NULL;
