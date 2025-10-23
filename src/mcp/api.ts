@@ -379,7 +379,7 @@ export class MCPRestAPI {
 
   constructor(config: { endpoint?: string; apiKey: string }) {
     this.axios = axios.create({
-      baseURL: config.endpoint || 'https://auth.lanonasis.com/mcp',
+      baseURL: config.endpoint || 'https://api.lanonasis.com/mcp',
       headers: {
         'X-API-Key': config.apiKey,
         'Content-Type': 'application/json'
