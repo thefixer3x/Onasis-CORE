@@ -1,6 +1,6 @@
 import { type StringValue } from 'ms'
 import jwt, { type JwtPayload, type Secret, type SignOptions } from 'jsonwebtoken'
-import { env } from '../../config/env'
+import { env } from '../../config/env.js'
 
 export interface JWTPayload {
   sub: string // user_id

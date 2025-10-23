@@ -1,7 +1,7 @@
 import { Pool, neonConfig } from '@neondatabase/serverless'
 import ws from 'ws'
 import { createClient } from '@supabase/supabase-js'
-import { env } from '../config/env'
+import { env } from '../config/env.js'
 
 neonConfig.fetchConnectionCache = true
 neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket

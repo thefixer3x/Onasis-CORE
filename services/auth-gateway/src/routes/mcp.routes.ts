@@ -1,5 +1,5 @@
 import express from 'express'
-import * as mcpController from '../controllers/mcp.controller'
+import * as mcpController from '../controllers/mcp.controller.js'
 
 const router = express.Router()
 
