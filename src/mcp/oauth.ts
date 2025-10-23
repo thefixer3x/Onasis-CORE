@@ -34,8 +34,8 @@ export class MCPOAuthBridge {
       clientId: config.clientId || process.env.MCP_CLIENT_ID || 'lanonasis-mcp-client',
       clientSecret: config.clientSecret || process.env.MCP_CLIENT_SECRET || '',
       redirectUri: config.redirectUri || 'https://mcp.lanonasis.com/auth/callback',
-      authorizationUrl: config.authorizationUrl || 'https://api.lanonasis.com/oauth/authorize',
-      tokenUrl: config.tokenUrl || 'https://api.lanonasis.com/oauth/token',
+      authorizationUrl: config.authorizationUrl || 'https://auth.lanonasis.com/v1/auth/authorize',
+      tokenUrl: config.tokenUrl || 'https://auth.lanonasis.com/v1/auth/token',
       scope: config.scope || ['mcp', 'memory', 'api_keys']
     };
 
