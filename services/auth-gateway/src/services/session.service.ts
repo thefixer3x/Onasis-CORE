@@ -1,4 +1,4 @@
-import { dbPool } from '../../db/client'
+import { dbPool } from '../../db/client.js'
 import crypto from 'node:crypto'
 
 export interface CreateSessionParams {

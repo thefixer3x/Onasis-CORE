@@ -1,4 +1,4 @@
-import { dbPool } from '../../db/client'
+import { dbPool } from '../../db/client.js'
 
 export interface AuditLogEntry {
   event_type: string

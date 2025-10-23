@@ -3,14 +3,14 @@ import cors from 'cors'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
 
-import { env } from '../config/env'
-import { checkDatabaseHealth } from '../db/client'
+import { env } from '../config/env.js'
+import { checkDatabaseHealth } from '../db/client.js'
 
 // Import routes
-import authRoutes from './routes/auth.routes'
-import mcpRoutes from './routes/mcp.routes'
-import cliRoutes from './routes/cli.routes'
-import adminRoutes from './routes/admin.routes'
+import authRoutes from './routes/auth.routes.js'
+import mcpRoutes from './routes/mcp.routes.js'
+import cliRoutes from './routes/cli.routes.js'
+import adminRoutes from './routes/admin.routes.js'
 
 const app = express()
 

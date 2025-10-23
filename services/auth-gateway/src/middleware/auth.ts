@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express'
-import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt'
+import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
 
 // Extend Express Request type to include user
 declare global {

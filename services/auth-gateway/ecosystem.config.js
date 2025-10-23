@@ -3,7 +3,7 @@ module.exports = {
   apps: [
     {
       name: 'auth-gateway',
-      script: 'dist/index.js',
+      script: 'start.js',
       instances: 2,
       exec_mode: 'cluster',
       autorestart: true,

@@ -1,6 +1,6 @@
 import express from 'express'
-import * as adminController from '../controllers/admin.controller'
-import { requireAuth } from '../middleware/auth'
+import * as adminController from '../controllers/admin.controller.js'
+import { requireAuth } from '../middleware/auth.js'
 
 const router = express.Router()
 
