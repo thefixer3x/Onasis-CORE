@@ -3,7 +3,6 @@ import ws from 'ws'
 import { createClient } from '@supabase/supabase-js'
 import { env } from '../config/env.js'
 
-neonConfig.fetchConnectionCache = true
 neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket
 
 export const dbPool = new Pool({
@@ -15,8 +14,8 @@ export const dbPool = new Pool({
 })
 
 export const supabaseAdmin = createClient(
-  env.SUPABASE_URL,
-  env.SUPABASE_SERVICE_ROLE_KEY,
+  env.SUPABASE_URL || '',
+  env.SUPABASE_SERVICE_ROLE_KEY || '',
   {
     auth: {
       autoRefreshToken: false,
