@@ -1,28 +1,26 @@
 /**
  * Authentication Configuration
- * CRITICAL: This file contains the authentication configuration
- * that was causing the redirect issues. All URLs must point to
- * Lanonasis infrastructure, NOT external platforms.
+ * UPDATED: All URLs now point to unified auth.lanonasis.com
  */
 
 export const authConfig = {
-  // Base URLs - FIXED: Stable production-ready endpoints
-  authBaseUrl: (import.meta as any).env?.VITE_AUTH_BASE_URL || 'https://api.lanonasis.com',
+  // Base URLs - UPDATED: Unified auth gateway
+  authBaseUrl: (import.meta as any).env?.VITE_AUTH_BASE_URL || 'https://auth.lanonasis.com',
   apiBaseUrl: (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.lanonasis.com',
   
-  // OAuth Configuration - FIXED: Proper Lanonasis endpoints
+  // OAuth Configuration - UPDATED: Auth gateway endpoints
   oauth: {
-    clientId: (import.meta as any).env?.VITE_AUTH_CLIENT_ID || 'lanonasis-api-dashboard',
+    clientId: (import.meta as any).env?.VITE_AUTH_CLIENT_ID || 'lanonasis-dashboard',
     redirectUri: (import.meta as any).env?.VITE_AUTH_REDIRECT_URI || `${window.location.origin}/auth/callback`,
     scope: 'api:read api:write user:profile dashboard:access',
     
-    // Authorization endpoints - FIXED: Internal Lanonasis auth
+    // Authorization endpoints - UPDATED: Auth gateway endpoints
     endpoints: {
-      authorize: '/auth/authorize',
-      token: '/auth/token',
-      userInfo: '/auth/userinfo',
-      logout: '/auth/logout',
-      revoke: '/auth/revoke',
+      authorize: '/v1/auth/authorize',
+      token: '/v1/auth/token',
+      userInfo: '/v1/auth/userinfo',
+      logout: '/v1/auth/logout',
+      revoke: '/v1/auth/revoke',
     },
   },
   
@@ -40,7 +38,7 @@ export const authConfig = {
     expiresIn: (import.meta as any).env?.VITE_JWT_EXPIRY || '7d',
   },
   
-  // Route Configuration - FIXED: Internal dashboard routes
+  // Route Configuration
   routes: {
     login: '/login',
     signup: '/signup',
