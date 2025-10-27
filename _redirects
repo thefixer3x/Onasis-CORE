@@ -12,18 +12,16 @@
 /api/mcp          /.netlify/functions/mcp                       200
 
 # ============================================================================
-# AUTHENTICATION ROUTES - DISABLED (Now handled by Express Gateway on VPS)
+# AUTHENTICATION ROUTES - PROXY TO VPS AUTH GATEWAY
 # ============================================================================
-# These routes were causing conflicts with the Express auth gateway
-# Removed on 2025-10-23 to fix JWT token signing issues
-# All auth requests now go directly to Express gateway at api.lanonasis.com
+# All auth requests are proxied to the standalone auth-gateway on VPS
+# VPS: 168.231.74.29:4000 (auth.lanonasis.com)
+# Updated: 2025-10-27
 # ============================================================================
-# /api/v1/auth/login    /.netlify/functions/auth-api    200!
-# /api/v1/auth/signup   /.netlify/functions/auth-api    200!
-# /api/v1/auth/health   /.netlify/functions/auth-api    200!
-# /api/v1/auth/callback /.netlify/functions/auth-api    200!
-# /v1/auth/*        /.netlify/functions/auth-api/:splat           200
-# /api/v1/auth/*    /.netlify/functions/auth-api/:splat           200
+
+# Proxy all /v1/auth requests to VPS auth gateway
+/v1/auth/*        https://auth.lanonasis.com/v1/auth/:splat           200!
+/api/v1/auth/*    https://auth.lanonasis.com/v1/auth/:splat           200!
 
 # Dashboard authentication callback
 /auth/dashboard/callback  /.netlify/functions/dashboard-callback    200
