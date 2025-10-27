@@ -737,10 +737,180 @@ async function validateApiKey(apiKey) {
 }
 
 /**
+ * Simple token display page for CLI
+ */
+function simpleCliPage() {
+  const token = `cli_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lanonasis CLI Authentication</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0e27;
+            color: #00ff00;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #1a1e3a;
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #00ff00;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        .status {
+            color: #00ff00;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: rgba(0, 255, 0, 0.1);
+            border-left: 3px solid #00ff00;
+        }
+        .token-box {
+            background: #0d1117;
+            border: 1px solid #00ff00;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 4px;
+            word-break: break-all;
+            font-size: 14px;
+            color: #00ff00;
+        }
+        button {
+            background: #00ff00;
+            color: #0a0e27;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        .instructions {
+            color: #888;
+            margin-top: 20px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .resources {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #333;
+        }
+        .resources h3 {
+            color: #00ccff;
+            margin-bottom: 15px;
+        }
+        .resources a {
+            color: #00ff00;
+            text-decoration: none;
+        }
+        .resources a:hover {
+            text-decoration: underline;
+        }
+        .message {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>$ lanonasis auth</h1>
+        <div class="status">✓ Authentication Gateway Active</div>
+        <div class="status" style="border-color: #999; color: #999;">Authenticating for CLI</div>
+        
+        <h2 style="color: #00ff00; margin-top: 30px;">🔑 Your Authentication Token</h2>
+        <div class="token-box" id="tokenBox">${token}</div>
+        
+        <button onclick="copyToken()">📋 COPY TOKEN</button>
+        <div class="message" id="message">✓ Token copied to clipboard!</div>
+        
+        <div class="instructions">
+            <strong style="color: #00ff00;">Instructions:</strong>
+            <ol style="margin-left: 20px; margin-top: 10px;">
+                <li>Click the button above to copy your token</li>
+                <li>Return to your CLI terminal</li>
+                <li>Paste the token when prompted</li>
+                <li>Token expires in 30 days</li>
+            </ol>
+        </div>
+        
+        <div class="resources">
+            <h3>📚 Resources:</h3>
+            <p>• Documentation: <a href="https://docs.lanonasis.com" target="_blank">docs.lanonasis.com</a></p>
+            <p>• Repository: <a href="https://github.com/lanonasis/lanonasis-maas" target="_blank">github.com/lanonasis/lanonasis-maas</a></p>
+            <p>• API Status: <a href="https://api.lanonasis.com/health" target="_blank">api.lanonasis.com/health</a></p>
+        </div>
+    </div>
+    
+    <script>
+        function copyToken() {
+            const token = document.getElementById('tokenBox').textContent;
+            navigator.clipboard.writeText(token).then(() => {
+                const message = document.getElementById('message');
+                message.style.display = 'block';
+                setTimeout(() => {
+                    message.style.display = 'none';
+                }, 3000);
+            }).catch(err => {
+                alert('Failed to copy. Please copy manually: ' + token);
+            });
+        }
+    </script>
+</body>
+</html>`;
+
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type': 'text/html',
+      'Cache-Control': 'no-cache'
+    },
+    body: html
+  };
+}
+
+/**
  * Main handler - Route to appropriate function
  */
 exports.handler = async function(event, context) {
-  const path = event.path.replace('/api/cli-auth', '');
+  // Normalize path
+  let path = event.path;
+  
+  // Remove common prefixes
+  path = path.replace('/api/cli-auth', '');
+  path = path.replace('/.netlify/functions/cli-auth', '');
+  
+  // Special handling for /auth/cli-login
+  if (path === '/auth/cli-login' || path === '') {
+    // For simple CLI token page
+    return simpleCliPage();
+  }
   
   switch (path) {
     case '/auth-url':
@@ -754,9 +924,7 @@ exports.handler = async function(event, context) {
     case '/oauth/token':
       return token(event);
     default:
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: 'Not found' })
-      };
+      // Fallback to simple CLI page
+      return simpleCliPage();
   }
 }
