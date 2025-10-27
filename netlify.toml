@@ -9,6 +9,19 @@
   SECRETS_SCAN_ENABLED = "false"
   NPM_FLAGS = "--version"
 
+# Auth endpoints - highest priority
+[[redirects]]
+  from = "/auth/cli-login"
+  to = "/.netlify/functions/cli-auth"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/auth/verify"
+  to = "/.netlify/functions/auth-verify"
+  status = 200
+  force = true
+
 # SPA redirect for client-side routing
 [[redirects]]
   from = "/*"

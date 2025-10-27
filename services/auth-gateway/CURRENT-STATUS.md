@@ -1,6 +1,6 @@
 # Auth Gateway - Current Status
 
-**🚨 CRITICAL FINDINGS**: 2025-10-22 - Architecture correctly deployed - Issue is empty auth.users table causing FK constraints  
+**⚙️ RECENT CHANGE**: 2025-10-22 - Foreign key dependency moved to local `auth_gateway.user_accounts` registry  
 **✅ CONFIGURATION CONFIRMED**: 2025-10-21 - MaaS Dashboard correctly using auth.lanonasis.com  
 **Last Updated**: 2025-10-20  
 **Status**: ✅ OPERATIONAL (App Registration & Admin Features)
@@ -32,7 +32,8 @@
    - Schema isolation: `auth_gateway` separate from `maas` and `core`
    - Admin tables: `admin_override`, `admin_sessions`, `admin_access_log`
    - App tables: `api_clients` with app_id support
-   - All migrations applied successfully
+   - Sessions now reference `auth_gateway.user_accounts` (no dependency on empty `auth.users`)
+   - All migrations applied successfully (including FK realignment)
 
 4. **Health Monitoring**
    - `/health` endpoint operational
@@ -58,7 +59,8 @@ Currently registered: **1 app**
 
 ### Supabase Authentication
 
-**Status**: Credentials needed for full auth flow
+**Status**: Credentials needed for full auth flow  
+**Impact**: You can authenticate once Supabase keys are supplied; sessions will populate `auth_gateway.user_accounts`.
 
 **Current Configuration**:
 ```bash
@@ -193,7 +195,7 @@ curl -X POST http://localhost:4000/admin/bypass-login \
 2. **Test User Authentication**
    - Create test user in Supabase
    - Test login flow
-   - Verify session management
+   - Verify session management (`auth_gateway.user_accounts` will populate automatically)
 
 3. **Implement OAuth Social Login** (Optional)
    - Use configured OAuth credentials

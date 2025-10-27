@@ -2,7 +2,7 @@
 
 **Date**: 2025-10-22  
 **Session**: Authentication Architecture Investigation  
-**Status**: 🚨 **CRITICAL CONFIGURATION ISSUE IDENTIFIED**
+**Status**: ⚠️ **AUTH USERS OUT OF SYNC – FK DECOUPLED**
 
 ---
 
@@ -48,7 +48,13 @@ const USE_CENTRAL_AUTH = import.meta.env.VITE_USE_CENTRAL_AUTH === 'true' || fal
 4. ✅ **Deployed successfully** with clean build
 
 ### **The Real Problem**
-**Not configuration** - the architecture is correctly set up. The issue is the **empty `auth.users` table** causing foreign key constraint failures when trying to create sessions in Neon database.
+**Not configuration** - the architecture is correctly set up. The original issue was an **empty `auth.users` table** causing foreign key constraint failures when trying to create sessions in Neon. We have now **decoupled sessions from `auth.users`** by introducing a local registry table: `auth_gateway.user_accounts`.
+
+**Fix Applied (2025-10-22)**:
+- ✅ `auth_gateway.sessions`, `auth_codes`, `audit_log`, and `api_clients` now reference `auth_gateway.user_accounts`
+- ✅ New setups create the registry on the initial migration
+- ✅ Existing databases stay compatible through migration `005_auth_gateway_user_accounts.sql`
+- ⚠️ `auth.users` can remain empty until Supabase credentials are provided
 
 ---
 
@@ -85,25 +91,36 @@ mcp.lanonasis.com → MCP Gateway ✅
 
 **Schemas Present**:
 ```sql
-✅ auth_gateway   - Admin accounts, app registration, sessions
-✅ auth           - User accounts (Supabase schema) - 11 tables  
+✅ auth_gateway   - Admin accounts, app registration, local user registry
+✅ auth           - Supabase-managed schema (currently empty)
 ✅ public         - Profiles, tasks, teams - 16 tables
 ```
 
-**Critical Tables**:
-- `auth.users` - **EXISTS but EMPTY** (0 rows) 🚨
-- `auth_gateway.admin_override` - **2 admin accounts** ✅
-- `auth_gateway.api_clients` - **1 test app registered** ✅
-- `auth_gateway.sessions` - **References auth.users (FK constraint)** ⚠️
+**Key Data Points** *(queried 2025-10-22 via @neondatabase/serverless)*:
+- `SELECT COUNT(*) FROM auth.users;` → `0` (expected until Supabase credentials are loaded)
+- `SELECT COUNT(*) FROM auth_gateway.user_accounts;` → `0` (will auto-populate on first Supabase login)
+- `SELECT table_name FROM information_schema.tables WHERE table_schema = 'auth_gateway';`
+  ```json
+  ["admin_access_log","admin_override","admin_sessions","api_clients","audit_log","auth_codes","sessions","user_accounts"]
+  ```
 
-### **The Foreign Key Issue**
+### **Foreign Key Status (Post-Fix)**
 
-**Migration Code** (`001_init_auth_schema.sql:11`):
 ```sql
-user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+-- sessions → user_accounts
+FOREIGN KEY (user_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE CASCADE
+
+-- api_clients → user_accounts (owner relationship)
+FOREIGN KEY (owner_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE SET NULL
+
+-- auth_codes → user_accounts
+FOREIGN KEY (user_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE CASCADE
+
+-- audit_log → user_accounts
+FOREIGN KEY (user_id) REFERENCES auth_gateway.user_accounts(user_id) ON DELETE SET NULL
 ```
 
-**Problem**: Sessions can't be created because `auth.users` table is empty, causing foreign key constraint violations.
+Sessions no longer depend on `auth.users`; the gateway maintains its own lightweight user registry that is populated during login via `upsertUserAccount`.
 
 ---
 
@@ -160,15 +177,10 @@ VITE_USE_CENTRAL_AUTH=true
 VITE_USE_DIRECT_AUTH=false  # Turn OFF direct Supabase
 ```
 
-### **2. Implement User Sync Strategy** 
+### **2. Supabase User Sync Strategy (Optional Enhancements)**
 
-**Option A: Auto-sync Users** (Recommended)
-- Modify auth controllers to create/update users in Neon's `auth.users` table
-- Sync user data from Supabase auth to Neon on login
-
-**Option B: Pre-populate Users**
-- Bulk import existing users from Supabase to Neon
-- Set up ongoing sync process
+- Current design uses `auth_gateway.user_accounts` as the source of truth for sessions.
+- If direct reporting from Supabase is required, consider a background job to mirror `auth.users` → `auth_gateway.user_accounts`. This is now optional, not required for login success.
 
 ### **3. Update Client Integration**
 

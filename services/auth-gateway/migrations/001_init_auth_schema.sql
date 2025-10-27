@@ -6,9 +6,36 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE SCHEMA IF NOT EXISTS auth_gateway;
 
+CREATE TABLE IF NOT EXISTS auth_gateway.user_accounts (
+  user_id UUID PRIMARY KEY,
+  email TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'authenticated',
+  provider TEXT,
+  raw_metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_sign_in_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_accounts_email ON auth_gateway.user_accounts (LOWER(email));
+
+-- Helper to keep updated_at fresh
+CREATE OR REPLACE FUNCTION auth_gateway.touch_user_account()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_user_accounts_set_updated_at ON auth_gateway.user_accounts;
+CREATE TRIGGER trg_user_accounts_set_updated_at
+BEFORE UPDATE ON auth_gateway.user_accounts
+FOR EACH ROW EXECUTE FUNCTION auth_gateway.touch_user_account();
+
 CREATE TABLE IF NOT EXISTS auth_gateway.sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth_gateway.user_accounts(user_id) ON DELETE CASCADE,
   platform TEXT NOT NULL CHECK (platform IN ('mcp', 'cli', 'web', 'api')),
   token_hash TEXT NOT NULL,
   refresh_token_hash TEXT,
@@ -35,7 +62,7 @@ CREATE TABLE IF NOT EXISTS auth_gateway.api_clients (
   description TEXT,
   redirect_uris TEXT[] NOT NULL,
   allowed_scopes TEXT[] NOT NULL,
-  owner_id UUID REFERENCES auth.users(id),
+  owner_id UUID REFERENCES auth_gateway.user_accounts(user_id),
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -47,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_api_clients_owner_id ON auth_gateway.api_clients(
 CREATE TABLE IF NOT EXISTS auth_gateway.auth_codes (
   code TEXT PRIMARY KEY,
   client_id TEXT NOT NULL REFERENCES auth_gateway.api_clients(client_id),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
+  user_id UUID NOT NULL REFERENCES auth_gateway.user_accounts(user_id),
   redirect_uri TEXT NOT NULL,
   scope TEXT[],
   code_challenge TEXT,
@@ -61,7 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_codes_expires_at ON auth_gateway.auth_codes(
 CREATE TABLE IF NOT EXISTS auth_gateway.audit_log (
   id BIGSERIAL PRIMARY KEY,
   event_type TEXT NOT NULL,
-  user_id UUID REFERENCES auth.users(id),
+  user_id UUID REFERENCES auth_gateway.user_accounts(user_id),
   client_id TEXT,
   platform TEXT,
   ip_address INET,
