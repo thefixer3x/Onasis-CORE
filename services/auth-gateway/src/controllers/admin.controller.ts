@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express'
-import * as bcrypt from 'bcryptjs'
+import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
-import { dbPool } from '../../db/client'
-import { generateTokenPair } from '../utils/jwt'
-import { logAuthEvent } from '../services/audit.service'
+import { dbPool } from '../../db/client.js'
+import { generateTokenPair } from '../utils/jwt.js'
+import { logAuthEvent } from '../services/audit.service.js'
 
 /**
  * POST /admin/bypass-login

@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express'
-import { supabaseAdmin } from '../../db/client'
-import { generateTokenPair } from '../utils/jwt'
-import { createSession, revokeSession, getUserSessions } from '../services/session.service'
-import { upsertUserAccount } from '../services/user.service'
-import { logAuthEvent } from '../services/audit.service'
+import { supabaseAdmin } from '../../db/client.js'
+import { generateTokenPair } from '../utils/jwt.js'
+import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
+import { upsertUserAccount } from '../services/user.service.js'
+import { logAuthEvent } from '../services/audit.service.js'
 
 /**
  * POST /v1/auth/login
@@ -180,7 +180,7 @@ export async function getSession(req: Request, res: Response) {
 
 /**
  * POST /v1/auth/verify
- * Verify a token and return payload
+ * Verify a token and return payload (requires auth header)
  */
 export async function verifyToken(req: Request, res: Response) {
   if (!req.user) {
@@ -194,6 +194,78 @@ export async function verifyToken(req: Request, res: Response) {
     valid: true,
     payload: req.user,
   })
+}
+
+/**
+ * POST /auth/verify (CLI-friendly)
+ * Verify a token sent in request body
+ * Used by CLI and other clients that can't set auth headers easily
+ */
+export async function verifyTokenBody(req: Request, res: Response) {
+  const { token } = req.body
+
+  if (!token) {
+    return res.status(400).json({
+      valid: false,
+      error: 'Token is required',
+    })
+  }
+
+  // Handle CLI tokens (format: cli_timestamp_hex)
+  if (token.startsWith('cli_')) {
+    const parts = token.split('_')
+    if (parts.length !== 3) {
+      return res.json({
+        valid: false,
+        error: 'Invalid CLI token format',
+      })
+    }
+
+    const timestamp = parseInt(parts[1], 10)
+    const now = Date.now()
+    const tokenAge = now - timestamp
+    const maxAge = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+    if (tokenAge > maxAge) {
+      return res.json({
+        valid: false,
+        error: 'CLI token expired',
+      })
+    }
+
+    return res.json({
+      valid: true,
+      type: 'cli_token',
+      user: {
+        id: 'cli_user',
+        email: 'cli@lanonasis.com',
+        role: 'authenticated',
+      },
+      expires_at: new Date(timestamp + maxAge).toISOString(),
+    })
+  }
+
+  // Handle JWT tokens
+  try {
+    const { verifyToken: verify } = await import('../utils/jwt')
+    const payload = verify(token)
+
+    return res.json({
+      valid: true,
+      type: 'jwt',
+      user: {
+        id: payload.sub,
+        email: payload.email,
+        role: payload.role,
+      },
+      expires_at: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
+    })
+  } catch (error: any) {
+    return res.json({
+      valid: false,
+      error: error.message || 'Invalid token',
+    })
+  }
 }
 
 /**

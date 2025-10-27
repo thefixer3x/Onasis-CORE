@@ -24,7 +24,7 @@ case $ACTION in
 
   start)
     echo "🟢 Starting auth gateway with PM2..."
-    pm2 start ecosystem.config.js --env production
+    pm2 start ecosystem.config.cjs --env production
     pm2 save
     echo "✅ Auth gateway started"
     ;;
@@ -81,7 +81,7 @@ case $ACTION in
     pm2 stop $SERVICE_NAME || true
 
     echo "3. Starting new instance..."
-    pm2 start ecosystem.config.js --env production
+    pm2 start ecosystem.config.cjs --env production
     pm2 save
 
     echo "4. Reloading Nginx..."

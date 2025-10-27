@@ -1,9 +1,9 @@
 import type { Request, Response } from 'express'
-import { supabaseAdmin } from '../../db/client'
-import { generateTokenPair } from '../utils/jwt'
-import { createSession } from '../services/session.service'
-import { upsertUserAccount } from '../services/user.service'
-import { logAuthEvent } from '../services/audit.service'
+import { supabaseAdmin } from '../../db/client.js'
+import { generateTokenPair } from '../utils/jwt.js'
+import { createSession } from '../services/session.service.js'
+import { upsertUserAccount } from '../services/user.service.js'
+import { logAuthEvent } from '../services/audit.service.js'
 
 /**
  * POST /mcp/auth

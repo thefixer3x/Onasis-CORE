@@ -13,4 +13,7 @@ router.get('/session', requireAuth, authController.getSession)
 router.post('/verify', requireAuth, authController.verifyToken)
 router.get('/sessions', requireAuth, authController.listSessions)
 
+// Public CLI-friendly verify endpoint (no auth header required)
+router.post('/verify-token', authController.verifyTokenBody)
+
 export default router
