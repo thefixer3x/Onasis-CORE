@@ -14,6 +14,7 @@
 /api/v1/ws        https://168.231.74.29:3001/api/v1/ws        200!
 
 /sse              /.netlify/functions/mcp-sse                   200
+/api/v1/events    /.netlify/functions/mcp-sse                   200
 /message          /.netlify/functions/mcp-message               200
 /oauth/authorize  /.netlify/functions/cli-auth                  200
 /api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
