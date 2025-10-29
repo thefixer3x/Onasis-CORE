@@ -6,15 +6,15 @@
 
 # MCP Authentication routes  
 # MCP WebSocket routing - proxy to VPS MCP server (port 3001)
-/ws               https://168.231.74.29:3001/ws               200!
-/api/v1/ws        https://168.231.74.29:3001/api/v1/ws        200!
+/ws               https://168.231.74.29:3002               200!
+/api/v1/ws        https://168.231.74.29:3002/api/v1/ws        200!
 
 # MCP WebSocket routing - proxy to VPS MCP server
-/ws               https://168.231.74.29:3001/ws               200!
-/api/v1/ws        https://168.231.74.29:3001/api/v1/ws        200!
+/ws               https://168.231.74.29:3002               200!
+/api/v1/ws        https://168.231.74.29:3002/api/v1/ws        200!
 
 /sse              /.netlify/functions/mcp-sse                   200
-/api/v1/events    /.netlify/functions/mcp-sse                   200
+/api/v1/events    https://168.231.74.29:3003/api/v1/events        200!
 /message          /.netlify/functions/mcp-message               200
 /oauth/authorize  /.netlify/functions/cli-auth                  200
 /api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
