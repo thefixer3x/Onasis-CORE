@@ -8,22 +8,26 @@
 ## 🔍 Current Problems Identified
 
 ### 1. **Dual Authentication Systems**
+
 - ❌ Dashboard uses direct Supabase auth
 - ❌ Auth-gateway exists separately at auth.lanonasis.com
 - ❌ No session synchronization between them
 - ❌ Users must authenticate twice
 
 ### 2. **No Cross-Domain Session Cookies**
+
 - ❌ No HTTP-only cookies set by auth-gateway
-- ❌ Sessions don't persist across *.lanonasis.com domains
+- ❌ Sessions don't persist across \*.lanonasis.com domains
 - ❌ Each subdomain treats user as unauthenticated
 
 ### 3. **Incorrect Dashboard Redirect**
+
 - ❌ After login, redirects to `/dashboard` landing page
 - ❌ Should redirect to personalized `/dashboard/[userId]` or `/dashboard/home`
 - ❌ No state preservation for where user was trying to go
 
 ### 4. **Missing Session Validation Middleware**
+
 - ❌ No middleware to validate session cookies
 - ❌ No automatic token refresh
 - ❌ No graceful session expiry handling
@@ -55,6 +59,7 @@ User visits dashboard → Check session cookie → Valid? → Dashboard home
 ### **Step 1: Enable Session Cookies in Auth-Gateway**
 
 #### Update Environment Variables
+
 ```bash
 # Add to /opt/lanonasis/auth-gateway/.env
 COOKIE_DOMAIN=.lanonasis.com
@@ -66,28 +71,31 @@ DASHBOARD_URL=https://dashboard.lanonasis.com
 ```
 
 #### Update auth.controller.ts - Login Method
+
 ```typescript
 // Set HTTP-only session cookie after successful login
-res.cookie('lanonasis_session', tokens.access_token, {
-  domain: process.env.COOKIE_DOMAIN || '.lanonasis.com',
+res.cookie("lanonasis_session", tokens.access_token, {
+  domain: process.env.COOKIE_DOMAIN || ".lanonasis.com",
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  path: '/'
+  path: "/",
 });
 
 // Redirect to dashboard instead of returning JSON
-const returnTo = req.query.return_to || `${process.env.DASHBOARD_URL}/dashboard/home`;
+const returnTo =
+  req.query.return_to || `${process.env.DASHBOARD_URL}/dashboard/home`;
 return res.redirect(returnTo);
 ```
 
 #### Update auth.controller.ts - Logout Method
+
 ```typescript
 // Clear session cookie on logout
-res.clearCookie('lanonasis_session', {
-  domain: process.env.COOKIE_DOMAIN || '.lanonasis.com',
-  path: '/'
+res.clearCookie("lanonasis_session", {
+  domain: process.env.COOKIE_DOMAIN || ".lanonasis.com",
+  path: "/",
 });
 ```
 
@@ -98,17 +106,17 @@ res.clearCookie('lanonasis_session', {
 Create `/apps/onasis-core/services/auth-gateway/src/middleware/session.ts`:
 
 ```typescript
-import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
-import { getSessionByToken } from '../services/session.service';
+import { Request, Response, NextFunction } from "express";
+import { verifyToken } from "../utils/jwt";
+import { getSessionByToken } from "../services/session.service";
 
 export async function validateSessionCookie(
-  req: Request, 
-  res: Response, 
+  req: Request,
+  res: Response,
   next: NextFunction
 ) {
   const sessionToken = req.cookies.lanonasis_session;
-  
+
   if (!sessionToken) {
     return next(); // No session cookie, continue
   }
@@ -116,15 +124,19 @@ export async function validateSessionCookie(
   try {
     // Verify JWT token
     const payload = verifyToken(sessionToken);
-    
+
     // Check if session exists and is active
     const session = await getSessionByToken(sessionToken);
-    
-    if (!session || session.revoked || new Date() > new Date(session.expires_at)) {
+
+    if (
+      !session ||
+      session.revoked ||
+      new Date() > new Date(session.expires_at)
+    ) {
       // Session expired or revoked, clear cookie
-      res.clearCookie('lanonasis_session', {
-        domain: process.env.COOKIE_DOMAIN || '.lanonasis.com',
-        path: '/'
+      res.clearCookie("lanonasis_session", {
+        domain: process.env.COOKIE_DOMAIN || ".lanonasis.com",
+        path: "/",
       });
       return next();
     }
@@ -134,9 +146,9 @@ export async function validateSessionCookie(
     next();
   } catch (error) {
     // Invalid token, clear cookie
-    res.clearCookie('lanonasis_session', {
-      domain: process.env.COOKIE_DOMAIN || '.lanonasis.com',
-      path: '/'
+    res.clearCookie("lanonasis_session", {
+      domain: process.env.COOKIE_DOMAIN || ".lanonasis.com",
+      path: "/",
     });
     next();
   }
@@ -148,12 +160,13 @@ export async function validateSessionCookie(
 ### **Step 3: Update Dashboard Authentication**
 
 #### Create Session Cookie Checker
+
 Create `/apps/dashboard/src/lib/auth-session.ts`:
 
 ```typescript
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from "@/integrations/supabase/client";
 
-const AUTH_GATEWAY_URL = 'https://auth.lanonasis.com';
+const AUTH_GATEWAY_URL = "https://auth.lanonasis.com";
 
 /**
  * Check if user has valid session cookie from auth-gateway
@@ -166,9 +179,9 @@ export async function checkAuthGatewaySession(): Promise<{
   try {
     // This will include cookies automatically
     const response = await fetch(`${AUTH_GATEWAY_URL}/v1/auth/session`, {
-      credentials: 'include', // Important: include cookies
+      credentials: "include", // Important: include cookies
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -179,8 +192,8 @@ export async function checkAuthGatewaySession(): Promise<{
     const data = await response.json();
     return { valid: true, user: data.user };
   } catch (error) {
-    console.error('Auth gateway session check failed:', error);
-    return { valid: false, error: 'Network error' };
+    console.error("Auth gateway session check failed:", error);
+    return { valid: false, error: "Network error" };
   }
 }
 
@@ -189,7 +202,7 @@ export async function checkAuthGatewaySession(): Promise<{
  */
 export async function syncAuthGatewayToSupabase(): Promise<boolean> {
   const session = await checkAuthGatewaySession();
-  
+
   if (!session.valid) {
     return false;
   }
@@ -197,7 +210,7 @@ export async function syncAuthGatewayToSupabase(): Promise<boolean> {
   try {
     // Get access token from auth-gateway
     const response = await fetch(`${AUTH_GATEWAY_URL}/v1/auth/token`, {
-      credentials: 'include',
+      credentials: "include",
     });
 
     if (!response.ok) {
@@ -209,12 +222,12 @@ export async function syncAuthGatewayToSupabase(): Promise<boolean> {
     // Set Supabase session
     await supabase.auth.setSession({
       access_token,
-      refresh_token: '', // Auth-gateway handles refresh
+      refresh_token: "", // Auth-gateway handles refresh
     });
 
     return true;
   } catch (error) {
-    console.error('Failed to sync sessions:', error);
+    console.error("Failed to sync sessions:", error);
     return false;
   }
 }
@@ -230,6 +243,7 @@ export function redirectToAuthGateway(returnTo?: string) {
 ```
 
 #### Update ProtectedRoute Component
+
 ```typescript
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -245,7 +259,7 @@ export function ProtectedRoute() {
     async function validateSession() {
       // Check auth-gateway session cookie
       const session = await checkAuthGatewaySession();
-      
+
       if (session.valid) {
         // Sync with Supabase
         await syncAuthGatewayToSupabase();
@@ -279,10 +293,10 @@ export function ProtectedRoute() {
 Create `/apps/onasis-core/services/auth-gateway/src/routes/web.routes.ts`:
 
 ```typescript
-import express from 'express';
-import { supabaseAdmin } from '../../db/client.js';
-import { generateTokenPair } from '../utils/jwt.js';
-import { createSession } from '../services/session.service.js';
+import express from "express";
+import { supabaseAdmin } from "../../db/client.js";
+import { generateTokenPair } from "../utils/jwt.js";
+import { createSession } from "../services/session.service.js";
 
 const router = express.Router();
 
@@ -290,9 +304,9 @@ const router = express.Router();
  * GET /web/login
  * Show login page
  */
-router.get('/login', (req, res) => {
+router.get("/login", (req, res) => {
   const returnTo = req.query.return_to || process.env.DASHBOARD_URL;
-  
+
   // Render simple login form
   res.send(`
     <!DOCTYPE html>
@@ -374,7 +388,7 @@ router.get('/login', (req, res) => {
  * POST /web/login
  * Handle web login form submission
  */
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password, return_to } = req.body;
 
   try {
@@ -390,8 +404,8 @@ router.post('/login', async (req, res) => {
         <html>
         <body style="font-family: system-ui; text-align: center; padding: 2rem;">
           <h2>Authentication Failed</h2>
-          <p>${error?.message || 'Invalid credentials'}</p>
-          <a href="/web/login?return_to=${encodeURIComponent(return_to || '')}">Try Again</a>
+          <p>${error?.message || "Invalid credentials"}</p>
+          <a href="/web/login?return_to=${encodeURIComponent(return_to || "")}">Try Again</a>
         </body>
         </html>
       `);
@@ -401,37 +415,38 @@ router.post('/login', async (req, res) => {
     const tokens = generateTokenPair({
       sub: data.user.id,
       email: data.user.email!,
-      role: data.user.role || 'authenticated',
-      platform: 'web',
+      role: data.user.role || "authenticated",
+      platform: "web",
     });
 
     // Create session
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
     await createSession({
       user_id: data.user.id,
-      platform: 'web',
+      platform: "web",
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       ip_address: req.ip,
-      user_agent: req.headers['user-agent'],
+      user_agent: req.headers["user-agent"],
       expires_at: expiresAt,
     });
 
     // Set HTTP-only session cookie
-    res.cookie('lanonasis_session', tokens.access_token, {
-      domain: process.env.COOKIE_DOMAIN || '.lanonasis.com',
+    res.cookie("lanonasis_session", tokens.access_token, {
+      domain: process.env.COOKIE_DOMAIN || ".lanonasis.com",
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      path: '/',
+      path: "/",
     });
 
     // Redirect to dashboard home
-    const redirectUrl = return_to || `${process.env.DASHBOARD_URL}/dashboard/home`;
+    const redirectUrl =
+      return_to || `${process.env.DASHBOARD_URL}/dashboard/home`;
     return res.redirect(redirectUrl);
   } catch (error) {
-    console.error('Web login error:', error);
+    console.error("Web login error:", error);
     return res.status(500).send(`
       <!DOCTYPE html>
       <html>
@@ -455,16 +470,16 @@ export default router;
 Update `/apps/onasis-core/services/auth-gateway/src/index.ts`:
 
 ```typescript
-import webRoutes from './routes/web.routes.js'
+import webRoutes from "./routes/web.routes.js";
 
 // ... existing code ...
 
 // Mount routes
-app.use('/v1/auth', authRoutes)
-app.use('/web', webRoutes) // Add web routes
-app.use('/mcp', mcpRoutes)
-app.use('/auth', cliRoutes)
-app.use('/admin', adminRoutes)
+app.use("/v1/auth", authRoutes);
+app.use("/web", webRoutes); // Add web routes
+app.use("/mcp", mcpRoutes);
+app.use("/auth", cliRoutes);
+app.use("/admin", adminRoutes);
 ```
 
 ---
@@ -472,6 +487,7 @@ app.use('/admin', adminRoutes)
 ### **Step 6: Update Environment Variables**
 
 #### Auth-Gateway `.env`
+
 ```bash
 # Add these
 COOKIE_DOMAIN=.lanonasis.com
@@ -479,6 +495,7 @@ DASHBOARD_URL=https://dashboard.lanonasis.com
 ```
 
 #### Dashboard `.env`
+
 ```bash
 # Add these
 VITE_AUTH_GATEWAY_URL=https://auth.lanonasis.com
@@ -490,6 +507,7 @@ VITE_USE_AUTH_GATEWAY=true
 ## 🧪 Testing the Flow
 
 ### **1. Clean Slate Test**
+
 ```bash
 # Clear all cookies for *.lanonasis.com
 # Open incognito window
@@ -500,6 +518,7 @@ VITE_USE_AUTH_GATEWAY=true
 ```
 
 ### **2. Session Persistence Test**
+
 ```bash
 # After logging in, visit different subdomains:
 - https://api.lanonasis.com → Should see authenticated
@@ -508,6 +527,7 @@ VITE_USE_AUTH_GATEWAY=true
 ```
 
 ### **3. Session Expiry Test**
+
 ```bash
 # Wait 7 days or manually expire session in database
 # Visit dashboard
@@ -520,7 +540,7 @@ VITE_USE_AUTH_GATEWAY=true
 
 ✅ **Single Sign-On (SSO)**: Log in once, works everywhere  
 ✅ **Secure**: HTTP-only cookies can't be accessed by JavaScript  
-✅ **Cross-Domain**: Works across all *.lanonasis.com subdomains  
+✅ **Cross-Domain**: Works across all \*.lanonasis.com subdomains  
 ✅ **Persistent**: 7-day session expiry  
 ✅ **Graceful**: Auto-redirect to login when session expires  
 ✅ **Unified**: One source of truth for authentication
