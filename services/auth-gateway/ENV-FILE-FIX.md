@@ -1,12 +1,15 @@
 # 🚨 VPS .env File Error Fix
 
 ## Problem
+
 Your `.env` file has a formatting issue where lines are merged:
+
 ```
 LOG_FORMAT="json"COOKIE_DOMAIN=.lanonasis.com
 ```
 
 This should be two separate lines:
+
 ```
 LOG_FORMAT="json"
 COOKIE_DOMAIN=.lanonasis.com
@@ -15,6 +18,7 @@ COOKIE_DOMAIN=.lanonasis.com
 ## Quick Fix on VPS
 
 ### Option 1: Automated Fix
+
 ```bash
 cd /opt/lanonasis/onasis-core/services/auth-gateway
 chmod +x fix-env.sh
@@ -24,16 +28,19 @@ chmod +x fix-env.sh
 ### Option 2: Manual Fix
 
 1. **Edit the .env file:**
+
 ```bash
 nano .env
 ```
 
 2. **Find this line:**
+
 ```
 LOG_FORMAT="json"COOKIE_DOMAIN=.lanonasis.com
 ```
 
 3. **Replace it with (two separate lines):**
+
 ```
 LOG_FORMAT=json
 COOKIE_DOMAIN=.lanonasis.com
@@ -42,6 +49,7 @@ COOKIE_DOMAIN=.lanonasis.com
 **Note:** Remove the quotes around "json" - it should be just `json`, not `"json"`
 
 4. **Also ensure you have these additional lines:**
+
 ```bash
 DASHBOARD_URL=https://dashboard.lanonasis.com
 AUTH_GATEWAY_URL=https://auth.lanonasis.com
@@ -86,21 +94,25 @@ AUTH_GATEWAY_URL=https://auth.lanonasis.com
 ## After Fixing
 
 1. **Rebuild:**
+
 ```bash
 npm run build
 ```
 
 2. **Restart:**
+
 ```bash
 pm2 restart auth-gateway
 ```
 
 3. **Check logs:**
+
 ```bash
 pm2 logs auth-gateway --lines 20
 ```
 
 4. **Test:**
+
 ```bash
 curl https://auth.lanonasis.com/health
 ```
