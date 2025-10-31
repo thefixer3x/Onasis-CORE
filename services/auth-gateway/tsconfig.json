@@ -1,17 +1,23 @@
 {
   "compilerOptions": {
     "target": "ES2022",
+<<<<<<< Updated upstream
     "module": "Node16",
     "moduleResolution": "node16",
     "types": [
       "node"
     ],
+=======
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+>>>>>>> Stashed changes
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "strict": true,
     "outDir": "dist",
+<<<<<<< Updated upstream
     "rootDir": ".",
     "paths": {
       "@/*": [
@@ -29,3 +35,10 @@
     "dist"
   ]
 }
+=======
+    "rootDir": "./"
+  },
+  "include": ["src/**/*", "config/**/*", "db/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+>>>>>>> Stashed changes
