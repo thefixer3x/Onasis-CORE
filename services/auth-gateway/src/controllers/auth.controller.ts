@@ -89,7 +89,7 @@ export async function login(req: Request, res: Response) {
     if (platform === 'web') {
       const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
       const isProduction = process.env.NODE_ENV === 'production'
-      
+
       res.cookie('lanonasis_session', tokens.access_token, {
         domain: cookieDomain,
         httpOnly: true,
@@ -98,7 +98,7 @@ export async function login(req: Request, res: Response) {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       })
-      
+
       // Also set a readable cookie for user info (not sensitive)
       res.cookie('lanonasis_user', JSON.stringify({
         id: data.user.id,
@@ -288,7 +288,7 @@ export async function verifyTokenBody(req: Request, res: Response) {
 
   // Handle JWT tokens
   try {
-    const { verifyToken: verify } = await import('../utils/jwt')
+    const { verifyToken: verify } = await import('../utils/jwt.js')
     const payload = verify(token)
 
     return res.json({
@@ -301,10 +301,11 @@ export async function verifyTokenBody(req: Request, res: Response) {
       },
       expires_at: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Invalid token'
     return res.json({
       valid: false,
-      error: error.message || 'Invalid token',
+      error: errorMessage,
     })
   }
 }
