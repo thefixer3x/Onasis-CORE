@@ -11,6 +11,10 @@ import authRoutes from './routes/auth.routes.js'
 import mcpRoutes from './routes/mcp.routes.js'
 import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
+import webRoutes from './routes/web.routes.js'
+
+// Import middleware
+import { validateSessionCookie } from './middleware/session.js'
 
 const app = express()
 
@@ -30,6 +34,9 @@ app.use(
   })
 )
 
+// Session cookie validation middleware (applies to all routes)
+app.use(validateSessionCookie)
+
 // Health check endpoint
 app.get('/health', async (_req, res) => {
   const dbStatus = await checkDatabaseHealth()
@@ -43,6 +50,7 @@ app.get('/health', async (_req, res) => {
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
+app.use('/web', webRoutes)
 app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
@@ -74,6 +82,10 @@ app.listen(env.PORT, () => {
   console.log(`   - GET  /v1/auth/session`)
   console.log(`   - POST /v1/auth/verify`)
   console.log(`   - GET  /v1/auth/sessions`)
+  console.log(`🌐 Web endpoints:`)
+  console.log(`   - GET  /web/login`)
+  console.log(`   - POST /web/login`)
+  console.log(`   - GET  /web/logout`)
   console.log(`🤖 MCP endpoints:`)
   console.log(`   - POST /mcp/auth`)
   console.log(`   - GET  /mcp/health`)
@@ -83,4 +95,5 @@ app.listen(env.PORT, () => {
   console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`)
   console.log(`   - POST /admin/change-password`)
   console.log(`   - GET  /admin/status`)
+  console.log(`\n🍪 Session cookies enabled for *.lanonasis.com`)
 })
