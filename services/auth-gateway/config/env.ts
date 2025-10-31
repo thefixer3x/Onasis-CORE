@@ -29,6 +29,10 @@ const envSchema = z.object({
     .transform((value) => Number.parseInt(value, 10)),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   LOG_FORMAT: z.enum(['json', 'pretty']).default('json'),
+  // Cookie and dashboard settings
+  COOKIE_DOMAIN: z.string().default('.lanonasis.com'),
+  DASHBOARD_URL: z.string().url().default('https://dashboard.lanonasis.com'),
+  AUTH_GATEWAY_URL: z.string().url().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

@@ -10,7 +10,7 @@ import { logAuthEvent } from '../services/audit.service.js'
  * Password-based login
  */
 export async function login(req: Request, res: Response) {
-  const { email, password, project_scope, platform = 'web' } = req.body
+  const { email, password, project_scope, platform = 'web', return_to } = req.body
 
   if (!email || !password) {
     return res.status(400).json({
@@ -85,6 +85,35 @@ export async function login(req: Request, res: Response) {
       metadata: { project_scope },
     })
 
+    // Set HTTP-only session cookie for web platform
+    if (platform === 'web') {
+      const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+      const isProduction = process.env.NODE_ENV === 'production'
+      
+      res.cookie('lanonasis_session', tokens.access_token, {
+        domain: cookieDomain,
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+        path: '/',
+      })
+      
+      // Also set a readable cookie for user info (not sensitive)
+      res.cookie('lanonasis_user', JSON.stringify({
+        id: data.user.id,
+        email: data.user.email,
+        role: data.user.role,
+      }), {
+        domain: cookieDomain,
+        httpOnly: false, // Readable by JavaScript
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+      })
+    }
+
     return res.json({
       ...tokens,
       user: {
@@ -92,6 +121,7 @@ export async function login(req: Request, res: Response) {
         email: data.user.email,
         role: data.user.role,
       },
+      redirect_to: return_to || undefined,
     })
   } catch (error) {
     console.error('Login error:', error)
@@ -130,6 +160,17 @@ export async function logout(req: Request, res: Response) {
         success: true,
       })
     }
+
+    // Clear session cookies
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+    res.clearCookie('lanonasis_session', {
+      domain: cookieDomain,
+      path: '/',
+    })
+    res.clearCookie('lanonasis_user', {
+      domain: cookieDomain,
+      path: '/',
+    })
 
     return res.json({
       success: true,
