@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "node16",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
@@ -12,9 +14,18 @@
     "outDir": "dist",
     "rootDir": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src/**/*", "config/**/*", "db/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "config/**/*",
+    "db/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }

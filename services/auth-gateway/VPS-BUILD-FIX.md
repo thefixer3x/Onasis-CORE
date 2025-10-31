@@ -56,18 +56,21 @@ Replace the entire file with:
 ### Fix 2: auth.controller.ts Line 291
 
 Change:
+
 ```typescript
-const { verifyToken: verify } = await import('../utils/jwt')
+const { verifyToken: verify } = await import("../utils/jwt");
 ```
 
 To:
+
 ```typescript
-const { verifyToken: verify } = await import('../utils/jwt.js')
+const { verifyToken: verify } = await import("../utils/jwt.js");
 ```
 
 ### Fix 3: auth.controller.ts Line 304
 
 Change:
+
 ```typescript
 } catch (error: any) {
   return res.json({
@@ -78,6 +81,7 @@ Change:
 ```
 
 To:
+
 ```typescript
 } catch (error: unknown) {
   const errorMessage = error instanceof Error ? error.message : 'Invalid token'
@@ -91,16 +95,19 @@ To:
 ### Fix 4: session.ts Line 41
 
 Change:
+
 ```typescript
 } catch (error) {
 ```
 
 To:
+
 ```typescript
 } catch {
 ```
 
 Then rebuild:
+
 ```bash
 npm run build
 pm2 restart auth-gateway
