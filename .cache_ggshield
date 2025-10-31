@@ -1,1 +1,1 @@
-{"last_found_secrets": [{"name": "Generic Password - commit://staged/services/auth-gateway/verify-vps-deployment.sh", "match": "cc1b1d7f639ecd10dbe5563a43e24186232fde5c53ff80f9c1ad472d4c4e2e06"}]}
+{"last_found_secrets": [{"match": "cc1b1d7f639ecd10dbe5563a43e24186232fde5c53ff80f9c1ad472d4c4e2e06", "name": "Generic Password - commit://staged/services/auth-gateway/verify-vps-deployment.sh"}]}
