@@ -56,7 +56,7 @@
 ### Recent Infrastructure Fixes Applied:
 
 1. **VPS nginx**: Fixed port routing (WebSocket→3002, SSE→3003)
-2. **Netlify redirects**: Added proper proxy rules in `onasis-core/_redirects`
+2. **Netlify redirects**: Added proper proxy rules in `_redirects`
 3. **PM2 config**: Added STDIO transport support
 4. **Architecture cleanup**: Removed incorrect routing from public repo
 
