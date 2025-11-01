@@ -18,7 +18,7 @@
 #### 1. TypeScript Configuration Issues:
 
 - `tsconfig.json` composite project references failing
-- Deprecated `moduleResolution=node10` and `baseUrl` warnings
+- Previous `moduleResolution=node10` and `baseUrl` warnings (resolved; now using `moduleResolution: 'bundler'`)
 - Missing package references (`memory-engine` not found)
 
 #### 2. Module Resolution Failures:
