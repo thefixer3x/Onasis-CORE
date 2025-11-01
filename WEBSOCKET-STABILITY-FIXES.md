@@ -19,7 +19,7 @@
 
 - `tsconfig.json` composite project references failing
 - Previous `moduleResolution=node10` and `baseUrl` warnings (resolved; now using `moduleResolution: 'bundler'`)
-- Missing package references (`memory-engine` not found)
+- Missing package references (`memory-engine` not found; this package must be created or added to `package.json` dependencies)
 
 #### 2. Module Resolution Failures:
 
