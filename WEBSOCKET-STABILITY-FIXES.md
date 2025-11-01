@@ -47,7 +47,7 @@
 - **mcp.lanonasis.com** → VPS nginx (private onasis-core infrastructure)
 - **auth.lanonasis.com** → VPS nginx → PM2 auth service (port 4000, Neon DB)
 
-### MCP Server Configuration (VPS: 168.231.74.29):
+### MCP Server Configuration (VPS: mcp.lanonasis.com):
 
 - **Location**: `/opt/lanonasis/mcp-core` (PM2 managed)
 - **Ports**: 3001 (HTTP), 3002 (WebSocket), 3003 (SSE)
