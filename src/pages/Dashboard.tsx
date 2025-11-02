@@ -3,184 +3,200 @@
  * Main dashboard for authenticated users
  */
 
-import React, { useState, useEffect } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { authConfig } from '@/config/auth.config'
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { authConfig } from "@/config/auth.config";
 import {
-  BarChart3,
   Key,
   Code2,
   FileText,
   Settings,
-  Users,
   Activity,
-  Package,
   Copy,
   Check,
   ExternalLink,
   Terminal,
   BookOpen,
   Shield,
-} from 'lucide-react'
-import toast from 'react-hot-toast'
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 interface QuickAction {
-  icon: React.ElementType
-  label: string
-  description: string
-  action: () => void
-  color: string
+  icon: React.ElementType;
+  label: string;
+  description: string;
+  action: () => void;
+  color: string;
 }
 
 interface Stat {
-  label: string
-  value: string | number
-  change: string
-  trend: 'up' | 'down' | 'neutral'
+  label: string;
+  value: string | number;
+  change: string;
+  trend: "up" | "down" | "neutral";
+}
+
+interface ApiKey {
+  id: string;
+  name: string;
+  key: string;
+  created: string;
+}
+
+interface DashboardStats {
+  calls?: {
+    today?: number;
+  };
+  responseTime?: {
+    avg?: number;
+  };
+  successRate?: number;
 }
 
 export const Dashboard: React.FC = () => {
-  const { user } = useAuth()
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
-  const [apiKeys, setApiKeys] = useState<any[]>([])
-  const [stats, setStats] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  
+  const { user } = useAuth();
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
-  
+    fetchDashboardData();
+  }, []);
+
   const fetchDashboardData = async () => {
     try {
-      setLoading(true)
-      const token = localStorage.getItem(authConfig.session.tokenKey)
-      
+      setLoading(true);
+      const token = localStorage.getItem(authConfig.session.tokenKey);
+
       // Fetch API keys
-      const keysResponse = await fetch('/api/keys', {
+      const keysResponse = await fetch("/api/keys", {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (keysResponse.ok) {
-        const keysData = await keysResponse.json()
-        setApiKeys(keysData.keys || [])
+        const keysData = await keysResponse.json();
+        setApiKeys(keysData.keys || []);
       }
-      
+
       // Fetch stats
-      const statsResponse = await fetch('/api/stats', {
+      const statsResponse = await fetch("/api/stats", {
         headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
+          Authorization: `Bearer ${token}`,
+        },
+      });
       if (statsResponse.ok) {
-        const statsData = await statsResponse.json()
-        setStats(statsData)
+        const statsData = await statsResponse.json();
+        setStats(statsData);
       }
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
-      toast.error('Failed to load dashboard data')
+      console.error("Failed to fetch dashboard data:", error);
+      toast.error("Failed to load dashboard data");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-  
+  };
+
   const createNewApiKey = async () => {
     try {
-      const token = localStorage.getItem(authConfig.session.tokenKey)
-      const response = await fetch('/api/keys', {
-        method: 'POST',
+      const token = localStorage.getItem(authConfig.session.tokenKey);
+      const response = await fetch("/api/keys", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name: 'New API Key' })
-      })
-      
+        body: JSON.stringify({ name: "New API Key" }),
+      });
+
       if (response.ok) {
-        const newKey = await response.json()
-        setApiKeys([...apiKeys, newKey])
-        toast.success('New API key created')
+        const newKey = await response.json();
+        setApiKeys([...apiKeys, newKey]);
+        toast.success("New API key created");
       }
     } catch (error) {
-      console.error('Failed to create API key:', error)
-      toast.error('Failed to create API key')
+      console.error("Failed to create API key:", error);
+      toast.error("Failed to create API key");
     }
-  }
-  
-  const apiKey = apiKeys[0]?.key || 'Loading...'
-  
+  };
+
+  const apiKey = apiKeys[0]?.key || "Loading...";
+
   const handleCopyApiKey = (key: string) => {
-    navigator.clipboard.writeText(key)
-    setCopiedKey(key)
-    toast.success('API key copied to clipboard')
-    setTimeout(() => setCopiedKey(null), 2000)
-  }
-  
+    navigator.clipboard.writeText(key);
+    setCopiedKey(key);
+    toast.success("API key copied to clipboard");
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
   const quickActions: QuickAction[] = [
     {
       icon: Key,
-      label: 'API Keys',
-      description: 'Manage your API keys',
+      label: "API Keys",
+      description: "Manage your API keys",
       action: () => createNewApiKey(),
-      color: 'bg-blue-500',
+      color: "bg-blue-500",
     },
     {
       icon: Code2,
-      label: 'API Sandbox',
-      description: 'Test API endpoints',
+      label: "API Sandbox",
+      description: "Test API endpoints",
       action: async () => {
-        const token = localStorage.getItem(authConfig.session.tokenKey)
-        const response = await fetch('/api/status', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        const data = await response.json()
-        toast.success(`API Status: ${data.status}`)
+        const token = localStorage.getItem(authConfig.session.tokenKey);
+        const response = await fetch("/api/status", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        toast.success(`API Status: ${data.status}`);
       },
-      color: 'bg-purple-500',
+      color: "bg-purple-500",
     },
     {
       icon: FileText,
-      label: 'Documentation',
-      description: 'Browse API docs',
-      action: () => window.open('/api', '_blank'),
-      color: 'bg-green-500',
+      label: "Documentation",
+      description: "Browse API docs",
+      action: () => window.open("/api", "_blank"),
+      color: "bg-green-500",
     },
     {
       icon: Settings,
-      label: 'Refresh Data',
-      description: 'Reload dashboard data',
+      label: "Refresh Data",
+      description: "Reload dashboard data",
       action: () => fetchDashboardData(),
-      color: 'bg-gray-500',
+      color: "bg-gray-500",
     },
-  ]
-  
-  const statsData: Stat[] = stats ? [
-    {
-      label: 'API Calls Today',
-      value: stats.calls?.today?.toLocaleString() || '0',
-      change: '+12.3%',
-      trend: 'up',
-    },
-    {
-      label: 'Active API Keys',
-      value: apiKeys.length,
-      change: 'No change',
-      trend: 'neutral',
-    },
-    {
-      label: 'Response Time',
-      value: `${stats.responseTime?.avg || 0}ms`,
-      change: '-5ms',
-      trend: 'up',
-    },
-    {
-      label: 'Success Rate',
-      value: `${stats.successRate || 0}%`,
-      change: '+0.1%',
-      trend: 'up',
-    },
-  ] : []
-  
+  ];
+
+  const statsData: Stat[] = stats
+    ? [
+        {
+          label: "API Calls Today",
+          value: stats.calls?.today?.toLocaleString() || "0",
+          change: "+12.3%",
+          trend: "up",
+        },
+        {
+          label: "Active API Keys",
+          value: apiKeys.length,
+          change: "No change",
+          trend: "neutral",
+        },
+        {
+          label: "Response Time",
+          value: `${stats.responseTime?.avg || 0}ms`,
+          change: "-5ms",
+          trend: "up",
+        },
+        {
+          label: "Success Rate",
+          value: `${stats.successRate || 0}%`,
+          change: "+0.1%",
+          trend: "up",
+        },
+      ]
+    : [];
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -189,9 +205,9 @@ export const Dashboard: React.FC = () => {
           <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
-    )
+    );
   }
-  
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
@@ -203,7 +219,8 @@ export const Dashboard: React.FC = () => {
                 API Dashboard
               </h1>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                Welcome back, {user?.name || user?.email?.split('@')[0] || 'Developer'}!
+                Welcome back,{" "}
+                {user?.name || user?.email?.split("@")[0] || "Developer"}!
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -215,7 +232,7 @@ export const Dashboard: React.FC = () => {
           </div>
         </div>
       </header>
-      
+
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -235,21 +252,21 @@ export const Dashboard: React.FC = () => {
                 </div>
                 <Activity
                   className={`h-8 w-8 ${
-                    stat.trend === 'up'
-                      ? 'text-green-500'
-                      : stat.trend === 'down'
-                      ? 'text-red-500'
-                      : 'text-gray-500'
+                    stat.trend === "up"
+                      ? "text-green-500"
+                      : stat.trend === "down"
+                      ? "text-red-500"
+                      : "text-gray-500"
                   }`}
                 />
               </div>
               <p
                 className={`text-sm mt-2 ${
-                  stat.trend === 'up'
-                    ? 'text-green-600'
-                    : stat.trend === 'down'
-                    ? 'text-red-600'
-                    : 'text-gray-600'
+                  stat.trend === "up"
+                    ? "text-green-600"
+                    : stat.trend === "down"
+                    ? "text-red-600"
+                    : "text-gray-600"
                 }`}
               >
                 {stat.change} from yesterday
@@ -257,7 +274,7 @@ export const Dashboard: React.FC = () => {
             </div>
           ))}
         </div>
-        
+
         {/* API Key Section */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-8">
           <div className="p-6">
@@ -273,11 +290,14 @@ export const Dashboard: React.FC = () => {
                 Generate New Key
               </button>
             </div>
-            
+
             {apiKeys.length > 0 ? (
               <div className="space-y-3">
                 {apiKeys.map((key, index) => (
-                  <div key={key.id || index} className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4">
+                  <div
+                    key={key.id || index}
+                    className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4"
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         {key.name || `API Key ${index + 1}`}
@@ -318,13 +338,13 @@ export const Dashboard: React.FC = () => {
                 </button>
               </div>
             )}
-            
+
             <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
               Keep your API keys secure and never share them publicly.
             </p>
           </div>
         </div>
-        
+
         {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
@@ -352,7 +372,7 @@ export const Dashboard: React.FC = () => {
             ))}
           </div>
         </div>
-        
+
         {/* Code Examples */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
           <div className="p-6">
@@ -370,14 +390,14 @@ export const Dashboard: React.FC = () => {
                   </code>
                 </div>
               </div>
-              
+
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Initialize the client
                 </h3>
                 <div className="bg-gray-900 rounded-lg p-4">
                   <pre className="text-sm text-gray-300">
-{`import { LanonasisClient } from '@lanonasis/api-sdk'
+                    {`import { LanonasisClient } from '@lanonasis/api-sdk'
 
 const client = new LanonasisClient({
   apiKey: '${apiKey}'
@@ -392,7 +412,7 @@ console.log(response)`}
             </div>
           </div>
         </div>
-        
+
         {/* Resources */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <a
@@ -407,7 +427,7 @@ console.log(response)`}
               Complete reference for all endpoints
             </p>
           </a>
-          
+
           <a
             href="#"
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
@@ -420,7 +440,7 @@ console.log(response)`}
               Test API calls in real-time
             </p>
           </a>
-          
+
           <a
             href="#"
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
@@ -436,5 +456,5 @@ console.log(response)`}
         </div>
       </main>
     </div>
-  )
-}
+  );
+};
