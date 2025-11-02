@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser'
 
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
+import { runAllValidations } from '../config/validation.js'
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
@@ -74,8 +75,16 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   })
 })
 
-// Start server
-app.listen(env.PORT, () => {
+// Start server with validation
+app.listen(env.PORT, async () => {
+  // Run OAuth configuration validation
+  try {
+    await runAllValidations()
+  } catch (error) {
+    console.error('❌ Startup validation failed:', error instanceof Error ? error.message : error)
+    process.exit(1)
+  }
+
   console.log(`🚀 Auth gateway running on port ${env.PORT} in ${env.NODE_ENV} mode`)
   console.log(`📍 Health check: http://localhost:${env.PORT}/health`)
   console.log(`🔐 Auth endpoints:`)
