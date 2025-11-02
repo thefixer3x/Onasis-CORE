@@ -172,7 +172,6 @@ test-output/
 # GitGuardian cache
 .cache_ggshield
 .credential-scrub-backup-*
-
 # Scripts with hardcoded credentials
 **/verify-*.sh
 **/deploy-*.sh
