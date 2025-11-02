@@ -12,18 +12,6 @@ Onasis-CORE is a comprehensive privacy-protecting infrastructure platform that p
 
 Test Supabase credentials were accidentally committed to Git history. **Repository owner must take immediate action.**
 
-**📖 Start here:** [URGENT-CREDENTIAL-LEAK-ACTION-REQUIRED.md](./URGENT-CREDENTIAL-LEAK-ACTION-REQUIRED.md)
-
-**Quick actions needed:**
-1. Rotate Supabase credentials immediately
-2. Run cleanup script: `./scripts/cleanup-credential-leak.sh`
-3. Install prevention tools: `./scripts/setup-security-hooks.sh`
-
-**Documentation provided:**
-- Full incident report: `.devops/SECURITY-INCIDENT-CREDENTIAL-LEAK.md`
-- Remediation guide: `scripts/README-CREDENTIAL-REMEDIATION.md`
-- Automated cleanup and prevention tools in `scripts/` directory
-
 ---
 
 ## 🏗️ **Architecture Overview**

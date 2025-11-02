@@ -1,0 +1,353 @@
+import type { Request, Response } from 'express'
+import { z } from 'zod'
+import {
+    OAuthServiceError,
+    createAuthorizationCode,
+    consumeAuthorizationCode,
+    findRefreshToken,
+    introspectToken,
+    isChallengeMethodAllowed,
+    isRedirectUriAllowed,
+    issueTokenPair,
+    logOAuthEvent,
+    revokeTokenByValue,
+    resolveScopes,
+    rotateRefreshToken,
+    getClient,
+} from '../services/oauth.service.js'
+import {
+    CodeChallengeMethod,
+    codeVerifierSchema,
+    verifyCodeChallenge,
+} from '../utils/pkce.js'
+
+const authorizeRequestSchema = z.object({
+    response_type: z.literal('code'),
+    client_id: z.string().min(1),
+    redirect_uri: z.string().url(),
+    scope: z.string().optional(),
+    state: z.string().optional(),
+    code_challenge: z.string().min(43).max(256),
+    code_challenge_method: z.enum(['S256', 'plain']).default('S256'),
+})
+
+const tokenRequestSchema = z.discriminatedUnion('grant_type', [
+    z.object({
+        grant_type: z.literal('authorization_code'),
+        code: z.string().min(1),
+        redirect_uri: z.string().url().optional(),
+        client_id: z.string().min(1),
+        code_verifier: codeVerifierSchema,
+    }),
+    z.object({
+        grant_type: z.literal('refresh_token'),
+        refresh_token: z.string().min(1),
+        client_id: z.string().min(1),
+        scope: z.string().optional(),
+    }),
+])
+
+const revokeRequestSchema = z.object({
+    token: z.string().min(1),
+    token_type_hint: z.enum(['access_token', 'refresh_token']).optional(),
+})
+
+const introspectSchema = z.object({
+    token: z.string().min(1),
+})
+
+function parseScope(scope?: string): string[] | undefined {
+    if (!scope) {
+        return undefined
+    }
+    return scope
+        .split(' ')
+        .map((value) => value.trim())
+        .filter(Boolean)
+}
+
+function sendOAuthError(res: Response, error: unknown) {
+    if (error instanceof OAuthServiceError) {
+        return res.status(error.statusCode).json({
+            error: error.oauthError,
+            error_description: error.message,
+        })
+    }
+
+    console.error('Unhandled OAuth error', error)
+    return res.status(500).json({
+        error: 'server_error',
+        error_description: 'Internal server error',
+    })
+}
+
+export async function authorize(req: Request, res: Response) {
+    const parseResult = authorizeRequestSchema.safeParse(req.query)
+    if (!parseResult.success) {
+        return res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Invalid authorization request parameters',
+            details: parseResult.error.flatten().fieldErrors,
+        })
+    }
+
+    const payload = parseResult.data
+    const userId = req.user?.sub
+
+    if (!userId) {
+        return res.status(401).json({
+            error: 'login_required',
+            error_description: 'User session required before authorization',
+        })
+    }
+
+    try {
+        const client = await getClient(payload.client_id)
+        if (!client) {
+            throw new OAuthServiceError('Unknown client_id', 'invalid_client', 400)
+        }
+
+        if (!isRedirectUriAllowed(client, payload.redirect_uri)) {
+            throw new OAuthServiceError('Redirect URI not allowed for client', 'invalid_request', 400)
+        }
+
+        const method = payload.code_challenge_method as CodeChallengeMethod
+        if (!isChallengeMethodAllowed(client, method)) {
+            throw new OAuthServiceError('Unsupported code challenge method', 'invalid_request', 400)
+        }
+
+        const scopes = resolveScopes(client, parseScope(payload.scope))
+
+        const result = await createAuthorizationCode({
+            client,
+            userId,
+            redirectUri: payload.redirect_uri,
+            scope: scopes,
+            state: payload.state,
+            codeChallenge: payload.code_challenge,
+            codeChallengeMethod: method,
+            ipAddress: req.ip,
+            userAgent: req.get('user-agent') || undefined,
+        })
+
+        await logOAuthEvent({
+            event_type: 'authorize_request',
+            client_id: client.client_id,
+            user_id: userId,
+            scope: scopes,
+            redirect_uri: payload.redirect_uri,
+            ip_address: req.ip,
+            user_agent: req.get('user-agent') || undefined,
+            success: true,
+        })
+
+        const redirectUrl = new URL(payload.redirect_uri)
+        redirectUrl.searchParams.set('code', result.authorizationCode)
+        if (payload.state) {
+            redirectUrl.searchParams.set('state', payload.state)
+        }
+
+        return res.redirect(302, redirectUrl.toString())
+    } catch (error) {
+        await logOAuthEvent({
+            event_type: 'authorize_request',
+            client_id: payload.client_id,
+            user_id: userId,
+            scope: parseScope(payload.scope),
+            redirect_uri: payload.redirect_uri,
+            ip_address: req.ip,
+            user_agent: req.get('user-agent') || undefined,
+            success: false,
+            error_code: error instanceof OAuthServiceError ? error.oauthError : 'server_error',
+            error_description: error instanceof Error ? error.message : 'Unknown error',
+        })
+        return sendOAuthError(res, error)
+    }
+}
+
+export async function token(req: Request, res: Response) {
+    const parseResult = tokenRequestSchema.safeParse(req.body)
+    if (!parseResult.success) {
+        return res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Invalid token request parameters',
+            details: parseResult.error.flatten().fieldErrors,
+        })
+    }
+
+    const payload = parseResult.data
+
+    try {
+        const client = await getClient(payload.client_id)
+        if (!client) {
+            throw new OAuthServiceError('Unknown client_id', 'invalid_client', 400)
+        }
+
+        if (payload.grant_type === 'authorization_code') {
+            const authorizationCode = await consumeAuthorizationCode({
+                client,
+                code: payload.code,
+                redirectUri: payload.redirect_uri,
+            })
+
+            if (!verifyCodeChallenge(
+                payload.code_verifier,
+                authorizationCode.code_challenge,
+                authorizationCode.code_challenge_method
+            )) {
+                throw new OAuthServiceError('Invalid code_verifier', 'invalid_grant', 400)
+            }
+
+            const tokenPair = await issueTokenPair({
+                client,
+                userId: authorizationCode.user_id,
+                scope: authorizationCode.scope ?? [],
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent') || undefined,
+            })
+
+            await logOAuthEvent({
+                event_type: 'token_issued',
+                client_id: client.client_id,
+                user_id: authorizationCode.user_id,
+                scope: authorizationCode.scope ?? undefined,
+                grant_type: 'authorization_code',
+                ip_address: req.ip,
+                user_agent: req.get('user-agent') || undefined,
+                success: true,
+            })
+
+            return res.json({
+                token_type: 'Bearer',
+                access_token: tokenPair.accessToken.value,
+                expires_in: tokenPair.accessTokenExpiresIn,
+                refresh_token: tokenPair.refreshToken.value,
+                refresh_expires_in: tokenPair.refreshTokenExpiresIn,
+                scope: (authorizationCode.scope ?? []).join(' '),
+            })
+        }
+
+        if (payload.grant_type === 'refresh_token') {
+            const existingToken = await findRefreshToken(payload.refresh_token, client.client_id)
+            if (!existingToken) {
+                throw new OAuthServiceError('Refresh token invalid or expired', 'invalid_grant', 400)
+            }
+
+            const requestedScopes = parseScope(payload.scope)
+            let scopes = existingToken.scope ?? []
+
+            if (requestedScopes) {
+                const sanitized = resolveScopes(client, requestedScopes)
+                const missing = sanitized.filter((scope) => !scopes.includes(scope))
+                if (missing.length > 0) {
+                    throw new OAuthServiceError('Requested scope exceeds original grant', 'invalid_scope', 400)
+                }
+                scopes = sanitized
+            }
+
+            const rotated = await rotateRefreshToken({
+                existingToken,
+                client,
+                scope: scopes,
+                ipAddress: req.ip,
+                userAgent: req.get('user-agent') || undefined,
+            })
+
+            await logOAuthEvent({
+                event_type: 'token_refreshed',
+                client_id: client.client_id,
+                user_id: existingToken.user_id,
+                scope: scopes,
+                grant_type: 'refresh_token',
+                ip_address: req.ip,
+                user_agent: req.get('user-agent') || undefined,
+                success: true,
+            })
+
+            return res.json({
+                token_type: 'Bearer',
+                access_token: rotated.accessToken.value,
+                expires_in: rotated.accessTokenExpiresIn,
+                refresh_token: rotated.refreshToken.value,
+                refresh_expires_in: rotated.refreshTokenExpiresIn,
+                scope: scopes.join(' '),
+            })
+        }
+
+        throw new OAuthServiceError('Unsupported grant_type', 'unsupported_grant_type', 400)
+    } catch (error) {
+        await logOAuthEvent({
+            event_type: 'token_error',
+            client_id: payload.client_id,
+            scope: payload.grant_type === 'refresh_token' ? parseScope(payload.scope) : undefined,
+            grant_type: payload.grant_type,
+            ip_address: req.ip,
+            user_agent: req.get('user-agent') || undefined,
+            success: false,
+            error_code: error instanceof OAuthServiceError ? error.oauthError : 'server_error',
+            error_description: error instanceof Error ? error.message : 'Unknown error',
+        })
+        return sendOAuthError(res, error)
+    }
+}
+
+export async function revoke(req: Request, res: Response) {
+    const parseResult = revokeRequestSchema.safeParse(req.body)
+    if (!parseResult.success) {
+        return res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Invalid revoke request parameters',
+            details: parseResult.error.flatten().fieldErrors,
+        })
+    }
+
+    const payload = parseResult.data
+
+    try {
+        const revoked = await revokeTokenByValue(payload.token, payload.token_type_hint)
+
+        await logOAuthEvent({
+            event_type: 'token_revoked',
+            success: revoked,
+            error_code: revoked ? undefined : 'invalid_token',
+            error_description: revoked ? undefined : 'Token not found',
+            ip_address: req.ip,
+            user_agent: req.get('user-agent') || undefined,
+        })
+
+        return res.status(200).json({ revoked })
+    } catch (error) {
+        await logOAuthEvent({
+            event_type: 'token_revoked',
+            success: false,
+            error_code: error instanceof OAuthServiceError ? error.oauthError : 'server_error',
+            error_description: error instanceof Error ? error.message : 'Unknown error',
+            ip_address: req.ip,
+            user_agent: req.get('user-agent') || undefined,
+        })
+        return sendOAuthError(res, error)
+    }
+}
+
+export async function introspect(req: Request, res: Response) {
+    const parseResult = introspectSchema.safeParse(req.body)
+    if (!parseResult.success) {
+        return res.status(400).json({
+            error: 'invalid_request',
+            error_description: 'Invalid introspection request parameters',
+            details: parseResult.error.flatten().fieldErrors,
+        })
+    }
+
+    try {
+        const data = await introspectToken(parseResult.data.token)
+        return res.json(data)
+    } catch (error) {
+        console.error('OAuth introspection error', error)
+        return res.status(500).json({
+            active: false,
+            error: 'server_error',
+            error_description: 'Internal server error',
+        })
+    }
+}
