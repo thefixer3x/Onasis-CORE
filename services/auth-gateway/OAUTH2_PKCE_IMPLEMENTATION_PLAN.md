@@ -1,4 +1,5 @@
 # OAuth2 PKCE Implementation Plan
+
 **Date**: 2025-11-02  
 **Service**: auth-gateway (port 4000)  
 **Strategy**: Phased rollout with backward compatibility
@@ -17,36 +18,36 @@ graph TB
         DSH[Dashboard]
         SDK[SDK/API]
     end
-    
+
     subgraph "Authentication Gateway - Port 4000"
         OA[OAuth2 Endpoints]
         LA[Legacy Auth Endpoints]
         SM[Session Management]
         AL[Audit Logger]
     end
-    
+
     subgraph "Data Layer"
         ND[Neon Database]
         OT[OAuth Tables]
         UT[User Tables]
         ST[Session Tables]
     end
-    
+
     VSC -->|PKCE Flow| OA
     VSC -.->|Fallback| LA
     CLI -->|PKCE Flow| OA
     CLI -.->|Fallback| LA
     DSH -->|Session Auth| SM
     SDK -->|API Keys| LA
-    
+
     OA --> AL
     LA --> AL
     SM --> AL
-    
+
     OA --> OT
     LA --> UT
     SM --> ST
-    
+
     OT --> ND
     UT --> ND
     ST --> ND
@@ -60,7 +61,7 @@ sequenceDiagram
     participant B as Browser
     participant AG as Auth Gateway
     participant DB as Database
-    
+
     C->>C: Generate code_verifier & code_challenge
     C->>B: Open authorization URL
     B->>AG: GET /oauth/authorize
@@ -80,14 +81,16 @@ sequenceDiagram
 ## Phase 1: Database Foundation (Day 1)
 
 ### Objectives
+
 - Set up OAuth2 database schema
 - Verify existing tables remain intact
 - Seed initial OAuth clients
 
 ### Tasks
+
 1. **Apply database migration**
    - Connect to Neon database
-   - Execute `002_oauth2_pkce.sql` migration
+   - Execute `006_oauth2_pkce.sql` migration
    - Verify all 4 OAuth tables created
    - Confirm seed clients inserted
 
@@ -103,6 +106,7 @@ sequenceDiagram
    - Test restore process
 
 ### Success Criteria
+
 - ✅ OAuth tables exist in database
 - ✅ No existing tables modified
 - ✅ Seed clients available
@@ -111,11 +115,13 @@ sequenceDiagram
 ## Phase 2: Core OAuth2 Implementation (Days 2-3)
 
 ### Objectives
+
 - Implement OAuth2 authorization endpoints
 - Add PKCE validation logic
 - Create token management system
 
 ### Tasks
+
 1. **Create OAuth2 utilities** (`src/utils/pkce.ts`)
    - PKCE challenge validation
    - Token generation functions
@@ -145,6 +151,7 @@ sequenceDiagram
    - Mobile-responsive design
 
 ### Success Criteria
+
 - ✅ All 4 OAuth endpoints functional
 - ✅ PKCE validation working
 - ✅ Token generation/refresh working
@@ -153,11 +160,13 @@ sequenceDiagram
 ## Phase 3: Security Hardening (Day 4)
 
 ### Objectives
+
 - Add comprehensive security measures
 - Implement rate limiting
 - Set up audit logging
 
 ### Tasks
+
 1. **Input validation**
    - Zod schemas for all OAuth requests
    - Redirect URI validation
@@ -182,6 +191,7 @@ sequenceDiagram
    - Suspicious activity detection
 
 ### Success Criteria
+
 - ✅ Rate limiting active
 - ✅ Input validation comprehensive
 - ✅ Audit logs capturing all events
@@ -190,11 +200,13 @@ sequenceDiagram
 ## Phase 4: Client Migration Strategy (Days 5-6)
 
 ### Objectives
+
 - Update client applications
 - Implement fallback mechanisms
 - Ensure zero downtime
 
 ### Tasks
+
 1. **VSCode/Cursor Extension**
    - Implement PKCE flow
    - Add SecretStorage integration
@@ -218,6 +230,7 @@ sequenceDiagram
    - Update documentation
 
 ### Success Criteria
+
 - ✅ All clients support PKCE
 - ✅ Fallback mechanisms working
 - ✅ No breaking changes
@@ -226,22 +239,24 @@ sequenceDiagram
 ## Phase 5: Testing & Validation (Days 7-8)
 
 ### Objectives
+
 - Comprehensive testing coverage
 - Security validation
 - Performance benchmarks
 
 ### Test Matrix
 
-| Test Type | Scope | Priority |
-|-----------|-------|----------|
-| Unit Tests | PKCE validation, token generation | Critical |
-| Integration Tests | Full OAuth flow, token refresh | Critical |
-| Security Tests | CSRF, injection, timing attacks | Critical |
-| Load Tests | 1000 concurrent auth requests | High |
-| Compatibility Tests | All client types | High |
-| Rollback Tests | Database and code rollback | Medium |
+| Test Type           | Scope                             | Priority |
+| ------------------- | --------------------------------- | -------- |
+| Unit Tests          | PKCE validation, token generation | Critical |
+| Integration Tests   | Full OAuth flow, token refresh    | Critical |
+| Security Tests      | CSRF, injection, timing attacks   | Critical |
+| Load Tests          | 1000 concurrent auth requests     | High     |
+| Compatibility Tests | All client types                  | High     |
+| Rollback Tests      | Database and code rollback        | Medium   |
 
 ### Test Scenarios
+
 1. **Happy path flows**
    - Complete PKCE authorization
    - Token refresh cycle
@@ -259,6 +274,7 @@ sequenceDiagram
    - Database connection issues
 
 ### Success Criteria
+
 - ✅ 100% critical path coverage
 - ✅ No security vulnerabilities
 - ✅ Response time < 500ms
@@ -267,11 +283,13 @@ sequenceDiagram
 ## Phase 6: Monitoring & Observability (Day 9)
 
 ### Objectives
+
 - Set up comprehensive monitoring
 - Create alerting rules
 - Implement cleanup automation
 
 ### Tasks
+
 1. **Metrics collection**
    - OAuth request rates
    - Token issuance/refresh rates
@@ -297,6 +315,7 @@ sequenceDiagram
    - Security incident tracking
 
 ### Success Criteria
+
 - ✅ All metrics collected
 - ✅ Alerts configured and tested
 - ✅ Cleanup jobs running
@@ -305,11 +324,13 @@ sequenceDiagram
 ## Phase 7: Production Rollout (Days 10-11)
 
 ### Objectives
+
 - Safe production deployment
 - Gradual traffic migration
 - Quick rollback capability
 
 ### Rollout Strategy
+
 ```
 Day 10 Morning: Deploy to production (disabled)
 Day 10 Afternoon: Enable for internal testing
@@ -320,20 +341,21 @@ Day 11 Evening: Enable for CLI users
 ```
 
 ### Feature Flags
+
 ```javascript
 const OAUTH_ROLLOUT = {
-  enabled: process.env.OAUTH_ENABLED === 'true',
-  percentage: parseInt(process.env.OAUTH_PERCENTAGE || '0'),
-  allowedClients: (process.env.OAUTH_CLIENTS || '').split(','),
-  fallbackEnabled: true
+  enabled: process.env.OAUTH_ENABLED === "true",
+  percentage: parseInt(process.env.OAUTH_PERCENTAGE || "0", 10),
+  allowedClients: (process.env.OAUTH_CLIENTS || "").split(","),
+  fallbackEnabled: true,
 };
 ```
 
 ### Rollback Plan
+
 1. **Immediate rollback** (< 5 min)
    - Disable feature flag
    - No code changes needed
-   
 2. **Code rollback** (< 15 min)
    - Revert git commit
    - Rebuild and deploy
@@ -345,6 +367,7 @@ const OAUTH_ROLLOUT = {
    - Verify integrity
 
 ### Success Criteria
+
 - ✅ Zero downtime deployment
 - ✅ Gradual rollout successful
 - ✅ Rollback tested
@@ -353,11 +376,13 @@ const OAUTH_ROLLOUT = {
 ## Phase 8: Documentation & Training (Day 12)
 
 ### Objectives
+
 - Complete documentation
 - Team knowledge transfer
 - Client migration guides
 
 ### Deliverables
+
 1. **Technical documentation**
    - API specification
    - Security architecture
@@ -383,6 +408,7 @@ const OAUTH_ROLLOUT = {
    - Support procedures
 
 ### Success Criteria
+
 - ✅ All documentation complete
 - ✅ Team trained
 - ✅ Runbooks tested
@@ -390,26 +416,26 @@ const OAUTH_ROLLOUT = {
 
 ## Risk Assessment & Mitigation
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| PKCE validation bugs | High | Medium | Extensive testing, gradual rollout |
-| Database migration failure | High | Low | Backup, tested rollback |
-| Client compatibility issues | Medium | Medium | Fallback to JWT, phased migration |
-| Performance degradation | Medium | Low | Load testing, caching, monitoring |
-| Security vulnerabilities | High | Low | Security audit, rate limiting |
+| Risk                        | Impact | Probability | Mitigation                         |
+| --------------------------- | ------ | ----------- | ---------------------------------- |
+| PKCE validation bugs        | High   | Medium      | Extensive testing, gradual rollout |
+| Database migration failure  | High   | Low         | Backup, tested rollback            |
+| Client compatibility issues | Medium | Medium      | Fallback to JWT, phased migration  |
+| Performance degradation     | Medium | Low         | Load testing, caching, monitoring  |
+| Security vulnerabilities    | High   | Low         | Security audit, rate limiting      |
 
 ## Timeline Summary
 
-| Phase | Duration | Dependencies | Risk Level |
-|-------|----------|--------------|------------|
-| Phase 1: Database | 1 day | None | Low |
-| Phase 2: Core Implementation | 2 days | Phase 1 | Medium |
-| Phase 3: Security | 1 day | Phase 2 | Low |
-| Phase 4: Client Migration | 2 days | Phase 2 | Medium |
-| Phase 5: Testing | 2 days | Phase 3, 4 | Low |
-| Phase 6: Monitoring | 1 day | Phase 5 | Low |
-| Phase 7: Rollout | 2 days | Phase 6 | High |
-| Phase 8: Documentation | 1 day | Phase 7 | Low |
+| Phase                        | Duration | Dependencies | Risk Level |
+| ---------------------------- | -------- | ------------ | ---------- |
+| Phase 1: Database            | 1 day    | None         | Low        |
+| Phase 2: Core Implementation | 2 days   | Phase 1      | Medium     |
+| Phase 3: Security            | 1 day    | Phase 2      | Low        |
+| Phase 4: Client Migration    | 2 days   | Phase 2      | Medium     |
+| Phase 5: Testing             | 2 days   | Phase 3, 4   | Low        |
+| Phase 6: Monitoring          | 1 day    | Phase 5      | Low        |
+| Phase 7: Rollout             | 2 days   | Phase 6      | High       |
+| Phase 8: Documentation       | 1 day    | Phase 7      | Low        |
 
 **Total Duration**: 12 days (2.5 weeks)
 
@@ -440,12 +466,14 @@ This phased approach ensures a secure, scalable OAuth2 PKCE implementation while
 ---
 
 **Next Steps**:
+
 1. Review and approve this plan
 2. Allocate resources
 3. Set up development environment
 4. Begin Phase 1 implementation
 
 **Questions to Consider**:
+
 - Do we need additional security measures?
 - Should we adjust the rollout timeline?
 - Are there specific compliance requirements?

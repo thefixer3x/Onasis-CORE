@@ -24,10 +24,17 @@ export function verifyCodeChallenge(
     method: CodeChallengeMethod
 ): boolean {
     const derived = deriveCodeChallenge(verifier, method)
-    if (derived.length !== expectedChallenge.length) {
-        return false
-    }
-    return crypto.timingSafeEqual(Buffer.from(derived), Buffer.from(expectedChallenge))
+    // Perform constant-time comparison while avoiding length-based early exit.
+    // Pad both buffers to the same length, then ensure original lengths match.
+    const derivedBuf = Buffer.from(derived)
+    const expectedBuf = Buffer.from(expectedChallenge)
+    const maxLen = Math.max(derivedBuf.length, expectedBuf.length)
+    const paddedDerived = Buffer.alloc(maxLen)
+    const paddedExpected = Buffer.alloc(maxLen)
+    derivedBuf.copy(paddedDerived)
+    expectedBuf.copy(paddedExpected)
+    const isEqual = crypto.timingSafeEqual(paddedDerived, paddedExpected)
+    return isEqual && derivedBuf.length === expectedBuf.length
 }
 
 export function hashAuthorizationCode(code: string): string {
