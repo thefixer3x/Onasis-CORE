@@ -6,9 +6,13 @@ import {
     hashToken,
 } from '../utils/pkce.js'
 
-const AUTH_CODE_TTL_SECONDS = 5 * 60
-const ACCESS_TOKEN_TTL_SECONDS = 15 * 60
-const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+// Token TTLs can be configured via environment variables.
+// AUTH_CODE_TTL_SECONDS: Authorization code lifetime in seconds (default: 300)
+// ACCESS_TOKEN_TTL_SECONDS: Access token lifetime in seconds (default: 900)
+// REFRESH_TOKEN_TTL_SECONDS: Refresh token lifetime in seconds (default: 2592000)
+const AUTH_CODE_TTL_SECONDS = Number(process.env.AUTH_CODE_TTL_SECONDS) || 5 * 60
+const ACCESS_TOKEN_TTL_SECONDS = Number(process.env.ACCESS_TOKEN_TTL_SECONDS) || 15 * 60
+const REFRESH_TOKEN_TTL_SECONDS = Number(process.env.REFRESH_TOKEN_TTL_SECONDS) || 30 * 24 * 60 * 60
 
 export type OAuthStatus = 'active' | 'inactive' | 'revoked'
 export type OAuthClientType = 'public' | 'confidential'
@@ -420,7 +424,8 @@ export async function findRefreshToken(
     }
 
     if (record.expires_at.getTime() <= Date.now()) {
-        await revokeTokenById(record.id, 'expired')
+        // Revoke the entire chain when an expired refresh token is encountered
+        await revokeTokenChain(record.id, 'expired')
         return null
     }
 
@@ -445,10 +450,16 @@ export async function revokeTokenChain(
 ): Promise<void> {
     await dbPool.query(
         `
-      UPDATE oauth_tokens
-      SET revoked = TRUE, revoked_at = NOW(), revoked_reason = $2
-      WHERE (id = $1 OR parent_token_id = $1) AND revoked = FALSE
-    `,
+            WITH RECURSIVE token_tree AS (
+                SELECT id FROM oauth_tokens WHERE id = $1
+                UNION
+                SELECT t.id FROM oauth_tokens t
+                INNER JOIN token_tree tt ON t.parent_token_id = tt.id
+            )
+            UPDATE oauth_tokens
+            SET revoked = TRUE, revoked_at = NOW(), revoked_reason = $2
+            WHERE id IN (SELECT id FROM token_tree) AND revoked = FALSE
+        `,
         [rootTokenId, reason]
     )
 }
@@ -529,20 +540,28 @@ export async function rotateRefreshToken(
 export async function revokeTokenByValue(
     token: string,
     hint?: 'access_token' | 'refresh_token'
-): Promise<boolean> {
+): Promise<{ revoked: boolean; clientId?: string; userId?: string; tokenType?: 'access' | 'refresh' }> {
     const hashed = hashToken(token)
-    const result = await dbPool.query(
+    // First, find the token to determine its type and id
+    const select = await dbPool.query(
         `
-      UPDATE oauth_tokens
-      SET revoked = TRUE, revoked_at = NOW(), revoked_reason = 'revoked'
+      SELECT id, token_type, client_id, user_id FROM oauth_tokens
       WHERE token_hash = $1
         AND ($2::text IS NULL OR token_type = CASE WHEN $2 = 'refresh_token' THEN 'refresh' ELSE 'access' END)
         AND revoked = FALSE
-      RETURNING id
     `,
         [hashed, hint || null]
     )
-    return (result.rowCount ?? 0) > 0
+    if ((select.rowCount ?? 0) === 0) {
+        return { revoked: false }
+    }
+    const row = select.rows[0] as { id: string; token_type: 'access' | 'refresh'; client_id: string; user_id: string }
+    if (row.token_type === 'refresh') {
+        await revokeTokenChain(row.id, 'revoked')
+    } else {
+        await revokeTokenById(row.id, 'revoked')
+    }
+    return { revoked: true, clientId: row.client_id, userId: row.user_id, tokenType: row.token_type }
 }
 
 export interface TokenIntrospectionResult {

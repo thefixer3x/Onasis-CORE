@@ -35,7 +35,8 @@ const tokenRequestSchema = z.discriminatedUnion('grant_type', [
     z.object({
         grant_type: z.literal('authorization_code'),
         code: z.string().min(1),
-        redirect_uri: z.string().url().optional(),
+        // Per RFC 6749 §4.1.3, redirect_uri MUST be included if it was included in the authorization request
+        redirect_uri: z.string().url(),
         client_id: z.string().min(1),
         code_verifier: codeVerifierSchema,
     }),
@@ -238,8 +239,9 @@ export async function token(req: Request, res: Response) {
 
             if (requestedScopes) {
                 const sanitized = resolveScopes(client, requestedScopes)
-                const missing = sanitized.filter((scope) => !scopes.includes(scope))
-                if (missing.length > 0) {
+                // Ensure requested scopes are a subset of the original grant
+                const exceeding = sanitized.filter((scope) => !scopes.includes(scope))
+                if (exceeding.length > 0) {
                     throw new OAuthServiceError('Requested scope exceeds original grant', 'invalid_scope', 400)
                 }
                 scopes = sanitized
@@ -304,18 +306,21 @@ export async function revoke(req: Request, res: Response) {
     const payload = parseResult.data
 
     try {
-        const revoked = await revokeTokenByValue(payload.token, payload.token_type_hint)
+        const outcome = await revokeTokenByValue(payload.token, payload.token_type_hint)
 
         await logOAuthEvent({
             event_type: 'token_revoked',
-            success: revoked,
-            error_code: revoked ? undefined : 'invalid_token',
-            error_description: revoked ? undefined : 'Token not found',
+            client_id: outcome.clientId,
+            user_id: outcome.userId,
+            success: outcome.revoked,
+            error_code: outcome.revoked ? undefined : 'invalid_token',
+            error_description: outcome.revoked ? undefined : 'Token not found',
             ip_address: req.ip,
             user_agent: req.get('user-agent') || undefined,
+            metadata: outcome.tokenType ? { token_type: outcome.tokenType } : undefined,
         })
 
-        return res.status(200).json({ revoked })
+        return res.status(200).json({ revoked: outcome.revoked })
     } catch (error) {
         await logOAuthEvent({
             event_type: 'token_revoked',
@@ -343,11 +348,15 @@ export async function introspect(req: Request, res: Response) {
         const data = await introspectToken(parseResult.data.token)
         return res.json(data)
     } catch (error) {
-        console.error('OAuth introspection error', error)
-        return res.status(500).json({
-            active: false,
-            error: 'server_error',
-            error_description: 'Internal server error',
+        await logOAuthEvent({
+            event_type: 'token_introspection_error',
+            success: false,
+            error_code: error instanceof OAuthServiceError ? error.oauthError : 'server_error',
+            error_description: error instanceof Error ? error.message : 'Unknown error',
+            ip_address: req.ip,
+            user_agent: req.get('user-agent') || undefined,
         })
+        // RFC 7662 dictates returning { active: false } on error
+        return res.json({ active: false })
     }
 }
