@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.routes.js'
 import mcpRoutes from './routes/mcp.routes.js'
 import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
+import oauthRoutes from './routes/oauth.routes.js'
 import webRoutes from './routes/web.routes.js'
 
 // Import middleware
@@ -38,7 +39,7 @@ app.use(
 app.use(validateSessionCookie)
 
 // Health check endpoint
-app.get('/health', async (_req, res) => {
+app.get('/health', async (_req: express.Request, res: express.Response) => {
   const dbStatus = await checkDatabaseHealth()
   res.json({
     status: 'ok',
@@ -54,9 +55,10 @@ app.use('/web', webRoutes)
 app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
+app.use('/oauth', oauthRoutes)
 
 // 404 handler
-app.use((_req, res) => {
+app.use((_req: express.Request, res: express.Response) => {
   res.status(404).json({
     error: 'Not found',
     code: 'ROUTE_NOT_FOUND',
@@ -91,6 +93,11 @@ app.listen(env.PORT, () => {
   console.log(`   - GET  /mcp/health`)
   console.log(`💻 CLI endpoints:`)
   console.log(`   - POST /auth/cli-login`)
+  console.log(`🔑 OAuth endpoints:`)
+  console.log(`   - GET  /oauth/authorize`)
+  console.log(`   - POST /oauth/token`)
+  console.log(`   - POST /oauth/revoke`)
+  console.log(`   - POST /oauth/introspect`)
   console.log(`🛡️  Admin endpoints:`)
   console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`)
   console.log(`   - POST /admin/change-password`)
