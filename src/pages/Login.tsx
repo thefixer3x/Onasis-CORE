@@ -3,54 +3,53 @@
  * FIXED: Now properly redirects to Lanonasis dashboard, not external platforms
  */
 
-import React, { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Eye, EyeOff, Loader2, LogIn, Github, Key } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
-import { authConfig } from '@/config/auth.config'
-import toast from 'react-hot-toast'
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Eye, EyeOff, Loader2, LogIn, Github, Key } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { authConfig } from "@/config/auth.config";
+// import toast from 'react-hot-toast'
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-})
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+});
 
-type LoginFormData = z.infer<typeof loginSchema>
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export const Login: React.FC = () => {
-  const [showPassword, setShowPassword] = useState(false)
-  const { login, loginWithOAuth, isLoading } = useAuth()
-  const location = useLocation()
-  
-  const from = location.state?.from?.pathname || authConfig.routes.dashboard
-  
+  const [showPassword, setShowPassword] = useState(false);
+  const { login, loginWithOAuth, isLoading } = useAuth();
+  // const location = useLocation()
+
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-  })
-  
+  });
+
   const onSubmit = async (data: LoginFormData) => {
     try {
-      await login(data)
-    } catch (error) {
+      await login(data);
+    } catch {
       // Error is handled in the auth service
     }
-  }
-  
+  };
+
   const handleOAuthLogin = async () => {
     try {
-      await loginWithOAuth()
-    } catch (error) {
-      toast.error('OAuth login failed')
+      await loginWithOAuth();
+    } catch {
+      // toast.error('OAuth login failed')
+      console.error("OAuth login failed");
     }
-  }
-  
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-gray-800 rounded-xl shadow-2xl">
@@ -67,15 +66,18 @@ export const Login: React.FC = () => {
             Sign in to access your Lanonasis API Dashboard
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Email Address
               </label>
               <input
-                {...register('email')}
+                {...register("email")}
                 type="email"
                 autoComplete="email"
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
@@ -87,15 +89,18 @@ export const Login: React.FC = () => {
                 </p>
               )}
             </div>
-            
+
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Password
               </label>
               <div className="mt-1 relative">
                 <input
-                  {...register('password')}
-                  type={showPassword ? 'text' : 'password'}
+                  {...register("password")}
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                   className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="••••••••"
@@ -119,7 +124,7 @@ export const Login: React.FC = () => {
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input
@@ -128,11 +133,14 @@ export const Login: React.FC = () => {
                 type="checkbox"
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+              <label
+                htmlFor="remember-me"
+                className="ml-2 block text-sm text-gray-900 dark:text-gray-300"
+              >
                 Remember me
               </label>
             </div>
-            
+
             <div className="text-sm">
               <Link
                 to="/forgot-password"
@@ -142,7 +150,7 @@ export const Login: React.FC = () => {
               </Link>
             </div>
           </div>
-          
+
           <div>
             <button
               type="submit"
@@ -159,7 +167,7 @@ export const Login: React.FC = () => {
               )}
             </button>
           </div>
-          
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-300 dark:border-gray-600" />
@@ -170,7 +178,7 @@ export const Login: React.FC = () => {
               </span>
             </div>
           </div>
-          
+
           {authConfig.features.enableOAuth && (
             <div>
               <button
@@ -184,10 +192,10 @@ export const Login: React.FC = () => {
               </button>
             </div>
           )}
-          
+
           <div className="text-center">
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              Don't have an account?{' '}
+              Don't have an account?{" "}
               <Link
                 to="/signup"
                 className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
@@ -199,5 +207,5 @@ export const Login: React.FC = () => {
         </form>
       </div>
     </div>
-  )
-}
+  );
+};
