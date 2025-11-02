@@ -54,7 +54,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@tailwindcss/postcss": "^4.1.16",
     "@types/bcryptjs": "^3.0.0",
+    "@types/express": "^5.0.5",
     "@types/js-cookie": "^3.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.5.2",
