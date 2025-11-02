@@ -35,7 +35,6 @@ The table below lists each root-level `.md` file and where it should live long t
 | `AUTH-FIX-SUMMARY.md`                       | `/`          | Move after Phase 1 freeze       | `docs/auth/legacy/`                 | Captures earlier auth patches; keep for audit but out of root.   |
 | `AUTH-SERVER-FIX-SUMMARY.md`                | `/`          | Move                            | `docs/auth/legacy/`                 | Same audience as above.                                          |
 | `AUTHENTICATION-ARCHITECTURE.md`            | `/`          | Move                            | `docs/auth/`                        | High-value architecture doc; belongs with active auth materials. |
-| `API-GATEWAY-AUTH-FIX.md`                   | `/`          | Move                            | `docs/api-gateway/` (new)           | Describes combined gateway/auth remediation.                     |
 | `DASHBOARD-AUTH-FIX-COMPLETE.md`            | `/`          | Move                            | `docs/auth/legacy/`                 | Historical fix; archive.                                         |
 | `DUAL-AUTH-ANALYSIS.md`                     | `/`          | Move                            | `docs/auth/analysis/` (new)         | Deep dive on dual auth; keep near PKCE docs.                     |
 | `UNIFIED-AUTH-COMPLETE.md`                  | `/`          | Move                            | `docs/auth/`                        | Still relevant to the PKCE roadmap.                              |
