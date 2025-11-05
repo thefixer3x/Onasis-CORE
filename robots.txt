@@ -1,8 +1,7 @@
 User-agent: *
-Allow: /
-Sitemap: https://api.lanonasis.com/sitemap.xml
-
 # Disallow admin and auth paths from indexing
 Disallow: /auth/
 Disallow: /api/
 Disallow: /.netlify/
+
+Sitemap: https://api.lanonasis.com/sitemap.xml
