@@ -302,14 +302,14 @@ router.get('/cli-login', (req, res) => {
                 return;
               }
               
-              endpoint = '/auth/register';
+              endpoint = '/auth/cli-register';
               data = {
                 email: document.getElementById('signupEmail').value,
                 password: password,
                 confirm_password: confirmPassword
               };
             } else {
-              endpoint = '/auth/login';
+              endpoint = '/auth/cli-login';
               data = {
                 email: document.getElementById('email').value,
                 password: document.getElementById('password').value,
@@ -325,8 +325,8 @@ router.get('/cli-login', (req, res) => {
             
             const result = await response.json();
             
-            if (response.ok && result.success) {
-              const token = result.api_key || result.session?.access_token || result.access_token;
+            if (response.ok && result.access_token) {
+              const token = result.api_key || result.access_token;
               
               showMessage(
                 '<strong>✅ Authentication Successful!</strong><br><br>' +
@@ -366,5 +366,81 @@ router.get('/cli-login', (req, res) => {
 
 // CLI authentication - POST route processes the login
 router.post('/cli-login', mcpController.cliLogin)
+
+// CLI registration - POST route for new user signup
+router.post('/cli-register', async (req, res) => {
+  const { email, password, confirm_password } = req.body
+
+  if (!email || !password) {
+    return res.status(400).json({
+      error: 'Email and password are required',
+      success: false,
+    })
+  }
+
+  if (password !== confirm_password) {
+    return res.status(400).json({
+      error: 'Passwords do not match',
+      success: false,
+    })
+  }
+
+  try {
+    const { supabaseAdmin } = await import('../../db/client.js')
+    
+    // Sign up with Supabase
+    const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true, // Auto-confirm for CLI users
+    })
+
+    if (error) {
+      return res.status(400).json({
+        error: error.message,
+        success: false,
+      })
+    }
+
+    // Generate API key/token for the new user
+    const { generateTokenPair } = await import('../utils/jwt.js')
+    const { createSession } = await import('../services/session.service.js')
+    
+    const tokens = generateTokenPair({
+      sub: data.user!.id,
+      email: data.user!.email!,
+      role: data.user!.role || 'authenticated',
+      platform: 'cli',
+    })
+
+    // Create session
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+    await createSession({
+      user_id: data.user!.id,
+      platform: 'cli',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      expires_at: expiresAt,
+    })
+
+    res.json({
+      success: true,
+      api_key: tokens.access_token,
+      user: {
+        id: data.user!.id,
+        email: data.user!.email,
+      },
+      message: 'Registration successful!',
+    })
+  } catch (error) {
+    console.error('Registration error:', error)
+    res.status(500).json({
+      error: 'Internal server error',
+      success: false,
+    })
+  }
+})
 
 export default router
