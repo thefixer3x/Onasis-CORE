@@ -115,6 +115,7 @@
         .btn-primary {
             background: linear-gradient(135deg, #00D4AA, #00B4D8);
             color: #ffffff;
+            will-change: transform;
         }
 
         .btn-primary:hover {
@@ -171,11 +172,22 @@
             background: #00D4AA;
             border-radius: 50%;
             animation: pulse 2s infinite;
+            will-change: opacity;
         }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        /* Reduce animations on low-end devices */
+        @media (prefers-reduced-motion: reduce) {
+            .hero-badge::before {
+                animation: none;
+            }
+            .btn, .feature-card {
+                transition: none;
+            }
         }
 
         .hero h1 {
@@ -287,6 +299,7 @@
             border-radius: 12px;
             padding: 40px 30px;
             transition: all 0.3s ease;
+            will-change: transform;
         }
 
         .feature-card:hover {
