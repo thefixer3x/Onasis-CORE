@@ -178,3 +178,4 @@ test-output/
 **/*-deployment.sh
 **/quick-*.sh
 **/emergency-*.sh
+services/auth-gateway/.env.backup.20251031_011818

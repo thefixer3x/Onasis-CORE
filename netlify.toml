@@ -28,7 +28,21 @@
   to = "/index.html"
   status = 200
 
-# Headers for security
+# Headers for security and performance
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    # Security Headers
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+    
+    # Performance Headers - Cache HTML for 1 hour
+    Cache-Control = "public, max-age=3600, must-revalidate"
+
+# Security headers for other routes (no caching for dynamic endpoints)
 [[headers]]
   for = "/*"
   [headers.values]
@@ -36,3 +50,10 @@
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# Cache static assets more aggressively
+[[headers]]
+  for = "/*.@(css|js|svg|ico|png|jpg|jpeg|webp|woff|woff2|ttf|eot)"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
