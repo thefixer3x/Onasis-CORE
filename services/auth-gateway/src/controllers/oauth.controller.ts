@@ -96,10 +96,9 @@ export async function authorize(req: Request, res: Response) {
     const userId = req.user?.sub
 
     if (!userId) {
-        return res.status(401).json({
-            error: 'login_required',
-            error_description: 'User session required before authorization',
-        })
+        // Redirect to login page with return URL
+        const returnUrl = req.originalUrl
+        return res.redirect(`/web/login?return_to=${encodeURIComponent(returnUrl)}`)
     }
 
     try {

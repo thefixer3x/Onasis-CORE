@@ -344,3 +344,49 @@ export async function listSessions(req: Request, res: Response) {
     })
   }
 }
+
+/**
+ * Verify API key endpoint - validates vendor key
+ */
+export async function verifyAPIKey(req: Request, res: Response) {
+  const apiKey = req.headers['x-api-key'] as string
+  
+  if (!apiKey) {
+    return res.status(400).json({
+      error: 'API key required',
+      code: 'API_KEY_MISSING',
+      message: 'Please provide an API key in the X-API-Key header'
+    })
+  }
+  
+  try {
+    const { validateAPIKey } = await import('../services/api-key.service.js')
+    const validation = await validateAPIKey(apiKey)
+    
+    if (!validation.valid) {
+      return res.status(401).json({
+        valid: false,
+        error: 'Invalid API key',
+        code: 'API_KEY_INVALID',
+        reason: validation.reason,
+        message: 'The provided API key is not valid'
+      })
+    }
+    
+    return res.json({
+      valid: true,
+      userId: validation.userId,
+      projectScope: validation.projectScope,
+      permissions: validation.permissions,
+      message: 'API key is valid'
+    })
+  } catch (error) {
+    console.error('API key verification error:', error)
+    return res.status(500).json({
+      valid: false,
+      error: 'Internal server error',
+      code: 'VERIFICATION_ERROR',
+      message: 'Failed to verify API key'
+    })
+  }
+}
