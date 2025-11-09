@@ -1,6 +1,6 @@
 import express from 'express'
 import * as oauthController from '../controllers/oauth.controller.js'
-import { requireSessionCookie } from '../middleware/session.js'
+import { validateSessionCookie } from '../middleware/session.js'
 import {
     authorizeRateLimit,
     tokenRateLimit,
@@ -29,7 +29,7 @@ router.use(oauthGeneralRateLimit)
 router.use(setCSRFCookie)
 
 // OAuth endpoints with specific rate limits and CSRF protection
-router.get('/authorize', authorizeRateLimit, generateAuthorizeCSRF, requireSessionCookie, oauthController.authorize)
+router.get('/authorize', authorizeRateLimit, generateAuthorizeCSRF, validateSessionCookie, oauthController.authorize)
 router.post('/token', tokenRateLimit, oauthController.token)
 router.post('/revoke', revokeRateLimit, doubleSubmitCookie, oauthController.revoke)
 router.post('/introspect', introspectRateLimit, oauthController.introspect)
