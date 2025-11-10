@@ -30,7 +30,7 @@ export async function autoRegisterSubdomainClient(
         const scopes = generateScopes(subdomainConfig)
 
         const query = `
-      INSERT INTO oauth_clients (
+      INSERT INTO auth_gateway.oauth_clients (
         client_id,
         client_name,
         client_type,
