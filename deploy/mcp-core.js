@@ -6,16 +6,16 @@
  * Regular users continue using Supabase endpoint
  */
 
-import { EnhancedMCPWebSocketHandler } from '../services/websocket-mcp-handler.js';
-import { EnhancedAPIGateway } from '../services/enhanced-api-gateway.js';
-import dotenv from 'dotenv';
-import winston from 'winston';
+import { EnhancedMCPWebSocketHandler } from "../services/websocket-mcp-handler.js";
+import { EnhancedAPIGateway } from "../services/enhanced-api-gateway.js";
+import dotenv from "dotenv";
+import winston from "winston";
 
 dotenv.config();
 
 // Configure logging
 const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: process.env.LOG_LEVEL || "info",
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
@@ -26,14 +26,14 @@ const logger = winston.createLogger({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.simple()
-      )
+      ),
     }),
     new winston.transports.File({
-      filename: 'logs/mcp-core.log',
+      filename: "logs/mcp-core.log",
       maxsize: 10485760, // 10MB
-      maxFiles: 5
-    })
-  ]
+      maxFiles: 5,
+    }),
+  ],
 });
 
 class MCPCoreDeployment {
@@ -41,13 +41,15 @@ class MCPCoreDeployment {
     this.config = {
       port: process.env.MCP_SERVER_PORT || 8080,
       wsPort: process.env.MCP_WS_PORT || 8081,
-      host: process.env.MCP_HOST || '0.0.0.0',
-      environment: process.env.NODE_ENV || 'development',
-      maxConnections: process.env.MCP_MAX_CONNECTIONS ? parseInt(process.env.MCP_MAX_CONNECTIONS, 10) : 1000,
+      host: process.env.MCP_HOST || "0.0.0.0",
+      environment: process.env.NODE_ENV || "development",
+      maxConnections: process.env.MCP_MAX_CONNECTIONS
+        ? parseInt(process.env.MCP_MAX_CONNECTIONS, 10)
+        : 1000,
       rateLimit: {
         windowMs: 15 * 60 * 1000, // 15 minutes
-        max: process.env.MCP_RATE_LIMIT || 100 // requests per window
-      }
+        max: process.env.MCP_RATE_LIMIT || 100, // requests per window
+      },
     };
 
     this.apiGateway = null;
@@ -55,18 +57,17 @@ class MCPCoreDeployment {
   }
 
   async validateEnvironment() {
-    const required = [
-      'SUPABASE_URL',
-      'SUPABASE_SERVICE_KEY'
-    ];
+    const required = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
 
-    const missing = required.filter(key => !process.env[key]);
+    const missing = required.filter((key) => !process.env[key]);
 
     if (missing.length > 0) {
-      throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+      throw new Error(
+        `Missing required environment variables: ${missing.join(", ")}`
+      );
     }
 
-    logger.info('Environment validation passed');
+    logger.info("Environment validation passed");
   }
 
   async initializeServices() {
@@ -77,9 +78,11 @@ class MCPCoreDeployment {
         host: this.config.host,
         rateLimit: this.config.rateLimit,
         cors: {
-          origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
-          credentials: true
-        }
+          origin: process.env.CORS_ORIGINS?.split(",") || [
+            "http://localhost:3000",
+          ],
+          credentials: true,
+        },
       });
 
       // Initialize MCP WebSocket Handler
@@ -87,12 +90,12 @@ class MCPCoreDeployment {
         port: this.config.wsPort,
         maxConnections: this.config.maxConnections,
         heartbeatInterval: 30000,
-        connectionTimeout: 60000
+        connectionTimeout: 60000,
       });
 
-      logger.info('Services initialized successfully');
+      logger.info("Services initialized successfully");
     } catch (error) {
-      logger.error('Failed to initialize services:', error);
+      logger.error("Failed to initialize services:", error);
       throw error;
     }
   }
@@ -101,61 +104,68 @@ class MCPCoreDeployment {
     try {
       // Start API Gateway
       await this.apiGateway.start();
-      logger.info(`API Gateway started on ${this.config.host}:${this.config.port}`);
+      logger.info(
+        `API Gateway started on ${this.config.host}:${this.config.port}`
+      );
 
       // Start WebSocket MCP Handler
       await this.mcpHandler.start();
-      logger.info(`MCP WebSocket server started on ${this.config.host}:${this.config.wsPort}`);
+      logger.info(
+        `MCP WebSocket server started on ${this.config.host}:${this.config.wsPort}`
+      );
 
       // Health check endpoint
-      this.apiGateway.app.get('/health', (req, res) => {
+      this.apiGateway.app.get("/health", (req, res) => {
         res.json({
-          status: 'healthy',
+          status: "healthy",
           timestamp: new Date().toISOString(),
           services: {
-            apiGateway: 'running',
-            mcpWebSocket: 'running'
+            apiGateway: "running",
+            mcpWebSocket: "running",
           },
           connections: this.mcpHandler.getConnectionCount(),
-          uptime: process.uptime()
+          uptime: process.uptime(),
         });
       });
 
-      logger.info('Enhanced MCP Core deployment completed successfully');
-      logger.info(`Health check available at: http://${this.config.host}:${this.config.port}/health`);
-      logger.info(`WebSocket MCP Core endpoint: ws://${this.config.host}:${this.config.wsPort}/mcp`);
-
+      logger.info("Enhanced MCP Core deployment completed successfully");
+      logger.info(
+        `Health check available at: http://${this.config.host}:${this.config.port}/health`
+      );
+      logger.info(
+        `WebSocket MCP Core endpoint: ws://${this.config.host}:${this.config.wsPort}/mcp`
+      );
     } catch (error) {
-      logger.error('Failed to start services:', error);
+      logger.error("Failed to start services:", error);
       throw error;
     }
   }
 
   async gracefulShutdown() {
-    logger.info('Initiating graceful shutdown...');
+    logger.info("Initiating graceful shutdown...");
 
     try {
       if (this.mcpHandler) {
         await this.mcpHandler.shutdown();
-        logger.info('MCP WebSocket handler shut down');
+        logger.info("MCP WebSocket handler shut down");
       }
 
       if (this.apiGateway) {
         await this.apiGateway.shutdown();
-        logger.info('API Gateway shut down');
+        logger.info("API Gateway shut down");
       }
 
-      logger.info('Graceful shutdown completed');
+      logger.info("Graceful shutdown completed");
       process.exit(0);
     } catch (error) {
-      logger.error('Error during shutdown:', error);
+      logger.error("Error during shutdown:", error);
       process.exit(1);
     }
   }
 
   async deploy() {
     try {
-      logger.info('Starting Enhanced MCP Core deployment...');
+      logger.info("Starting Enhanced MCP Core deployment...");
       logger.info(`Environment: ${this.config.environment}`);
       logger.info(`Configuration:`, this.config);
 
@@ -164,21 +174,22 @@ class MCPCoreDeployment {
       await this.startServices();
 
       // Setup graceful shutdown handlers
-      process.on('SIGTERM', () => this.gracefulShutdown());
-      process.on('SIGINT', () => this.gracefulShutdown());
-      process.on('uncaughtException', (error) => {
-        logger.error('Uncaught exception:', error);
+      process.on("SIGTERM", () => this.gracefulShutdown());
+      process.on("SIGINT", () => this.gracefulShutdown());
+      process.on("uncaughtException", (error) => {
+        logger.error("Uncaught exception:", error);
         this.gracefulShutdown();
       });
-      process.on('unhandledRejection', (reason, promise) => {
-        logger.error('Unhandled rejection at:', promise, 'reason:', reason);
+      process.on("unhandledRejection", (reason, promise) => {
+        logger.error("Unhandled rejection at:", promise, "reason:", reason);
         this.gracefulShutdown();
       });
 
-      logger.info('Enhanced MCP Core is running and ready for enterprise connections');
-
+      logger.info(
+        "Enhanced MCP Core is running and ready for enterprise connections"
+      );
     } catch (error) {
-      logger.error('Deployment failed:', error);
+      logger.error("Deployment failed:", error);
       process.exit(1);
     }
   }

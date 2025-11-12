@@ -58,6 +58,10 @@ app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
 
+// Backward compatibility: Mount OAuth routes under /api/v1/oauth as well
+// This ensures CLI tools using the old path still work
+app.use('/api/v1/oauth', oauthRoutes)
+
 // 404 handler
 app.use((_req: express.Request, res: express.Response) => {
   res.status(404).json({
@@ -103,10 +107,10 @@ app.listen(env.PORT, async () => {
   console.log(`💻 CLI endpoints:`)
   console.log(`   - POST /auth/cli-login`)
   console.log(`🔑 OAuth endpoints:`)
-  console.log(`   - GET  /oauth/authorize`)
-  console.log(`   - POST /oauth/token`)
-  console.log(`   - POST /oauth/revoke`)
-  console.log(`   - POST /oauth/introspect`)
+  console.log(`   - GET  /oauth/authorize (also /api/v1/oauth/authorize)`)
+  console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
+  console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`)
+  console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`)
   console.log(`🛡️  Admin endpoints:`)
   console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`)
   console.log(`   - POST /admin/change-password`)
