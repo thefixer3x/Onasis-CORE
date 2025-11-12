@@ -148,7 +148,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3001/health || exit 1
 
 # Start with PM2
-CMD ["pm2-runtime", "start", "src/tunnel-mcp-client.cjs", "--name", "lanonasis-mcp-server"]
+CMD ["pm2-runtime", "start", "src/tunnel-mcp-client.cjs", "--name", "mcp-core"]
 EOF
 
 # Generate docker-compose.yml

@@ -641,7 +641,7 @@ async function batchCreateMemories(memories) {
 - **`/stdio-mcp-server.js`** - Main Claude Desktop integration interface
 - **`/services/websocket-mcp-handler.js`** - Primary MCP server implementation
 - **`/external-mcp-client.js`** - Reusable JavaScript client library
-- **`/deploy/mcp-server.js`** - Production deployment script
+- **`/deploy/mcp-core.js`** - Production deployment script
 
 ### Configuration Files
 - **`/.env`** - Environment configuration
@@ -673,7 +673,7 @@ RUN npm install --production
 COPY . .
 
 EXPOSE 9083
-CMD ["node", "deploy/mcp-server.js"]
+CMD ["node", "deploy/mcp-core.js"]
 ```
 
 ### Docker Compose
@@ -703,7 +703,7 @@ services:
 ### Process Management
 ```bash
 # Using PM2 for production
-pm2 start deploy/mcp-server.js --name onasis-mcp
+pm2 start deploy/mcp-core.js --name onasis-mcp
 pm2 save
 pm2 startup
 

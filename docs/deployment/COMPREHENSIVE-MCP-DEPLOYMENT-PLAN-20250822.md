@@ -96,7 +96,7 @@ export SUPABASE_SSL_CERT_PATH="/opt/certs/prod-ca-2021.crt"
 cd /Users/seyederick/DevOps/_project_folders/Onasis-CORE
 tar -czf onasis-mcp-standalone.tar.gz \\
   stdio-mcp-server.js \\
-  deploy/mcp-server.js \\
+  deploy/mcp-core.js \\
   services/websocket-mcp-handler.js \\
   services/enhanced-api-gateway.js \\
   package.json \\
