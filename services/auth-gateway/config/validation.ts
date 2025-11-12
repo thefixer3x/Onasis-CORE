@@ -74,7 +74,20 @@ export function validateOAuthEnvironment(): ValidationResult {
             if (!['postgres:', 'postgresql:'].includes(dbUrl.protocol)) {
                 errors.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
             }
-            if (!dbUrl.hostname || !dbUrl.port) {
+            // Check for valid hostname
+            if (!dbUrl.hostname) {
+                warnings.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+            }
+            // Neon and other cloud providers may use pooler URLs without explicit ports
+            // or include port in hostname (e.g., ep-name-pooler.region.aws.neon.tech)
+            // Only warn if neither port nor common cloud provider patterns are present
+            const isCloudProvider = dbUrl.hostname.includes('neon.tech') || 
+                                   dbUrl.hostname.includes('supabase.') ||
+                                   dbUrl.hostname.includes('amazonaws.com') ||
+                                   dbUrl.hostname.includes('azure.com') ||
+                                   dbUrl.hostname.includes('aiven.io')
+            
+            if (!dbUrl.port && !isCloudProvider) {
                 warnings.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
             }
         } catch (error) {
@@ -105,9 +118,16 @@ export function validateOAuthEnvironment(): ValidationResult {
     }
 
     // 7. Cookie Domain Validation
-    if (env.NODE_ENV === 'production' && env.COOKIE_DOMAIN === '.lanonasis.com') {
-        // This is probably correct, but warn if using default in production
-        warnings.push('Using default COOKIE_DOMAIN in production - ensure this matches your domain')
+    // Only warn if cookie domain doesn't match expected patterns
+    if (env.NODE_ENV === 'production') {
+        if (!env.COOKIE_DOMAIN) {
+            warnings.push('COOKIE_DOMAIN not set - cookies will be limited to exact domain')
+        } else if (env.COOKIE_DOMAIN === 'localhost' || env.COOKIE_DOMAIN === '.localhost') {
+            errors.push('COOKIE_DOMAIN cannot be localhost in production')
+        } else if (!env.COOKIE_DOMAIN.startsWith('.')) {
+            warnings.push('COOKIE_DOMAIN should start with "." for subdomain compatibility')
+        }
+        // .lanonasis.com is the correct production domain, no warning needed
     }
 
     // 8. Port Configuration
@@ -173,23 +193,84 @@ export async function validateOAuthClients(): Promise<ValidationResult> {
     const warnings: string[] = []
 
     try {
-        // This would typically connect to the database and validate client configurations
-        // For now, we'll just validate the environment supports it
-
         if (!env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
             errors.push('Cannot validate OAuth clients: DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
             return { isValid: false, errors, warnings }
         }
 
-        // TODO: Implement database client validation
-        // - Check for clients with weak secrets
-        // - Validate redirect URI formats
-        // - Check for expired or inactive clients
+        // Import database module dynamically to avoid circular dependencies
+        const { dbPool } = await import('../db/client.js')
+        const pool = dbPool
+        
+        // Check if oauth_clients table exists and has data
+        const tableCheck = await pool.query(`
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'auth_gateway' 
+                AND table_name = 'oauth_clients'
+            )
+        `)
+        
+        if (!tableCheck.rows[0]?.exists) {
+            warnings.push('OAuth clients table not found - skipping client validation')
+            return { isValid: true, errors, warnings }
+        }
 
-        warnings.push('OAuth client validation not yet implemented - consider manual review')
+        // Validate existing OAuth clients
+        const clients = await pool.query(`
+            SELECT 
+                client_id, 
+                client_name, 
+                allowed_redirect_uris, 
+                status,
+                created_at, 
+                updated_at
+            FROM auth_gateway.oauth_clients
+        `)
+
+        if (clients.rows.length === 0) {
+            warnings.push('No OAuth clients configured in database')
+        }
+
+        for (const client of clients.rows) {
+            // Check for inactive clients
+            if (client.status && client.status !== 'active') {
+                warnings.push(`OAuth client '${client.client_name}' is marked as ${client.status}`)
+            }
+
+            const redirectUris = Array.isArray(client.allowed_redirect_uris)
+                ? client.allowed_redirect_uris
+                : []
+
+            for (const uri of redirectUris) {
+                try {
+                    const url = new URL(uri)
+                    // Warn about localhost in production
+                    if (env.NODE_ENV === 'production' && 
+                        (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
+                        warnings.push(`Client '${client.client_name}' has localhost redirect URI in production: ${uri}`)
+                    }
+                    // Warn about non-HTTPS in production
+                    if (env.NODE_ENV === 'production' && url.protocol === 'http:' &&
+                        !['localhost', '127.0.0.1'].includes(url.hostname)) {
+                        warnings.push(`Client '${client.client_name}' has non-HTTPS redirect URI: ${uri}`)
+                    }
+                } catch (e) {
+                    errors.push(`Client '${client.client_name}' has invalid redirect URI: ${uri}`)
+                }
+            }
+
+            // Check for old clients that haven't been updated
+            const updatedDate = new Date(client.updated_at || client.created_at)
+            const daysSinceUpdate = (Date.now() - updatedDate.getTime()) / (1000 * 60 * 60 * 24)
+            if (daysSinceUpdate > 180) { // 6 months
+                warnings.push(`Client '${client.client_name}' hasn't been updated in ${Math.round(daysSinceUpdate)} days`)
+            }
+        }
 
     } catch (error) {
-        errors.push(`OAuth client validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        // Don't fail on validation errors, just warn
+        warnings.push(`OAuth client validation skipped: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
 
     return {

@@ -16,8 +16,11 @@
 /sse              /.netlify/functions/mcp-sse                   200
 /api/v1/events    https://168.231.74.29:3003/api/v1/events        200!
 /message          /.netlify/functions/mcp-message               200
-/oauth/authorize  /.netlify/functions/cli-auth                  200
-/api/cli-auth/*   /.netlify/functions/cli-auth/:splat           200
+/oauth/*          https://auth.lanonasis.com/oauth/:splat        200!
+/api/v1/oauth/*   https://auth.lanonasis.com/oauth/:splat        200!
+/api/cli-auth/*   https://auth.lanonasis.com/auth/cli-login      200!
+/auth/cli-login   https://auth.lanonasis.com/auth/cli-login      200!
+/auth/cli-login/* https://auth.lanonasis.com/auth/cli-login      200!
 /api/mcp          /.netlify/functions/mcp                       200
 
 # ============================================================================
