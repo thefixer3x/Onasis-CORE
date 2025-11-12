@@ -11,12 +11,14 @@ Onasis-CORE provides a comprehensive Model Context Protocol (MCP) server impleme
 ## Architecture Overview
 
 ### MCP Server Components
+
 - **WebSocket MCP Handler:** Primary MCP server at `ws://localhost:9083/mcp`
 - **Stdio MCP Server:** Claude Desktop integration interface
 - **External MCP Client:** Reusable JavaScript library for vendor integration
 - **Memory Service Backend:** Vector-based memory storage via lanonasis-maas
 
 ### Available Tools (17 Total)
+
 ```
 Memory Management (6 tools):
 ├── create_memory - Create new memory with vector embedding
@@ -101,6 +103,7 @@ node test-external-client.js
 ### Method 1: Claude Desktop Integration
 
 #### Configuration File
+
 Add to Claude Desktop settings (`~/.claude/settings.json`):
 
 ```json
@@ -118,6 +121,7 @@ Add to Claude Desktop settings (`~/.claude/settings.json`):
 ```
 
 #### Command Line Registration
+
 ```bash
 # Register with Claude Desktop
 claude mcp add-json onasis '{
@@ -133,6 +137,7 @@ claude mcp list
 ```
 
 #### Key Files Referenced:
+
 - **Primary:** `/stdio-mcp-server.js` - Main MCP interface
 - **Backend:** `/services/websocket-mcp-handler.js` - Tool implementations
 - **Client:** `/external-mcp-client.js` - External integration library
@@ -140,28 +145,28 @@ claude mcp list
 ### Method 2: WebSocket Direct Connection
 
 #### JavaScript/Node.js Client
-```javascript
-import OnasisMCPClient from './external-mcp-client.js';
 
-const client = new OnasisMCPClient('ws://localhost:9083/mcp');
+```javascript
+import OnasisMCPClient from "./external-mcp-client.js";
+
+const client = new OnasisMCPClient("ws://localhost:9083/mcp");
 
 async function useMemoryService() {
   try {
     await client.connect();
-    
+
     // Create memory
     const memory = await client.createMemory(
-      'Project Documentation',
-      'This is important project context...',
-      { memory_type: 'project', tags: ['docs', 'api'] }
+      "Project Documentation",
+      "This is important project context...",
+      { memory_type: "project", tags: ["docs", "api"] }
     );
-    
+
     // Search memories
-    const results = await client.searchMemories('project context');
-    
+    const results = await client.searchMemories("project context");
+
     // Get specific memory
     const retrieved = await client.getMemory(memory.id);
-    
   } finally {
     client.close();
   }
@@ -169,6 +174,7 @@ async function useMemoryService() {
 ```
 
 #### Python Client
+
 ```python
 import asyncio
 import websockets
@@ -176,7 +182,7 @@ import json
 
 async def connect_to_onasis():
     uri = "ws://localhost:9083/mcp"
-    
+
     async with websockets.connect(uri) as websocket:
         # Initialize MCP connection
         init_msg = {
@@ -192,18 +198,18 @@ async def connect_to_onasis():
                 }
             }
         }
-        
+
         await websocket.send(json.dumps(init_msg))
         response = await websocket.recv()
         print("Connected:", json.loads(response))
-        
+
         # List available tools
         tools_msg = {
             "jsonrpc": "2.0",
             "id": 2,
             "method": "tools/list"
         }
-        
+
         await websocket.send(json.dumps(tools_msg))
         tools_response = await websocket.recv()
         print("Available tools:", json.loads(tools_response))
@@ -214,6 +220,7 @@ asyncio.run(connect_to_onasis())
 ### Method 3: REST API Proxy Integration
 
 #### Frontend Integration (React/Next.js)
+
 ```typescript
 // lib/onasis-client.ts
 export class OnasisClient {
@@ -232,12 +239,12 @@ export class OnasisClient {
     tags?: string[];
   }) {
     const response = await fetch(`${this.baseUrl}/api/memory`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        ...(this.apiKey && { 'X-API-Key': this.apiKey })
+        "Content-Type": "application/json",
+        ...(this.apiKey && { "X-API-Key": this.apiKey }),
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     });
 
     if (!response.ok) {
@@ -247,20 +254,24 @@ export class OnasisClient {
     return response.json();
   }
 
-  async searchMemories(query: string, options?: {
-    limit?: number;
-    threshold?: number;
-    memory_type?: string;
-  }) {
+  async searchMemories(
+    query: string,
+    options?: {
+      limit?: number;
+      threshold?: number;
+      memory_type?: string;
+    }
+  ) {
     const params = new URLSearchParams({
       query,
-      ...options && Object.fromEntries(
-        Object.entries(options).map(([k, v]) => [k, String(v)])
-      )
+      ...(options &&
+        Object.fromEntries(
+          Object.entries(options).map(([k, v]) => [k, String(v)])
+        )),
     });
 
     const response = await fetch(`${this.baseUrl}/api/memory/search?${params}`);
-    
+
     if (!response.ok) {
       throw new Error(`Search failed: ${response.statusText}`);
     }
@@ -271,8 +282,8 @@ export class OnasisClient {
 
 // Usage
 const client = new OnasisClient({
-  baseUrl: process.env.NEXT_PUBLIC_ONASIS_URL || 'https://mcp.lanonasis.com',
-  apiKey: process.env.NEXT_PUBLIC_API_KEY
+  baseUrl: process.env.NEXT_PUBLIC_ONASIS_URL || "https://mcp.lanonasis.com",
+  apiKey: process.env.NEXT_PUBLIC_API_KEY,
 });
 ```
 
@@ -280,27 +291,29 @@ const client = new OnasisClient({
 
 ### Environment Variables
 
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `MCP_SERVER_PORT` | WebSocket server port | `9083` | No |
-| `MCP_WEBSOCKET_PATH` | WebSocket endpoint path | `/mcp` | No |
-| `MCP_CORS_ORIGINS` | Allowed CORS origins | `localhost:3000` | No |
-| `MEMORY_SERVICE_URL` | Backend memory service | - | Yes |
-| `MEMORY_SERVICE_API_KEY` | Service authentication | - | Yes |
+| Variable                 | Description             | Default          | Required |
+| ------------------------ | ----------------------- | ---------------- | -------- |
+| `MCP_SERVER_PORT`        | WebSocket server port   | `9083`           | No       |
+| `MCP_WEBSOCKET_PATH`     | WebSocket endpoint path | `/mcp`           | No       |
+| `MCP_CORS_ORIGINS`       | Allowed CORS origins    | `localhost:3000` | No       |
+| `MEMORY_SERVICE_URL`     | Backend memory service  | -                | Yes      |
+| `MEMORY_SERVICE_API_KEY` | Service authentication  | -                | Yes      |
 | `SUPABASE_URL=https://<project-ref>.supabase.co
 | `SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-| `AUTH_GATEWAY_URL` | Central auth service | - | No |
-| `SERVICE_ID` | Service identifier | `onasis-core` | No |
-| `LOG_LEVEL` | Logging verbosity | `info` | No |
+| `AUTH_GATEWAY_URL`       | Central auth service    | -                | No       |
+| `SERVICE_ID`             | Service identifier      | `onasis-core`    | No       |
+| `LOG_LEVEL`              | Logging verbosity       | `info`           | No       |
 
 ### Connection Endpoints
 
 #### Development (Local)
+
 - **WebSocket:** `ws://localhost:9083/mcp`
 - **HTTP Proxy:** `http://localhost:9083/api/*`
 - **Health Check:** `http://localhost:9083/health`
 
 #### Production
+
 - **WebSocket:** `wss://mcp.lanonasis.com/mcp`
 - **HTTP API:** `https://mcp.lanonasis.com/api/*`
 - **Health Check:** `https://mcp.lanonasis.com/health`
@@ -310,6 +323,7 @@ const client = new OnasisClient({
 #### Memory Management Tools
 
 **create_memory**
+
 ```json
 {
   "name": "create_memory",
@@ -318,18 +332,25 @@ const client = new OnasisClient({
     "properties": {
       "title": { "type": "string", "description": "Memory title" },
       "content": { "type": "string", "description": "Memory content" },
-      "memory_type": { 
-        "type": "string", 
-        "enum": ["context", "project", "knowledge", "reference", "personal", "workflow"],
+      "memory_type": {
+        "type": "string",
+        "enum": [
+          "context",
+          "project",
+          "knowledge",
+          "reference",
+          "personal",
+          "workflow"
+        ],
         "default": "knowledge"
       },
-      "tags": { 
-        "type": "array", 
+      "tags": {
+        "type": "array",
         "items": { "type": "string" },
         "description": "Memory tags for categorization"
       },
-      "topic_id": { 
-        "type": "string", 
+      "topic_id": {
+        "type": "string",
         "description": "Topic ID for organization"
       }
     },
@@ -339,6 +360,7 @@ const client = new OnasisClient({
 ```
 
 **search_memories**
+
 ```json
 {
   "name": "search_memories",
@@ -347,10 +369,18 @@ const client = new OnasisClient({
     "properties": {
       "query": { "type": "string", "description": "Search query" },
       "limit": { "type": "number", "default": 10, "maximum": 100 },
-      "threshold": { "type": "number", "default": 0.7, "minimum": 0, "maximum": 1 },
-      "memory_type": { "type": "string", "description": "Filter by memory type" },
-      "tags": { 
-        "type": "array", 
+      "threshold": {
+        "type": "number",
+        "default": 0.7,
+        "minimum": 0,
+        "maximum": 1
+      },
+      "memory_type": {
+        "type": "string",
+        "description": "Filter by memory type"
+      },
+      "tags": {
+        "type": "array",
         "items": { "type": "string" },
         "description": "Filter by tags"
       }
@@ -363,6 +393,7 @@ const client = new OnasisClient({
 #### API Key Management Tools
 
 **create_api_key**
+
 ```json
 {
   "name": "create_api_key",
@@ -371,8 +402,8 @@ const client = new OnasisClient({
     "properties": {
       "name": { "type": "string", "description": "API key name" },
       "description": { "type": "string", "description": "Key description" },
-      "access_level": { 
-        "type": "string", 
+      "access_level": {
+        "type": "string",
         "enum": ["public", "authenticated", "team", "admin", "enterprise"],
         "default": "authenticated"
       },
@@ -393,28 +424,31 @@ When using with the existing Central Auth system:
 ```javascript
 // Middleware for authenticated MCP connections
 const authenticateWebSocket = async (info) => {
-  const token = info.req.headers.authorization?.replace('Bearer ', '');
-  
+  const token = info.req.headers.authorization?.replace("Bearer ", "");
+
   if (!token) {
     // Allow unauthenticated for development
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === "development") {
       return true;
     }
     return false;
   }
 
   try {
-    const response = await fetch(`${process.env.AUTH_GATEWAY_URL}/v1/auth/verify`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+    const response = await fetch(
+      `${process.env.AUTH_GATEWAY_URL}/v1/auth/verify`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       }
-    });
+    );
 
     return response.ok;
   } catch (error) {
-    console.error('Auth verification failed:', error);
+    console.error("Auth verification failed:", error);
     return false;
   }
 };
@@ -424,18 +458,18 @@ const authenticateWebSocket = async (info) => {
 
 ```javascript
 // services/websocket-mcp-handler.js
-const corsOrigins = process.env.MCP_CORS_ORIGINS?.split(',') || [
-  'localhost:3000',
-  'localhost:5173', 
-  'localhost:8080'
+const corsOrigins = process.env.MCP_CORS_ORIGINS?.split(",") || [
+  "localhost:3000",
+  "localhost:5173",
+  "localhost:8080",
 ];
 
 const verifyClient = (info) => {
   const origin = info.origin;
-  const isAllowed = corsOrigins.some(allowed => 
-    origin?.includes(allowed) || allowed === '*'
+  const isAllowed = corsOrigins.some(
+    (allowed) => origin?.includes(allowed) || allowed === "*"
   );
-  
+
   return isAllowed;
 };
 ```
@@ -461,26 +495,26 @@ npm run test:mcp:memory
 ### Manual Testing Scripts
 
 **Basic Connection Test:**
+
 ```javascript
 // test-mcp-basic.js
-import OnasisMCPClient from './external-mcp-client.js';
+import OnasisMCPClient from "./external-mcp-client.js";
 
 async function testBasicConnection() {
-  const client = new OnasisMCPClient('ws://localhost:9083/mcp');
-  
+  const client = new OnasisMCPClient("ws://localhost:9083/mcp");
+
   try {
-    console.log('🔗 Testing basic connection...');
+    console.log("🔗 Testing basic connection...");
     await client.connect();
-    console.log('✅ Connected successfully');
-    
+    console.log("✅ Connected successfully");
+
     const tools = await client.listTools();
     console.log(`✅ Found ${tools.length} tools`);
-    
+
     const health = await client.getHealthStatus();
-    console.log('✅ Health check:', health.status);
-    
+    console.log("✅ Health check:", health.status);
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error("❌ Test failed:", error.message);
   } finally {
     client.close();
   }
@@ -490,43 +524,43 @@ testBasicConnection();
 ```
 
 **Memory Operations Test:**
+
 ```javascript
 // test-mcp-memory.js
-import OnasisMCPClient from './external-mcp-client.js';
+import OnasisMCPClient from "./external-mcp-client.js";
 
 async function testMemoryOperations() {
-  const client = new OnasisMCPClient('ws://localhost:9083/mcp');
-  
+  const client = new OnasisMCPClient("ws://localhost:9083/mcp");
+
   try {
     await client.connect();
-    
+
     // Create
     const memory = await client.createMemory(
-      'Test Memory',
-      'This is a test memory for validation'
+      "Test Memory",
+      "This is a test memory for validation"
     );
-    console.log('✅ Created memory:', memory.id);
-    
+    console.log("✅ Created memory:", memory.id);
+
     // Search
-    const results = await client.searchMemories('test memory');
-    console.log('✅ Search results:', results.length);
-    
+    const results = await client.searchMemories("test memory");
+    console.log("✅ Search results:", results.length);
+
     // Retrieve
     const retrieved = await client.getMemory(memory.id);
-    console.log('✅ Retrieved memory:', retrieved.title);
-    
+    console.log("✅ Retrieved memory:", retrieved.title);
+
     // Update
     const updated = await client.updateMemory(memory.id, {
-      title: 'Updated Test Memory'
+      title: "Updated Test Memory",
     });
-    console.log('✅ Updated memory');
-    
+    console.log("✅ Updated memory");
+
     // Delete
     await client.deleteMemory(memory.id);
-    console.log('✅ Deleted memory');
-    
+    console.log("✅ Deleted memory");
   } catch (error) {
-    console.error('❌ Memory test failed:', error.message);
+    console.error("❌ Memory test failed:", error.message);
   } finally {
     client.close();
   }
@@ -540,6 +574,7 @@ testMemoryOperations();
 ### Common Issues
 
 **1. Connection Refused**
+
 ```bash
 # Check if server is running
 lsof -i :9083
@@ -552,16 +587,19 @@ tail -f logs/mcp-server.log
 ```
 
 **2. Authentication Failures**
+
 - Verify `MEMORY_SERVICE_API_KEY` is correct
 - Check `AUTH_GATEWAY_URL` accessibility
 - Ensure proper CORS configuration
 
 **3. Tool Not Found Errors**
+
 - Verify all 17 tools are loaded: `npm run mcp:list-tools`
 - Check backend service connectivity
 - Review WebSocket connection logs
 
 **4. Memory Service Issues**
+
 - Test Supabase connectivity: `npm run test:db`
 - Verify vector extension: `SELECT * FROM pg_extension WHERE extname = 'vector';`
 - Check memory service logs
@@ -569,6 +607,7 @@ tail -f logs/mcp-server.log
 ### Debugging
 
 **Enable Debug Logging:**
+
 ```bash
 export LOG_LEVEL=debug
 export DEBUG=mcp:*
@@ -576,18 +615,20 @@ npm run mcp:server
 ```
 
 **WebSocket Connection Debug:**
+
 ```javascript
 // Enable WebSocket debugging
-const client = new OnasisMCPClient('ws://localhost:9083/mcp', {
+const client = new OnasisMCPClient("ws://localhost:9083/mcp", {
   debug: true,
   reconnect: true,
-  timeout: 10000
+  timeout: 10000,
 });
 ```
 
 ## Performance Optimization
 
 ### Connection Pooling
+
 ```javascript
 // For high-throughput applications
 class OnasisMCPPool {
@@ -618,15 +659,18 @@ class OnasisMCPPool {
 ```
 
 ### Batch Operations
+
 ```javascript
 // Batch memory operations for efficiency
 async function batchCreateMemories(memories) {
-  const client = new OnasisMCPClient('ws://localhost:9083/mcp');
+  const client = new OnasisMCPClient("ws://localhost:9083/mcp");
   await client.connect();
 
   try {
     const results = await Promise.all(
-      memories.map(memory => client.createMemory(memory.title, memory.content))
+      memories.map((memory) =>
+        client.createMemory(memory.title, memory.content)
+      )
     );
     return results;
   } finally {
@@ -638,23 +682,27 @@ async function batchCreateMemories(memories) {
 ## File References
 
 ### Core Implementation Files
+
 - **`/stdio-mcp-server.js`** - Main Claude Desktop integration interface
 - **`/services/websocket-mcp-handler.js`** - Primary MCP server implementation
 - **`/external-mcp-client.js`** - Reusable JavaScript client library
 - **`/deploy/mcp-core.js`** - Production deployment script
 
 ### Configuration Files
+
 - **`/.env`** - Environment configuration
 - **`/package.json`** - Scripts and dependencies
 - **`/docker-compose.yml`** - Container deployment
 
 ### Test Files
+
 - **`/test-mcp-connection.js`** - Basic connection test
 - **`/test-mcp-comprehensive.js`** - All tools functionality test
 - **`/test-external-client.js`** - External client validation
 - **`/test-retrieve-memory.js`** - Memory operations test
 
 ### Documentation Files
+
 - **`/MCP_SERVER_CHECKPOINT.md`** - Development checkpoint
 - **`/INTEGRATION_GUIDE.md`** - Service integration guide
 - **`/CENTRAL_AUTH_INTEGRATION_GUIDE.md`** - Authentication integration
@@ -662,6 +710,7 @@ async function batchCreateMemories(memories) {
 ## Production Deployment
 
 ### Docker Configuration
+
 ```dockerfile
 # Dockerfile.mcp
 FROM node:18-alpine
@@ -677,9 +726,10 @@ CMD ["node", "deploy/mcp-core.js"]
 ```
 
 ### Docker Compose
+
 ```yaml
 # docker-compose.mcp.yml
-version: '3.8'
+version: "3.8"
 services:
   onasis-mcp:
     build:
@@ -701,6 +751,7 @@ services:
 ```
 
 ### Process Management
+
 ```bash
 # Using PM2 for production
 pm2 start deploy/mcp-core.js --name onasis-mcp
