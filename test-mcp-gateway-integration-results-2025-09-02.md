@@ -15,7 +15,7 @@ Used onasis-core memory service patterns to validate remote MCP gateway integrat
 - ✅ **Service Discovery**: 18 adapters discovered (1,604 total tools)
 - ✅ **Health Monitoring**: All endpoints responding correctly
 - ✅ **Port Configuration**: Clean service separation validated
-  - `lanonasis-mcp-server`: Port 3001 
+  - `mcp-core`: Port 3001 
   - `onasis-gateway-server`: Port 3000
   - `nginx proxy`: Port 8080 → 3000
 
@@ -77,7 +77,7 @@ Onasis-CORE (localhost:9083)
     ↓ 
 VPS Gateway (168.231.74.29:2222)
 ├── nginx (8080) → onasis-gateway (3000)
-├── lanonasis-mcp-server (3001)  
+├── mcp-core (3001)  
 └── PM2 process management
 ```
 

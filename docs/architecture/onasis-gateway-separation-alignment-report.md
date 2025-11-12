@@ -9,7 +9,7 @@
 **Original Plan**: Separate conflicting services using different ports
 **Current Status**: 
 - `onasis-gateway-server`: Port 3000 ✅
-- `lanonasis-mcp-server`: Port 3001 ✅  
+- `mcp-core`: Port 3001 ✅  
 - `nginx proxy`: Port 8080 → 3000 ✅
 - **Validation**: 100% success rate (11/11 integration tests passed)
 
@@ -22,7 +22,7 @@ VPS Services Architecture:
 │   ├── 18 adapters loaded
 │   ├── 1,604 tools available
 │   └── Health endpoint: {"status":"healthy","adapters":18,"totalTools":1604}
-└── lanonasis-mcp-server (3001)
+└── mcp-core (3001)
     ├── MCP protocol compliance
     ├── SSH tunnel integration
     └── Memory service patterns compatible

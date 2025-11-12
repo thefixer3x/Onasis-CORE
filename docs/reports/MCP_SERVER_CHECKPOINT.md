@@ -141,7 +141,7 @@ SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ### Current Deployment
 ```bash
 # Server Status: ✅ RUNNING
-node deploy/mcp-server.js
+node deploy/mcp-core.js
 
 # Ports Status:
 # ✅ 9082: API Gateway HTTP Server
@@ -261,7 +261,7 @@ LOG_LEVEL=info
 ### Deployment Command
 ```bash
 # Production Deployment
-node deploy/mcp-server.js
+node deploy/mcp-core.js
 
 # Expected Output:
 # 🚀 Onasis-Core MCP Server starting...
