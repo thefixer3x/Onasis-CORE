@@ -9,6 +9,7 @@ import { runAllValidations } from '../config/validation.js'
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
+import apiKeysRoutes from './routes/api-keys.routes.js'
 import mcpRoutes from './routes/mcp.routes.js'
 import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
@@ -52,6 +53,7 @@ app.get('/health', async (_req: express.Request, res: express.Response) => {
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
+app.use('/api/v1/auth/api-keys', apiKeysRoutes)
 app.use('/web', webRoutes)
 app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
