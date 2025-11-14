@@ -1,4 +1,4 @@
-import { dbPool } from '../../db/client.js'
+import { getClientWithSchema } from '../../db/client.js'
 import { ProjectServiceError, getProjectById } from './projects.service.js'
 
 export interface StoredApiKey {
@@ -95,7 +95,7 @@ export async function listStoredKeysForProject(
   // Verify user has access to project
   await getProjectById(projectId, userId, role)
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query<StoredApiKeyRecord>(
@@ -137,7 +137,7 @@ export async function getStoredKeyById(
     throw new StoredKeyServiceError('Invalid key ID', 400, 'INVALID_KEY_ID')
   }
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query<StoredApiKeyRecord>(
@@ -197,7 +197,7 @@ export async function createStoredKey(
   const tags = Array.isArray(input.tags) ? input.tags : []
   const metadata = input.metadata && typeof input.metadata === 'object' ? input.metadata : {}
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query<StoredApiKeyRecord>(
@@ -326,7 +326,7 @@ export async function updateStoredKey(
 
   fields.push(`updated_at = NOW()`)
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const whereIndex = values.length + 1
@@ -376,7 +376,7 @@ export async function deleteStoredKey(
   // Verify key exists and user has access
   await getStoredKeyById(projectId, keyId, userId, role)
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query(
