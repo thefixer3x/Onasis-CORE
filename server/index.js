@@ -13,11 +13,18 @@ const WebSocket = require('ws');
 const http = require('http');
 
 const app = express();
+app.disable('x-powered-by');
 const server = http.createServer(app);
 
 // Configuration
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET=REDACTED_JWT_SECRET
+  const secret = process.env.JWT_SECRET=REDACTED_JWT_SECRET
+  if (!secret) {
+    throw new Error('JWT_SECRET=REDACTED_JWT_SECRET
+  }
+  return secret;
+})();
 const JWT_EXPIRY = '7d';
 
 // Supabase configuration (if available)
