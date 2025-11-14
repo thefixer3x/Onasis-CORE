@@ -13,11 +13,18 @@ const WebSocket = require('ws');
 const http = require('http');
 
 const app = express();
+app.disable('x-powered-by');
 const server = http.createServer(app);
 
 // Configuration
 const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || 'lanonasis-secret-key-change-in-production';
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable must be set before starting the Onasis Core server.');
+  }
+  return secret;
+})();
 const JWT_EXPIRY = '7d';
 
 // Supabase configuration (if available)
