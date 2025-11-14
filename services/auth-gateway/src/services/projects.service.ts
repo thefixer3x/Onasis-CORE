@@ -1,4 +1,4 @@
-import { dbPool } from '../../db/client.js'
+import { dbPool, getClientWithSchema } from '../../db/client.js'
 
 export interface Project {
   id: string
@@ -95,7 +95,7 @@ export class ProjectServiceError extends Error {
 }
 
 export async function listProjectsForUser(userId: string, role?: string): Promise<Project[]> {
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
   const isAdmin = isPrivilegedRole(role)
 
   try {
@@ -142,7 +142,7 @@ export async function createProject(ownerId: string, input: CreateProjectInput):
   const settings = normalizeSettings(input.settings)
   const description = input.description?.trim() || null
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query<ProjectRecord>(
@@ -220,7 +220,7 @@ export async function updateProject(
 
   fields.push(`updated_at = NOW()`)
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const whereIndex = values.length + 1
@@ -260,7 +260,7 @@ export async function deleteProject(
     throw new ProjectServiceError('Only the project owner can delete the project', 403, 'NOT_OWNER')
   }
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query(
@@ -285,7 +285,7 @@ export async function listProjectKeys(
 ): Promise<ProjectApiKey[]> {
   await fetchProjectForUser(projectId, userId, role)
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
 
   try {
     const result = await client.query<StoredApiKeyRecord>(
@@ -332,7 +332,7 @@ async function fetchProjectForUser(
     throw new ProjectServiceError('Invalid project id', 400, 'INVALID_PROJECT_ID')
   }
 
-  const client = await dbPool.connect()
+  const client = await getClientWithSchema()
   const isAdmin = isPrivilegedRole(role)
 
   try {
