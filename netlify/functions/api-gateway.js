@@ -128,6 +128,90 @@ async function routeRequest(path, method, headers, body, query) {
     };
   }
 
+  // Proxy API key and auth routes to MCP service
+  if (path.startsWith('/api/v1/api-keys') || path.startsWith('/api/v1/auth')) {
+    try {
+      const mcpUrl = `https://mcp.lanonasis.com${path}`;
+      const mcpResponse = await fetch(mcpUrl, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': headers.authorization || headers.Authorization || '',
+          'X-API-Key': headers['x-api-key'] || headers['X-API-Key'] || ''
+        },
+        body: method !== 'GET' && method !== 'HEAD' ? JSON.stringify(body) : undefined
+      });
+
+      const responseBody = await mcpResponse.text();
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(responseBody);
+      } catch {
+        parsedBody = { message: responseBody };
+      }
+
+      return {
+        statusCode: mcpResponse.status,
+        body: parsedBody
+      };
+    } catch (error) {
+      console.error('MCP proxy error:', error);
+      return {
+        statusCode: 502,
+        body: {
+          error: {
+            message: 'Failed to reach MCP service',
+            type: 'proxy_error',
+            code: 'MCP_SERVICE_UNAVAILABLE'
+          },
+          request_id: requestId
+        }
+      };
+    }
+  }
+
+  // Proxy projects endpoint to MCP service
+  if (path.startsWith('/api/v1/projects')) {
+    try {
+      const mcpUrl = `https://mcp.lanonasis.com${path}`;
+      const mcpResponse = await fetch(mcpUrl, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': headers.authorization || headers.Authorization || '',
+          'X-API-Key': headers['x-api-key'] || headers['X-API-Key'] || ''
+        },
+        body: method !== 'GET' && method !== 'HEAD' ? JSON.stringify(body) : undefined
+      });
+
+      const responseBody = await mcpResponse.text();
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(responseBody);
+      } catch {
+        parsedBody = { message: responseBody };
+      }
+
+      return {
+        statusCode: mcpResponse.status,
+        body: parsedBody
+      };
+    } catch (error) {
+      console.error('MCP proxy error:', error);
+      return {
+        statusCode: 502,
+        body: {
+          error: {
+            message: 'Failed to reach MCP service',
+            type: 'proxy_error',
+            code: 'MCP_SERVICE_UNAVAILABLE'
+          },
+          request_id: requestId
+        }
+      };
+    }
+  }
+
   // Chat completions endpoint
   if (path.includes("/chat/completions") && method === "POST") {
     return {
@@ -221,6 +305,9 @@ async function routeRequest(path, method, headers, body, query) {
         "/health",
         "/info",
         "/api/v1/models",
+        "/api/v1/projects",
+        "/api/v1/api-keys",
+        "/api/v1/auth/*",
         "/api/v1/memory",
         "/api/v1/memory/:id",
         "/api/v1/memory/search",
