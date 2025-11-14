@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser'
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
 import { runAllValidations } from '../config/validation.js'
+import { redisClient, checkRedisHealth, closeRedis } from './services/cache.service.js'
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
@@ -44,10 +45,18 @@ app.use(validateSessionCookie)
 // Health check endpoint
 app.get('/health', async (_req: express.Request, res: express.Response) => {
   const dbStatus = await checkDatabaseHealth()
+  const redisStatus = await checkRedisHealth()
+
+  // Overall status: ok if both healthy, degraded if Redis down but DB up, unhealthy if DB down
+  const overallStatus = dbStatus.healthy
+    ? (redisStatus.healthy ? 'ok' : 'degraded')
+    : 'unhealthy'
+
   res.json({
-    status: 'ok',
+    status: overallStatus,
     service: 'auth-gateway',
     database: dbStatus,
+    cache: redisStatus,
     timestamp: new Date().toISOString(),
   })
 })
@@ -85,6 +94,15 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // Start server with validation
 app.listen(env.PORT, async () => {
+  // Initialize Redis connection
+  try {
+    await redisClient.connect()
+    console.log('✅ Redis connected successfully')
+  } catch (error) {
+    console.warn('⚠️  Redis connection failed (non-critical):', error instanceof Error ? error.message : error)
+    console.warn('   Service will continue without caching')
+  }
+
   // Run OAuth configuration validation
   try {
     await runAllValidations()
@@ -120,4 +138,17 @@ app.listen(env.PORT, async () => {
   console.log(`   - POST /admin/change-password`)
   console.log(`   - GET  /admin/status`)
   console.log(`\n🍪 Session cookies enabled for *.lanonasis.com`)
+})
+
+// Graceful shutdown handlers
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...')
+  await closeRedis()
+  process.exit(0)
+})
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...')
+  await closeRedis()
+  process.exit(0)
 })

@@ -5,6 +5,7 @@ import {
     hashAuthorizationCode,
     hashToken,
 } from '../utils/pkce.js'
+import { OAuthClientCache, AuthCodeCache } from './cache.service.js'
 
 // Token TTLs can be configured via environment variables.
 // AUTH_CODE_TTL_SECONDS: Authorization code lifetime in seconds (default: 300)
@@ -135,8 +136,22 @@ function ensureClientActive(client: OAuthClient | null): asserts client is OAuth
 }
 
 export async function getClient(clientId: string): Promise<OAuthClient | null> {
+    // Try cache first
+    const cached = await OAuthClientCache.get(clientId)
+    if (cached) {
+        return cached as OAuthClient
+    }
+
+    // Cache miss - fetch from database
     const result = await dbPool.query('SELECT * FROM auth_gateway.oauth_clients WHERE client_id = $1', [clientId])
-    return (result.rows[0] as OAuthClient | undefined) ?? null
+    const client = (result.rows[0] as OAuthClient | undefined) ?? null
+
+    // Cache the result (including null to prevent repeated DB queries)
+    if (client) {
+        await OAuthClientCache.set(clientId, client as unknown as Record<string, unknown>, 3600) // 1 hour TTL
+    }
+
+    return client
 }
 
 export function resolveScopes(client: OAuthClient, requested?: string[]): string[] {
@@ -226,9 +241,14 @@ export async function createAuthorizationCode(
         ]
     )
 
+    const record = result.rows[0] as AuthorizationCodeRecord
+
+    // Cache the authorization code for quick lookup
+    await AuthCodeCache.set(hashedCode, record as unknown as Record<string, unknown>, AUTH_CODE_TTL_SECONDS)
+
     return {
         authorizationCode,
-        record: result.rows[0] as AuthorizationCodeRecord,
+        record,
     }
 }
 
@@ -245,6 +265,13 @@ export async function consumeAuthorizationCode(
 
     const hashedCode = hashAuthorizationCode(params.code)
 
+    // Check cache first for fast path validation (non-authoritative)
+    const cached = await AuthCodeCache.get(hashedCode)
+    if (!cached) {
+        // Code not in cache - likely expired or already consumed
+        throw new OAuthServiceError('Authorization code not found or expired', 'invalid_grant', 400)
+    }
+
     return withTransaction(async (client) => {
         const selectResult = await client.query(
             `
@@ -256,6 +283,8 @@ export async function consumeAuthorizationCode(
         )
 
         if (selectResult.rowCount === 0) {
+            // Remove stale cache entry
+            await AuthCodeCache.consume(hashedCode)
             throw new OAuthServiceError('Authorization code not found', 'invalid_grant', 400)
         }
 
@@ -287,6 +316,9 @@ export async function consumeAuthorizationCode(
       `,
             [record.id]
         )
+
+        // Invalidate cache after consuming
+        await AuthCodeCache.consume(hashedCode)
 
         return updateResult.rows[0] as AuthorizationCodeRecord
     })
