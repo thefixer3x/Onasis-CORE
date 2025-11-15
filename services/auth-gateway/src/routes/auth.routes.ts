@@ -16,4 +16,7 @@ router.get('/sessions', requireAuth, authController.listSessions)
 // Public CLI-friendly verify endpoint (no auth header required)
 router.post('/verify-token', authController.verifyTokenBody)
 
+// API Key verification endpoint (public, no auth required)
+router.post('/verify-api-key', authController.verifyAPIKey)
+
 export default router

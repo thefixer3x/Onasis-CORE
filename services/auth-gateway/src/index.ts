@@ -6,9 +6,12 @@ import cookieParser from 'cookie-parser'
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
 import { runAllValidations } from '../config/validation.js'
+import { redisClient, checkRedisHealth, closeRedis } from './services/cache.service.js'
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
+import apiKeysRoutes from './routes/api-keys.routes.js'
+import projectsRoutes from './routes/projects.routes.js'
 import mcpRoutes from './routes/mcp.routes.js'
 import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
@@ -42,21 +45,35 @@ app.use(validateSessionCookie)
 // Health check endpoint
 app.get('/health', async (_req: express.Request, res: express.Response) => {
   const dbStatus = await checkDatabaseHealth()
+  const redisStatus = await checkRedisHealth()
+
+  // Overall status: ok if both healthy, degraded if Redis down but DB up, unhealthy if DB down
+  const overallStatus = dbStatus.healthy
+    ? (redisStatus.healthy ? 'ok' : 'degraded')
+    : 'unhealthy'
+
   res.json({
-    status: 'ok',
+    status: overallStatus,
     service: 'auth-gateway',
     database: dbStatus,
+    cache: redisStatus,
     timestamp: new Date().toISOString(),
   })
 })
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
+app.use('/api/v1/auth/api-keys', apiKeysRoutes)
+app.use('/api/v1/projects', projectsRoutes)
 app.use('/web', webRoutes)
 app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
+
+// Backward compatibility: Mount OAuth routes under /api/v1/oauth as well
+// This ensures CLI tools using the old path still work
+app.use('/api/v1/oauth', oauthRoutes)
 
 // 404 handler
 app.use((_req: express.Request, res: express.Response) => {
@@ -77,6 +94,15 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 // Start server with validation
 app.listen(env.PORT, async () => {
+  // Initialize Redis connection
+  try {
+    await redisClient.connect()
+    console.log('✅ Redis connected successfully')
+  } catch (error) {
+    console.warn('⚠️  Redis connection failed (non-critical):', error instanceof Error ? error.message : error)
+    console.warn('   Service will continue without caching')
+  }
+
   // Run OAuth configuration validation
   try {
     await runAllValidations()
@@ -103,13 +129,26 @@ app.listen(env.PORT, async () => {
   console.log(`💻 CLI endpoints:`)
   console.log(`   - POST /auth/cli-login`)
   console.log(`🔑 OAuth endpoints:`)
-  console.log(`   - GET  /oauth/authorize`)
-  console.log(`   - POST /oauth/token`)
-  console.log(`   - POST /oauth/revoke`)
-  console.log(`   - POST /oauth/introspect`)
+  console.log(`   - GET  /oauth/authorize (also /api/v1/oauth/authorize)`)
+  console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
+  console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`)
+  console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`)
   console.log(`🛡️  Admin endpoints:`)
   console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`)
   console.log(`   - POST /admin/change-password`)
   console.log(`   - GET  /admin/status`)
   console.log(`\n🍪 Session cookies enabled for *.lanonasis.com`)
+})
+
+// Graceful shutdown handlers
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...')
+  await closeRedis()
+  process.exit(0)
+})
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...')
+  await closeRedis()
+  process.exit(0)
 })

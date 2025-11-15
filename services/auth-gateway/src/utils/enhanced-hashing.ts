@@ -82,7 +82,7 @@ export async function migrateTokenHashes(): Promise<TokenMigrationResult> {
     try {
         // Migrate authorization codes
         const authCodes = await dbPool.query(
-            'SELECT id, code_hash FROM oauth_authorization_codes WHERE code_hash IS NOT NULL'
+            'SELECT id, code_hash FROM auth_gateway.oauth_authorization_codes WHERE code_hash IS NOT NULL'
         )
 
         for (const row of authCodes.rows) {
@@ -94,7 +94,7 @@ export async function migrateTokenHashes(): Promise<TokenMigrationResult> {
 
                 // Cannot reverse SHA-256, so mark for regeneration
                 await dbPool.query(
-                    'UPDATE oauth_authorization_codes SET code_hash = NULL, migration_required = TRUE WHERE id = $1',
+                    'UPDATE auth_gateway.oauth_authorization_codes SET code_hash = NULL, migration_required = TRUE WHERE id = $1',
                     [row.id]
                 )
                 result.migrated++
@@ -106,7 +106,7 @@ export async function migrateTokenHashes(): Promise<TokenMigrationResult> {
 
         // Migrate refresh tokens (similar approach)
         const refreshTokens = await dbPool.query(
-            'SELECT id, token_hash FROM oauth_tokens WHERE token_type = \'refresh\' AND token_hash IS NOT NULL'
+            'SELECT id, token_hash FROM auth_gateway.oauth_tokens WHERE token_type = \'refresh\' AND token_hash IS NOT NULL'
         )
 
         for (const row of refreshTokens.rows) {
@@ -116,7 +116,7 @@ export async function migrateTokenHashes(): Promise<TokenMigrationResult> {
                 }
 
                 await dbPool.query(
-                    'UPDATE oauth_tokens SET token_hash = NULL, migration_required = TRUE WHERE id = $1',
+                    'UPDATE auth_gateway.oauth_tokens SET token_hash = NULL, migration_required = TRUE WHERE id = $1',
                     [row.id]
                 )
                 result.migrated++

@@ -46,4 +46,4 @@ EXPOSE 8080 8081
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the MCP server
-CMD ["node", "deploy/mcp-server.js"]
+CMD ["node", "deploy/mcp-core.js"]
