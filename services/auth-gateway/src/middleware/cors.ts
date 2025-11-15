@@ -133,6 +133,12 @@ export function validateReferer(req: Request, res: Response, next: NextFunction)
         return next()
     }
 
+    // Skip referer validation for /oauth/token endpoint
+    // PKCE provides CSRF protection via code_verifier for native apps and CLIs
+    if (req.path === '/token' || req.path.endsWith('/oauth/token')) {
+        return next()
+    }
+
     const referer = req.get('Referer') || req.get('Origin')
 
     if (!referer && env.NODE_ENV === 'production') {

@@ -2,7 +2,7 @@
 
 **Date:** August 21, 2025  
 **Version:** 1.0.0  
-**Status:** ✅ PRODUCTION READY  
+**Status:** ✅ PRODUCTION READY
 
 ## Executive Summary
 
@@ -34,21 +34,25 @@ Successfully enhanced Onasis-CORE MCP server from a limited 3-tool implementatio
 ## Critical Fixes Applied
 
 ### 1. WebSocket Import Resolution
+
 **Issue:** `WebSocket.Server is not a constructor`
 **Fix Applied:**
+
 ```javascript
 // Before (BROKEN)
-import WebSocket from 'ws';
+import WebSocket from "ws";
 const wss = new WebSocket.Server({ port: this.port });
 
 // After (WORKING)
-import WebSocket, { WebSocketServer } from 'ws';
+import WebSocket, { WebSocketServer } from "ws";
 const wss = new WebSocketServer({ port: this.port });
 ```
 
 ### 2. Port Conflict Resolution
+
 **Issue:** `EADDRINUSE: address already in use :::8082`
 **Fix Applied:**
+
 ```bash
 # Updated .env configuration
 MCP_SERVER_PORT=9082  # API Gateway (was 8082)
@@ -56,21 +60,23 @@ MCP_WS_PORT=9083      # WebSocket Server (was 8083)
 ```
 
 ### 3. Server Configuration Logic
+
 **Issue:** "One and only one of the port, server, or noServer options must be specified"
 **Fix Applied:**
+
 ```javascript
 // Conditional server attachment logic
 if (server) {
   this.wss = new WebSocketServer({
     server: server,
-    path: '/mcp',
-    verifyClient: this.verifyClient.bind(this)
+    path: "/mcp",
+    verifyClient: this.verifyClient.bind(this),
   });
 } else {
   this.wss = new WebSocketServer({
     port: this.port,
-    path: '/mcp',
-    verifyClient: this.verifyClient.bind(this)
+    path: "/mcp",
+    verifyClient: this.verifyClient.bind(this),
   });
 }
 ```
@@ -78,6 +84,7 @@ if (server) {
 ## MCP Tools Implementation (17 Tools)
 
 ### Memory Management Tools (6 tools)
+
 1. `create_memory` - Create memory entries with vector embeddings
 2. `search_memories` - Semantic vector search with threshold filtering
 3. `get_memory` - Retrieve specific memory by ID
@@ -86,36 +93,43 @@ if (server) {
 6. `list_memories` - Paginated memory listing with filters
 
 ### API Key Management Tools (4 tools)
+
 7. `create_api_key` - Generate new API keys with access levels
 8. `list_api_keys` - List active API keys
 9. `rotate_api_key` - Security key rotation
 10. `delete_api_key` - Revoke API keys
 
 ### Project Management Tools (2 tools)
+
 11. `create_project` - Create new projects
 12. `list_projects` - List available projects
 
 ### Organization Management Tools (1 tool)
+
 13. `get_organization_info` - Organization details
 
 ### Authentication & Status Tools (2 tools)
+
 14. `get_auth_status` - Authentication verification
 15. `get_health_status` - System health monitoring
 
 ### Configuration Management Tools (2 tools)
+
 16. `get_config` - Retrieve configuration settings
 17. `set_config` - Update configuration values
 
 ## Connection Endpoints
 
 ### Production Endpoints
+
 - **HTTP API Gateway:** `http://localhost:9082`
 - **WebSocket MCP Server:** `ws://localhost:9083/mcp`
 
 ### Test Validation
+
 ```javascript
 // MCP Protocol Compliance Test
-const ws = new WebSocket('ws://localhost:9083/mcp');
+const ws = new WebSocket("ws://localhost:9083/mcp");
 // ✅ All 17 tools verified operational
 // ✅ MCP protocol v2024-11-05 compliant
 // ✅ Enterprise authentication ready
@@ -124,12 +138,14 @@ const ws = new WebSocket('ws://localhost:9083/mcp');
 ## Database Configuration
 
 ### Supabase Production Setup
+
 ```bash
 SUPABASE_URL=https://mxtsdgkwzjzlttpotole.supabase.co
 SUPABASE_SERVICE_KEY=[your_service_key_here]
 ```
 
 ### Key Tables
+
 - `memories` - Vector memory storage with pgvector
 - `organizations` - Multi-tenant organization management
 - `projects` - Project isolation and access control
@@ -139,9 +155,10 @@ SUPABASE_SERVICE_KEY=[your_service_key_here]
 ## Deployment Status
 
 ### Current Deployment
+
 ```bash
 # Server Status: ✅ RUNNING
-node deploy/mcp-server.js
+node deploy/mcp-core.js
 
 # Ports Status:
 # ✅ 9082: API Gateway HTTP Server
@@ -155,6 +172,7 @@ node deploy/mcp-server.js
 ```
 
 ### Recent Test Results
+
 ```
 🎯 COMPREHENSIVE TEST COMPLETE!
 ✅ Successfully tested key tools from all 17 available tools
@@ -162,7 +180,7 @@ node deploy/mcp-server.js
 
 Tool Test Results:
 ✅ get_health_status - System monitoring active
-✅ get_auth_status - Authentication verified  
+✅ get_auth_status - Authentication verified
 ✅ list_memories - Memory pagination working
 ✅ create_api_key - Key generation successful
 ✅ get_organization_info - Multi-tenant ready
@@ -171,9 +189,10 @@ Tool Test Results:
 ## Integration Guide for External Vendors
 
 ### For Vibe Deployment
+
 ```javascript
 // MCP Connection Example
-const mcpClient = new MCPClient('ws://localhost:9083/mcp');
+const mcpClient = new MCPClient("ws://localhost:9083/mcp");
 await mcpClient.connect();
 
 // Available tool categories:
@@ -186,6 +205,7 @@ await mcpClient.connect();
 ```
 
 ### For Claude Desktop
+
 ```json
 // MCP Server Configuration
 {
@@ -203,32 +223,36 @@ await mcpClient.connect();
 ## Security & Authentication
 
 ### API Key Management
+
 - AES-256-GCM encryption for stored keys
 - Role-based access control (public, authenticated, team, admin, enterprise)
 - Configurable expiration (default: 365 days)
 - Key rotation support
 
 ### Test Mode Authentication
+
 ```javascript
 // Current configuration allows testing without API keys
 // Production deployment requires valid vendor API keys
 verifyClient: (info) => {
-  const apiKey = info.req.headers['x-api-key'];
+  const apiKey = info.req.headers["x-api-key"];
   // Test mode: allows connections for development
   // Production: validates against vendor API key database
   return true; // Test mode enabled
-}
+};
 ```
 
 ## Performance & Monitoring
 
 ### Winston Logging
+
 - Structured JSON logging
 - Service identification tags
 - Connection lifecycle tracking
 - Tool usage analytics
 
 ### Resource Management
+
 - Graceful shutdown procedures
 - Connection pool management
 - Memory cleanup protocols
@@ -237,6 +261,7 @@ verifyClient: (info) => {
 ## CI/CD Integration Points
 
 ### Automated Testing
+
 ```bash
 # Test Scripts Available:
 node test-mcp-connection.js    # Basic connectivity test
@@ -244,6 +269,7 @@ node test-all-tools.js         # Comprehensive tool validation
 ```
 
 ### Environment Variables Required
+
 ```bash
 # Core Database
 SUPABASE_URL=https://mxtsdgkwzjzlttpotole.supabase.co
@@ -259,9 +285,10 @@ LOG_LEVEL=info
 ```
 
 ### Deployment Command
+
 ```bash
 # Production Deployment
-node deploy/mcp-server.js
+node deploy/mcp-core.js
 
 # Expected Output:
 # 🚀 Onasis-Core MCP Server starting...

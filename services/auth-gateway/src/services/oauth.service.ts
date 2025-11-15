@@ -5,6 +5,7 @@ import {
     hashAuthorizationCode,
     hashToken,
 } from '../utils/pkce.js'
+import { OAuthClientCache, AuthCodeCache } from './cache.service.js'
 
 // Token TTLs can be configured via environment variables.
 // AUTH_CODE_TTL_SECONDS: Authorization code lifetime in seconds (default: 300)
@@ -135,8 +136,22 @@ function ensureClientActive(client: OAuthClient | null): asserts client is OAuth
 }
 
 export async function getClient(clientId: string): Promise<OAuthClient | null> {
-    const result = await dbPool.query('SELECT * FROM oauth_clients WHERE client_id = $1', [clientId])
-    return (result.rows[0] as OAuthClient | undefined) ?? null
+    // Try cache first
+    const cached = await OAuthClientCache.get(clientId)
+    if (cached) {
+        return cached as OAuthClient
+    }
+
+    // Cache miss - fetch from database
+    const result = await dbPool.query('SELECT * FROM auth_gateway.oauth_clients WHERE client_id = $1', [clientId])
+    const client = (result.rows[0] as OAuthClient | undefined) ?? null
+
+    // Cache the result (including null to prevent repeated DB queries)
+    if (client) {
+        await OAuthClientCache.set(clientId, client as unknown as Record<string, unknown>, 3600) // 1 hour TTL
+    }
+
+    return client
 }
 
 export function resolveScopes(client: OAuthClient, requested?: string[]): string[] {
@@ -205,7 +220,7 @@ export async function createAuthorizationCode(
 
     const result = await dbPool.query(
         `
-      INSERT INTO oauth_authorization_codes (
+      INSERT INTO auth_gateway.oauth_authorization_codes (
         code_hash, client_id, user_id, code_challenge, code_challenge_method,
         redirect_uri, scope, state, expires_at, ip_address, user_agent
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -226,9 +241,14 @@ export async function createAuthorizationCode(
         ]
     )
 
+    const record = result.rows[0] as AuthorizationCodeRecord
+
+    // Cache the authorization code for quick lookup
+    await AuthCodeCache.set(hashedCode, record as unknown as Record<string, unknown>, AUTH_CODE_TTL_SECONDS)
+
     return {
         authorizationCode,
-        record: result.rows[0] as AuthorizationCodeRecord,
+        record,
     }
 }
 
@@ -245,10 +265,17 @@ export async function consumeAuthorizationCode(
 
     const hashedCode = hashAuthorizationCode(params.code)
 
+    // Check cache first for fast path validation (non-authoritative)
+    const cached = await AuthCodeCache.get(hashedCode)
+    if (!cached) {
+        // Code not in cache - likely expired or already consumed
+        throw new OAuthServiceError('Authorization code not found or expired', 'invalid_grant', 400)
+    }
+
     return withTransaction(async (client) => {
         const selectResult = await client.query(
             `
-        SELECT * FROM oauth_authorization_codes
+        SELECT * FROM auth_gateway.oauth_authorization_codes
         WHERE code_hash = $1
         FOR UPDATE
       `,
@@ -256,6 +283,8 @@ export async function consumeAuthorizationCode(
         )
 
         if (selectResult.rowCount === 0) {
+            // Remove stale cache entry
+            await AuthCodeCache.consume(hashedCode)
             throw new OAuthServiceError('Authorization code not found', 'invalid_grant', 400)
         }
 
@@ -274,19 +303,22 @@ export async function consumeAuthorizationCode(
         }
 
         if (record.expires_at.getTime() <= Date.now()) {
-            await client.query('DELETE FROM oauth_authorization_codes WHERE id = $1', [record.id])
+            await client.query('DELETE FROM auth_gateway.oauth_authorization_codes WHERE id = $1', [record.id])
             throw new OAuthServiceError('Authorization code expired', 'invalid_grant', 400)
         }
 
         const updateResult = await client.query(
             `
-        UPDATE oauth_authorization_codes
+        UPDATE auth_gateway.oauth_authorization_codes
         SET consumed = TRUE, consumed_at = NOW()
         WHERE id = $1
         RETURNING *
       `,
             [record.id]
         )
+
+        // Invalidate cache after consuming
+        await AuthCodeCache.consume(hashedCode)
 
         return updateResult.rows[0] as AuthorizationCodeRecord
     })
@@ -317,7 +349,7 @@ async function insertToken(
 
     const result = await client.query(
         `
-      INSERT INTO oauth_tokens (
+      INSERT INTO auth_gateway.oauth_tokens (
         token_hash, token_type, client_id, user_id, scope,
         expires_at, ip_address, user_agent, parent_token_id
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -409,7 +441,7 @@ export async function findRefreshToken(
     const hashed = hashToken(token)
     const result = await dbPool.query(
         `
-      SELECT * FROM oauth_tokens
+      SELECT * FROM auth_gateway.oauth_tokens
       WHERE token_hash = $1
         AND token_type = 'refresh'
         AND client_id = $2
@@ -435,7 +467,7 @@ export async function findRefreshToken(
 export async function revokeTokenById(id: string, reason = 'revoked'): Promise<boolean> {
     const result = await dbPool.query(
         `
-      UPDATE oauth_tokens
+      UPDATE auth_gateway.oauth_tokens
       SET revoked = TRUE, revoked_at = NOW(), revoked_reason = $2
       WHERE id = $1 AND revoked = FALSE
     `,
@@ -451,12 +483,12 @@ export async function revokeTokenChain(
     await dbPool.query(
         `
             WITH RECURSIVE token_tree AS (
-                SELECT id FROM oauth_tokens WHERE id = $1
+                SELECT id FROM auth_gateway.oauth_tokens WHERE id = $1
                 UNION
-                SELECT t.id FROM oauth_tokens t
+                SELECT t.id FROM auth_gateway.oauth_tokens t
                 INNER JOIN token_tree tt ON t.parent_token_id = tt.id
             )
-            UPDATE oauth_tokens
+            UPDATE auth_gateway.oauth_tokens
             SET revoked = TRUE, revoked_at = NOW(), revoked_reason = $2
             WHERE id IN (SELECT id FROM token_tree) AND revoked = FALSE
         `,
@@ -480,7 +512,7 @@ export async function rotateRefreshToken(
     return withTransaction(async (client) => {
         await client.query(
             `
-        UPDATE oauth_tokens
+        UPDATE auth_gateway.oauth_tokens
         SET revoked = TRUE, revoked_at = NOW(), revoked_reason = 'rotated'
         WHERE id = $1 AND revoked = FALSE
       `,
@@ -489,7 +521,7 @@ export async function rotateRefreshToken(
 
         await client.query(
             `
-        UPDATE oauth_tokens
+        UPDATE auth_gateway.oauth_tokens
         SET revoked = TRUE, revoked_at = NOW(), revoked_reason = 'ancestor_rotated'
         WHERE parent_token_id = $1 AND revoked = FALSE
       `,
@@ -545,7 +577,7 @@ export async function revokeTokenByValue(
     // First, find the token to determine its type and id
     const select = await dbPool.query(
         `
-      SELECT id, token_type, client_id, user_id FROM oauth_tokens
+      SELECT id, token_type, client_id, user_id FROM auth_gateway.oauth_tokens
       WHERE token_hash = $1
         AND ($2::text IS NULL OR token_type = CASE WHEN $2 = 'refresh_token' THEN 'refresh' ELSE 'access' END)
         AND revoked = FALSE
@@ -579,7 +611,7 @@ export async function introspectToken(token: string): Promise<TokenIntrospection
     const hashed = hashToken(token)
     const result = await dbPool.query(
         `
-      SELECT * FROM oauth_tokens
+      SELECT * FROM auth_gateway.oauth_tokens
       WHERE token_hash = $1
     `,
         [hashed]
@@ -617,7 +649,7 @@ export async function logOAuthEvent(event: OAuthAuditEvent): Promise<void> {
     try {
         await dbPool.query(
             `
-        INSERT INTO oauth_audit_log (
+        INSERT INTO auth_gateway.oauth_audit_log (
           event_type, client_id, user_id, ip_address, user_agent,
           scope, redirect_uri, grant_type, success, error_code,
           error_description, metadata

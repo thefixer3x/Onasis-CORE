@@ -1,6 +1,6 @@
 import express from 'express'
 import * as oauthController from '../controllers/oauth.controller.js'
-import { requireSessionCookie } from '../middleware/session.js'
+import { validateSessionCookie } from '../middleware/session.js'
 import {
     authorizeRateLimit,
     tokenRateLimit,

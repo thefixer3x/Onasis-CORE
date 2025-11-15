@@ -4,6 +4,7 @@ import { generateTokenPair } from '../utils/jwt.js'
 import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
+import * as apiKeyService from '../services/api-key.service.js'
 
 /**
  * POST /v1/auth/login
@@ -341,6 +342,232 @@ export async function listSessions(req: Request, res: Response) {
     return res.status(500).json({
       error: 'Internal server error',
       code: 'INTERNAL_ERROR',
+    })
+  }
+}
+
+/**
+ * Verify API key endpoint - validates vendor key
+ */
+export async function verifyAPIKey(req: Request, res: Response) {
+  const apiKey = req.headers['x-api-key'] as string
+  
+  if (!apiKey) {
+    return res.status(400).json({
+      error: 'API key required',
+      code: 'API_KEY_MISSING',
+      message: 'Please provide an API key in the X-API-Key header'
+    })
+  }
+  
+  try {
+    const validation = await apiKeyService.validateAPIKey(apiKey)
+    
+    if (!validation.valid) {
+      return res.status(401).json({
+        valid: false,
+        error: 'Invalid API key',
+        code: 'API_KEY_INVALID',
+        reason: validation.reason,
+        message: 'The provided API key is not valid'
+      })
+    }
+    
+    return res.json({
+      valid: true,
+      userId: validation.userId,
+      projectScope: validation.projectScope,
+      permissions: validation.permissions,
+      message: 'API key is valid'
+    })
+  } catch (error) {
+    console.error('API key verification error:', error)
+    return res.status(500).json({
+      valid: false,
+      error: 'Internal server error',
+      code: 'VERIFICATION_ERROR',
+      message: 'Failed to verify API key'
+    })
+  }
+}
+
+/**
+ * POST /api/v1/auth/api-keys
+ * Create a new API key
+ */
+export async function createApiKey(req: Request, res: Response) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      })
+    }
+
+    const apiKey = await apiKeyService.createApiKey(req.user.sub, req.body)
+    
+    return res.json({
+      success: true,
+      data: {
+        id: apiKey.id,
+        name: apiKey.name,
+        key: apiKey.key, // Only returned on creation
+        access_level: apiKey.access_level,
+        created_at: apiKey.created_at
+      }
+    })
+  } catch (error) {
+    console.error('API key creation error:', error)
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * GET /api/v1/auth/api-keys
+ * List all API keys for the authenticated user
+ */
+export async function listApiKeys(req: Request, res: Response) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      })
+    }
+
+    const apiKeys = await apiKeyService.listApiKeys(req.user.sub, req.query)
+    
+    return res.json({
+      success: true,
+      data: apiKeys
+    })
+  } catch (error) {
+    console.error('API key listing error:', error)
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * GET /api/v1/auth/api-keys/:keyId
+ * Get a specific API key
+ */
+export async function getApiKey(req: Request, res: Response) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      })
+    }
+
+    const apiKey = await apiKeyService.getApiKey(req.params.keyId, req.user.sub)
+    
+    return res.json({
+      success: true,
+      data: apiKey
+    })
+  } catch (error) {
+    console.error('Get API key error:', error)
+    return res.status(404).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * POST /api/v1/auth/api-keys/:keyId/rotate
+ * Rotate an API key (generate new key value)
+ */
+export async function rotateApiKey(req: Request, res: Response) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      })
+    }
+
+    const apiKey = await apiKeyService.rotateApiKey(req.params.keyId, req.user.sub)
+    
+    return res.json({
+      success: true,
+      message: 'API key rotated successfully',
+      data: apiKey
+    })
+  } catch (error) {
+    console.error('Rotate API key error:', error)
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * POST /api/v1/auth/api-keys/:keyId/revoke
+ * Revoke an API key (soft delete)
+ */
+export async function revokeApiKey(req: Request, res: Response) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      })
+    }
+
+    const success = await apiKeyService.revokeApiKey(req.params.keyId, req.user.sub)
+    
+    return res.json({
+      success,
+      message: 'API key revoked successfully'
+    })
+  } catch (error) {
+    console.error('Revoke API key error:', error)
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * DELETE /api/v1/auth/api-keys/:keyId
+ * Delete an API key (hard delete)
+ */
+export async function deleteApiKey(req: Request, res: Response) {
+  try {
+    if (!req.user?.sub) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED'
+      })
+    }
+
+    const success = await apiKeyService.deleteApiKey(req.params.keyId, req.user.sub)
+    
+    return res.json({
+      success,
+      message: 'API key deleted successfully'
+    })
+  } catch (error) {
+    console.error('Delete API key error:', error)
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     })
   }
 }
