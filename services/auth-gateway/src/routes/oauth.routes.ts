@@ -15,6 +15,7 @@ import {
     setCSRFCookie,
     doubleSubmitCookie
 } from '../middleware/csrf.js'
+} from '../middleware/csrf.js'
 
 const router = express.Router()
 
@@ -26,7 +27,6 @@ router.use(validateReferer)
 // Apply general OAuth rate limiting to all routes
 router.use(oauthGeneralRateLimit)
 
-// Set CSRF cookie for all OAuth interactions
 router.use(setCSRFCookie)
 
 // OAuth endpoints with specific rate limits and CSRF protection
@@ -34,5 +34,6 @@ router.get('/authorize', authorizeRateLimit, generateAuthorizeCSRF, requireSessi
 router.post('/token', tokenRateLimit, validateTokenCSRF, oauthController.token)
 router.post('/revoke', revokeRateLimit, doubleSubmitCookie, oauthController.revoke)
 router.post('/introspect', introspectRateLimit, oauthController.introspect)
+
 
 export default router
