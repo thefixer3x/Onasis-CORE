@@ -11,6 +11,7 @@ import {
 import { oauthCors, oauthSecurityHeaders, validateReferer } from '../middleware/cors.js'
 import {
     generateAuthorizeCSRF,
+    validateTokenCSRF,
     setCSRFCookie,
     doubleSubmitCookie
 } from '../middleware/csrf.js'
@@ -29,8 +30,8 @@ router.use(oauthGeneralRateLimit)
 router.use(setCSRFCookie)
 
 // OAuth endpoints with specific rate limits and CSRF protection
-router.get('/authorize', authorizeRateLimit, generateAuthorizeCSRF, validateSessionCookie, oauthController.authorize)
-router.post('/token', tokenRateLimit, oauthController.token)
+router.get('/authorize', authorizeRateLimit, generateAuthorizeCSRF, requireSessionCookie, oauthController.authorize)
+router.post('/token', tokenRateLimit, validateTokenCSRF, oauthController.token)
 router.post('/revoke', revokeRateLimit, doubleSubmitCookie, oauthController.revoke)
 router.post('/introspect', introspectRateLimit, oauthController.introspect)
 
