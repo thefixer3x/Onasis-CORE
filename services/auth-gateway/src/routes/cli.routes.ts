@@ -6,7 +6,8 @@ const router = express.Router();
 
 // CLI authentication - GET route serves the login page
 router.get("/cli-login", (req, res) => {
-  const { platform = "cli", redirect_url, return_to } = req.query;
+  const { platform: platformParam = "cli", redirect_url, return_to } = req.query;
+  const platform: string = typeof platformParam === "string" ? platformParam : Array.isArray(platformParam) && typeof platformParam[0] === "string" ? platformParam[0] : "cli";
   const redirectUri = redirect_url || return_to || "cli://auth/callback";
 
   // Generate nonce for CSP
