@@ -37,3 +37,14 @@ export async function checkDatabaseHealth() {
     return { healthy: false, error: (error as Error).message }
   }
 }
+
+/**
+ * Get a database client with security_service schema set
+ * Used for API key management operations
+ */
+export async function getClientWithSchema() {
+  const client = await dbPool.connect()
+  // Set the search_path to security_service schema
+  await client.query('SET search_path TO security_service, public')
+  return client
+}
