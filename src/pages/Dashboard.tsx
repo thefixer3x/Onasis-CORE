@@ -416,12 +416,15 @@ console.log(response)`}
         {/* Resources */}
         <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
           <a
-            href="#"
+            href="https://docs.lanonasis.com"
+            target="_blank"
+            rel="noopener noreferrer"
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <BookOpen className="h-8 w-8 text-blue-500 mb-4" />
-            <h3 className="font-semibold text-gray-900 dark:text-white">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               API Documentation
+              <ExternalLink className="h-4 w-4" />
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Complete reference for all endpoints
@@ -429,25 +432,31 @@ console.log(response)`}
           </a>
 
           <a
-            href="#"
+            href="https://docs.lanonasis.com/quickstart"
+            target="_blank"
+            rel="noopener noreferrer"
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <Terminal className="h-8 w-8 text-purple-500 mb-4" />
-            <h3 className="font-semibold text-gray-900 dark:text-white">
-              Interactive Console
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              Quick Start Guide
+              <ExternalLink className="h-4 w-4" />
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Test API calls in real-time
+              Get started with your first integration
             </p>
           </a>
 
           <a
-            href="#"
+            href="https://docs.lanonasis.com/security"
+            target="_blank"
+            rel="noopener noreferrer"
             className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
           >
             <Shield className="h-8 w-8 text-green-500 mb-4" />
-            <h3 className="font-semibold text-gray-900 dark:text-white">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               Security Best Practices
+              <ExternalLink className="h-4 w-4" />
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Keep your integration secure
