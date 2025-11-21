@@ -515,7 +515,7 @@
     <header class="header">
         <div class="container">
             <nav class="nav">
-                <div class="logo">🧠 LanOnasis</div>
+                <div class="logo">LanOnasis</div>
                 <ul class="nav-links">
                     <li><a href="#features">Features</a></li>
                     <li><a href="https://docs.lanonasis.com">Docs</a></li>
@@ -535,9 +535,9 @@
                 <span>Introducing LanOnasis</span>
             </div>
 
-            <h1>Memory-as-a-Service Platform<br>for AI Developers</h1>
+            <h1>Context-as-a-Service Platform<br>for AI Applications</h1>
 
-            <p>Vector-enabled memory storage, secure API key management, and MCP integration for building intelligent AI applications.</p>
+            <p>Vector-enabled context storage, secure API key management, and MCP integration for building intelligent AI applications.</p>
 
             <div class="hero-actions">
                 <a href="/auth/register.html" class="btn btn-primary">
@@ -558,8 +558,8 @@
                     <div class="browser-url">dashboard.lanonasis.com</div>
                 </div>
                 <div class="browser-content">
-                    <h3>🚀 Memory Dashboard</h3>
-                    <p>Manage memories, API keys, and integrations</p>
+                    <h3>🚀 Context Dashboard</h3>
+                    <p>Manage context, API keys, and integrations</p>
                 </div>
             </div>
         </div>
@@ -569,18 +569,18 @@
     <section id="features" class="features">
         <div class="container">
             <h2>Platform Services</h2>
-            <p class="features-subtitle">Complete toolkit for building intelligent applications with memory, security, and seamless integrations.</p>
+            <p class="features-subtitle">Complete toolkit for building intelligent applications with context management, security, and seamless integrations.</p>
 
             <div class="features-grid">
                 <!-- Memory as a Service -->
                 <div class="feature-card">
                     <div class="feature-icon">⚡</div>
-                    <h3>Memory-as-a-Service</h3>
-                    <p>Vector-enabled memory storage for AI agents with semantic search, bulk operations, and hierarchical organization.</p>
+                    <h3>Context-as-a-Service</h3>
+                    <p>Vector-enabled context storage for AI agents with semantic search, bulk operations, and hierarchical organization.</p>
                     <ul class="feature-list">
                         <li>Vector storage (OpenAI 1536D)</li>
                         <li>Semantic search</li>
-                        <li>Memory types & topics</li>
+                        <li>Context types & topics</li>
                         <li>Bulk import/export</li>
                     </ul>
                 </div>
@@ -601,10 +601,10 @@
                 <!-- Developer Dashboard -->
                 <div class="feature-card">
                     <div class="feature-icon">📊</div>
-                    <h3>Developer Dashboard</h3>
-                    <p>Interactive dashboard for managing memories, API keys, and monitoring usage with real-time analytics.</p>
+                    <h3>Management Dashboard</h3>
+                    <p>Interactive dashboard for managing context, API keys, and monitoring usage with real-time analytics.</p>
                     <ul class="feature-list">
-                        <li>Memory visualization</li>
+                        <li>Context visualization</li>
                         <li>Usage analytics</li>
                         <li>Key management UI</li>
                         <li>MCP integration status</li>
@@ -628,13 +628,18 @@
                 <div class="feature-card">
                     <div class="feature-icon">🔗</div>
                     <h3>MCP Integration</h3>
-                    <p>Model Context Protocol support for AI agents with secure key access and proxy token generation.</p>
+                    <p>Connect your favorite productivity tools via Model Context Protocol for seamless AI-powered workflows.</p>
                     <ul class="feature-list">
-                        <li>MCP server integration</li>
-                        <li>Proxy token system</li>
+                        <li>Notion, Slack, Google Workspace</li>
+                        <li>GitHub, Linear, Jira</li>
+                        <li>Custom tool integrations</li>
                         <li>Zero-secret workflows</li>
-                        <li>Agent context sharing</li>
                     </ul>
+                    <div style="margin-top: 15px;">
+                        <a href="https://docs.lanonasis.com/integrations" class="btn btn-outline" style="font-size: 0.85rem; padding: 8px 16px;">
+                            View Integrations →
+                        </a>
+                    </div>
                 </div>
 
                 <!-- Enterprise Features -->
@@ -658,7 +663,7 @@
         <div class="container">
             <div class="developer-content">
                 <div class="developer-features">
-                    <h2>Developer Experience</h2>
+                    <h2>Integration Experience</h2>
 
                     <div class="developer-feature">
                         <h3>NPM Packages</h3>
@@ -671,8 +676,8 @@
                     </div>
 
                     <div class="developer-feature">
-                        <h3>MCP Protocol Support</h3>
-                        <p>Model Context Protocol integration for AI agents with secure memory and key management capabilities.</p>
+                        <h3>Productivity Tool Connections</h3>
+                        <p>Connect to Notion, Slack, Google Workspace, GitHub, and more via MCP protocol with secure context and key management.</p>
                     </div>
 
                     <div style="margin-top: 30px;">
@@ -682,7 +687,7 @@
                 </div>
 
                 <div class="code-example">
-                    <pre><code>// Example: Memory-as-a-Service with API key management
+                    <pre><code>// Example: Context-as-a-Service with API key management
 const lanonasis = require('@lanonasis/sdk');
 
 // Initialize with your API key
@@ -690,27 +695,27 @@ const client = new lanonasis.Client({
   apiKey: 'your_api_key_here'
 });
 
-// Store and retrieve memories
-async function useMemoryService() {
+// Store and retrieve context
+async function useContextService() {
   try {
-    // Store a memory with vector embedding
-    const memory = await client.memory.store({
+    // Store context with vector embedding
+    const context = await client.context.store({
       content: 'User prefers dark theme and condensed layout',
       type: 'preference',
       topic: 'ui_settings',
       metadata: { userId: 'user_123' }
     });
 
-    console.log('Memory stored:', memory.id);
+    console.log('Context stored:', context.id);
 
-    // Search similar memories
-    const similar = await client.memory.search({
+    // Search similar context
+    const similar = await client.context.search({
       query: 'user interface preferences',
       type: 'preference',
       limit: 5
     });
 
-    console.log('Similar memories:', similar.results);
+    console.log('Similar context:', similar.results);
   } catch (error) {
     console.error('Error:', error.message);
   }
@@ -723,8 +728,8 @@ async function useMemoryService() {
     <!-- CTA Section -->
     <section class="cta">
         <div class="container">
-            <h2>Ready to get started?</h2>
-            <p>Join thousands of developers using LanOnasis Memory-as-a-Service and API Key Management to build intelligent applications.</p>
+            <h2>Start Building Smarter Applications Today</h2>
+            <p>Get started for free with LanOnasis Context-as-a-Service. No credit card required. Connect your tools, manage your context, and deploy AI-powered workflows in minutes.</p>
 
             <div class="cta-buttons">
                 <a href="/auth/register.html" class="btn btn-white">Sign up free</a>
@@ -742,7 +747,7 @@ async function useMemoryService() {
                 <a href="https://dashboard.lanonasis.com/auth/register">Sign Up</a>
             </p>
             <p style="margin-top: 10px;">
-                LanOnasis Memory-as-a-Service Platform © 2025
+                LanOnasis Context-as-a-Service Platform © 2025
             </p>
         </div>
     </footer>
