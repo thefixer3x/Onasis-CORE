@@ -5,6 +5,8 @@ import { requireAuth, optionalAuth } from '../middleware/auth.js'
 const router = express.Router()
 
 // Public routes
+router.get('/oauth', authController.oauthProvider)
+router.get('/oauth/callback', authController.oauthCallback)
 router.post('/login', authController.login)
 
 // Protected routes

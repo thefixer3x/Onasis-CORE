@@ -79,7 +79,7 @@ export const LandingPage: React.FC = () => {
                 color: "#00D4AA",
               }}
             >
-              🧠 Lanonasis
+              LanOnasis
             </div>
             <ul
               style={{
@@ -207,9 +207,9 @@ export const LandingPage: React.FC = () => {
               lineHeight: 1.2,
             }}
           >
-            Memory-as-a-Service Platform
+            Context-as-a-Service Platform
             <br />
-            for AI Developers
+            for AI Applications
           </h1>
 
           <p
@@ -220,7 +220,7 @@ export const LandingPage: React.FC = () => {
               margin: "0 auto 40px",
             }}
           >
-            Vector-enabled memory storage, secure API key management, and MCP
+            Vector-enabled context storage, secure API key management, and MCP
             integration for building intelligent AI applications.
           </p>
 
@@ -333,8 +333,8 @@ export const LandingPage: React.FC = () => {
                 textAlign: "center",
               }}
             >
-              <h3>🚀 Memory Dashboard</h3>
-              <p>Manage memories, API keys, and integrations</p>
+              <h3>🚀 Context Dashboard</h3>
+              <p>Manage context, API keys, and integrations</p>
             </div>
           </div>
         </div>
@@ -371,7 +371,7 @@ export const LandingPage: React.FC = () => {
               margin: "0 auto 60px",
             }}
           >
-            Complete toolkit for building intelligent applications with memory,
+            Complete toolkit for building intelligent applications with context management,
             security, and seamless integrations.
           </p>
 
@@ -414,7 +414,7 @@ export const LandingPage: React.FC = () => {
                   color: "#ffffff",
                 }}
               >
-                Memory-as-a-Service
+                Context-as-a-Service
               </h3>
               <p
                 style={{
@@ -422,7 +422,7 @@ export const LandingPage: React.FC = () => {
                   marginBottom: "25px",
                 }}
               >
-                Vector-enabled memory storage for AI agents with semantic
+                Vector-enabled context storage for AI agents with semantic
                 search, bulk operations, and hierarchical organization.
               </p>
             </div>
@@ -459,7 +459,7 @@ export const LandingPage: React.FC = () => {
                   color: "#ffffff",
                 }}
               >
-                API Key Management
+                Productivity Tool Integrations
               </h3>
               <p
                 style={{
@@ -467,8 +467,8 @@ export const LandingPage: React.FC = () => {
                   marginBottom: "25px",
                 }}
               >
-                Secure API key storage and management with MCP integration for
-                agentic workflows without exposing secrets.
+                Connect to Notion, Slack, Google Workspace, GitHub, and more via
+                MCP protocol with secure API key management.
               </p>
             </div>
 
@@ -504,7 +504,7 @@ export const LandingPage: React.FC = () => {
                   color: "#ffffff",
                 }}
               >
-                Developer Dashboard
+                Management Dashboard
               </h3>
               <p
                 style={{
@@ -512,7 +512,7 @@ export const LandingPage: React.FC = () => {
                   marginBottom: "25px",
                 }}
               >
-                Interactive dashboard for managing memories, API keys, and
+                Interactive dashboard for managing context, API keys, and
                 monitoring usage with real-time analytics.
               </p>
             </div>
@@ -539,18 +539,18 @@ export const LandingPage: React.FC = () => {
               color: "#ffffff",
             }}
           >
-            Ready to get started?
+            Start Building Smarter Applications Today
           </h2>
           <p
             style={{
               fontSize: "1.2rem",
               color: "rgba(255, 255, 255, 0.9)",
-              maxWidth: "500px",
+              maxWidth: "600px",
               margin: "0 auto 40px",
             }}
           >
-            Join thousands of developers using Lanonasis Memory-as-a-Service and
-            API Key Management to build intelligent applications.
+            Get started for free with LanOnasis Context-as-a-Service. No credit card required.
+            Connect your tools, manage your context, and deploy AI-powered workflows in minutes.
           </p>
 
           <div
@@ -628,7 +628,7 @@ export const LandingPage: React.FC = () => {
             </a>
           </p>
           <p style={{ marginTop: "10px", color: "rgba(255, 255, 255, 0.6)" }}>
-            Lanonasis Memory-as-a-Service Platform © 2024
+            LanOnasis Context-as-a-Service Platform © 2025
           </p>
         </div>
       </footer>
