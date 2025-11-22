@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import type { Request, Response } from 'express'
 import { supabaseAdmin } from '../../db/client.js'
 import { generateTokenPair } from '../utils/jwt.js'
@@ -5,6 +6,332 @@ import { createSession, revokeSession, getUserSessions } from '../services/sessi
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import * as apiKeyService from '../services/api-key.service.js'
+import { redisClient } from '../services/cache.service.js'
+import { logger } from '../utils/logger.js'
+
+type Platform = 'mcp' | 'cli' | 'web' | 'api'
+
+const SUPPORTED_PLATFORMS: Platform[] = ['cli', 'mcp', 'web', 'api']
+const OAUTH_STATE_PREFIX = 'oauth_state:'
+const OAUTH_STATE_TTL_SECONDS = 600
+
+const OAUTH_PROVIDERS: Record<string, { supabaseProvider: string; scopes: string }> = {
+  google: { supabaseProvider: 'google', scopes: 'email profile' },
+  github: { supabaseProvider: 'github', scopes: 'user:email read:user' },
+  linkedin_oidc: { supabaseProvider: 'linkedin_oidc', scopes: 'openid profile email' },
+  discord: { supabaseProvider: 'discord', scopes: 'identify email' },
+  apple: { supabaseProvider: 'apple', scopes: 'email name' },
+}
+
+interface OAuthStateData {
+  provider: string
+  redirect_uri: string
+  project_scope?: string
+  platform: Platform
+}
+
+function isSupportedPlatform(value?: string): value is Platform {
+  return Boolean(value && SUPPORTED_PLATFORMS.includes(value as Platform))
+}
+
+function buildCallbackUrl(req: Request): string {
+  const base = (process.env.AUTH_GATEWAY_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '')
+  return `${base}/v1/auth/oauth/callback`
+}
+
+function isValidRedirectUri(uri?: string): uri is string {
+  if (!uri) return false
+  try {
+    new URL(uri)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function appendTokensToRedirect(
+  redirectUri: string,
+  tokens: { access_token: string; refresh_token: string; expires_in: number },
+  projectScope?: string,
+  provider?: string
+): string {
+  try {
+    const target = new URL(redirectUri)
+    target.searchParams.set('access_token', tokens.access_token)
+    target.searchParams.set('refresh_token', tokens.refresh_token)
+    target.searchParams.set('expires_in', tokens.expires_in.toString())
+    if (projectScope) {
+      target.searchParams.set('project_scope', projectScope)
+    }
+    if (provider) {
+      target.searchParams.set('provider', provider)
+    }
+    return target.toString()
+  } catch {
+    return redirectUri
+  }
+}
+
+/**
+ * GET /v1/auth/oauth
+ * Initiate Supabase OAuth provider login
+ */
+export async function oauthProvider(req: Request, res: Response) {
+  const providerKey = (req.query.provider as string | undefined)?.toLowerCase()
+  const redirectUri = req.query.redirect_uri as string | undefined
+  const projectScope = req.query.project_scope as string | undefined
+  const platformInput = (req.query.platform as string | undefined)?.toLowerCase()
+  const platform: Platform = isSupportedPlatform(platformInput) ? (platformInput as Platform) : 'web'
+
+  if (!providerKey || !OAUTH_PROVIDERS[providerKey]) {
+    return res.status(400).json({
+      error: 'Invalid or unsupported provider',
+      code: 'INVALID_PROVIDER',
+    })
+  }
+
+  if (!isValidRedirectUri(redirectUri)) {
+    return res.status(400).json({
+      error: 'Valid redirect_uri is required',
+      code: 'INVALID_REDIRECT_URI',
+    })
+  }
+
+  const state = crypto.randomBytes(16).toString('hex')
+  const stateData: OAuthStateData = {
+    provider: providerKey,
+    redirect_uri: redirectUri,
+    project_scope: projectScope,
+    platform,
+  }
+
+  try {
+    await redisClient.setex(
+      `${OAUTH_STATE_PREFIX}${state}`,
+      OAUTH_STATE_TTL_SECONDS,
+      JSON.stringify(stateData)
+    )
+  } catch (error) {
+    logger.error('Failed to persist OAuth state', { error })
+    return res.status(500).json({
+      error: 'Unable to initiate OAuth flow',
+      code: 'OAUTH_STATE_ERROR',
+    })
+  }
+
+  const providerConfig = OAUTH_PROVIDERS[providerKey]
+  const callbackUrl = buildCallbackUrl(req)
+
+  const { data, error } = await supabaseAdmin.auth.signInWithOAuth({
+    provider: providerConfig.supabaseProvider as any,
+    options: {
+      redirectTo: callbackUrl,
+      scopes: providerConfig.scopes,
+      queryParams: { state },
+    },
+  })
+
+  if (error || !data?.url) {
+    logger.warn('OAuth initiation failed', {
+      provider: providerKey,
+      project_scope: projectScope,
+      platform,
+      error: error?.message,
+    })
+    return res.status(400).json({
+      error: error?.message || 'OAuth initiation failed',
+      code: 'OAUTH_INIT_FAILED',
+    })
+  }
+
+  await logAuthEvent({
+    event_type: 'oauth_initiated',
+    platform,
+    ip_address: req.ip,
+    user_agent: req.headers['user-agent'],
+    success: true,
+    metadata: { provider: providerKey, project_scope: projectScope },
+  })
+
+  return res.redirect(data.url)
+}
+
+/**
+ * GET /v1/auth/oauth/callback
+ * Handle Supabase OAuth callback and issue tokens
+ */
+export async function oauthCallback(req: Request, res: Response) {
+  const code = req.query.code as string | undefined
+  const state = req.query.state as string | undefined
+  const oauthError = req.query.error as string | undefined
+
+  if (oauthError) {
+    return res.redirect(`/web/login?error=${encodeURIComponent(oauthError)}`)
+  }
+
+  if (!code || !state) {
+    return res.redirect('/web/login?error=Missing%20OAuth%20parameters')
+  }
+
+  let stateData: OAuthStateData | null = null
+  const stateKey = `${OAUTH_STATE_PREFIX}${state}`
+
+  try {
+    const stored = await redisClient.get(stateKey)
+    if (stored) {
+      stateData = JSON.parse(stored) as OAuthStateData
+    }
+    await redisClient.del(stateKey)
+  } catch (error) {
+    logger.error('Failed to read OAuth state', { error, state })
+  }
+
+  if (!stateData) {
+    return res.redirect('/web/login?error=Invalid%20or%20expired%20OAuth%20state')
+  }
+
+  const platform: Platform = isSupportedPlatform(stateData.platform)
+    ? stateData.platform
+    : 'web'
+  const redirectUri =
+    stateData.redirect_uri ||
+    process.env.DASHBOARD_URL ||
+    'https://dashboard.lanonasis.com'
+
+  try {
+    const { data, error } = await supabaseAdmin.auth.exchangeCodeForSession(code)
+
+    if (error || !data?.user || !data?.session) {
+      logger.warn('OAuth callback exchange failed', {
+        state,
+        provider: stateData.provider,
+        platform,
+        error: error?.message,
+      })
+      return res.redirect(
+        `/web/login?error=${encodeURIComponent('OAuth authentication failed')}`
+      )
+    }
+
+    await upsertUserAccount({
+      user_id: data.user.id,
+      email: data.user.email!,
+      role: data.user.role || 'authenticated',
+      provider: data.user.app_metadata?.provider || stateData.provider,
+      raw_metadata: data.user.user_metadata || {},
+      last_sign_in_at: data.user.last_sign_in_at || null,
+    })
+
+    if (stateData.project_scope) {
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+          user_metadata: {
+            ...data.user.user_metadata,
+            project_scope: stateData.project_scope,
+          },
+        })
+      } catch (updateError) {
+        logger.warn('Failed to persist project scope to Supabase user', {
+          userId: data.user.id,
+          project_scope: stateData.project_scope,
+          error: updateError instanceof Error ? updateError.message : updateError,
+        })
+      }
+    }
+
+    const tokens = generateTokenPair({
+      sub: data.user.id,
+      email: data.user.email!,
+      role: data.user.role || 'authenticated',
+      project_scope: stateData.project_scope,
+      platform,
+    })
+
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+    await createSession({
+      user_id: data.user.id,
+      platform,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      scope: stateData.project_scope ? [stateData.project_scope] : undefined,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      expires_at: expiresAt,
+      metadata: { provider: stateData.provider },
+    })
+
+    await logAuthEvent({
+      event_type: 'oauth_login_success',
+      user_id: data.user.id,
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+      metadata: {
+        provider: stateData.provider,
+        project_scope: stateData.project_scope,
+      },
+    })
+
+    if (platform === 'web') {
+      const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+      const isProduction = process.env.NODE_ENV === 'production'
+
+      res.cookie('lanonasis_session', tokens.access_token, {
+        domain: cookieDomain,
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: 'lax',
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+      })
+
+      res.cookie(
+        'lanonasis_user',
+        JSON.stringify({
+          id: data.user.id,
+          email: data.user.email,
+          role: data.user.role,
+        }),
+        {
+          domain: cookieDomain,
+          httpOnly: false,
+          secure: isProduction,
+          sameSite: 'lax',
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          path: '/',
+        }
+      )
+
+      return res.redirect(redirectUri)
+    }
+
+    // CLI, MCP, and API consumers receive tokens via redirect URI
+    const redirectWithTokens = appendTokensToRedirect(
+      redirectUri,
+      tokens,
+      stateData.project_scope,
+      stateData.provider
+    )
+    return res.redirect(redirectWithTokens)
+  } catch (error) {
+    logger.error('Unhandled OAuth callback error', { error, state })
+
+    await logAuthEvent({
+      event_type: 'oauth_login_failed',
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: false,
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      metadata: { provider: stateData.provider },
+    })
+
+    return res.redirect(
+      `/web/login?error=${encodeURIComponent('OAuth authentication failed')}`
+    )
+  }
+}
 
 /**
  * POST /v1/auth/login
