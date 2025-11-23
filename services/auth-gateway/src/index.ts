@@ -3,6 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
 import csrf from 'csurf'
+import { xssSanitizer } from './middleware/xss-sanitizer.js'
 
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
@@ -30,6 +31,9 @@ app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// XSS Protection (aligned with SHA-256 security standards)
+app.use(xssSanitizer)
+
 // CORS configuration
 app.use(
   cors({
@@ -41,13 +45,16 @@ app.use(
 )
 
 // CSRF Protection (excluding API routes that use API keys)
+// Type fix: csurf is incompatible with Express 5 types, use type assertion
 const csrfProtection = csrf({ cookie: true })
 app.use((req, res, next) => {
   // Skip CSRF for API endpoints using API keys or health checks
   if (req.path.startsWith('/api/v1') || req.path === '/health' || req.headers['x-api-key']) {
     return next()
   }
-  csrfProtection(req, res, next)
+  // Type assertion to work around Express 5 / csurf type incompatibility
+  // csurf expects Express 4 types, but we're using Express 5
+  csrfProtection(req as any, res as any, next)
 })
 
 // Session cookie validation middleware (applies to all routes)
