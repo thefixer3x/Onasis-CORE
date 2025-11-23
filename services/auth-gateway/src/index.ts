@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
+import csrf from 'csurf'
 
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
@@ -38,6 +39,16 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization', 'x-project-scope'],
   })
 )
+
+// CSRF Protection (excluding API routes that use API keys)
+const csrfProtection = csrf({ cookie: true })
+app.use((req, res, next) => {
+  // Skip CSRF for API endpoints using API keys or health checks
+  if (req.path.startsWith('/api/v1') || req.path === '/health' || req.headers['x-api-key']) {
+    return next()
+  }
+  csrfProtection(req, res, next)
+})
 
 // Session cookie validation middleware (applies to all routes)
 app.use(validateSessionCookie)
