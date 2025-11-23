@@ -42,12 +42,13 @@ app.use(
 
 // CSRF Protection (excluding API routes that use API keys)
 const csrfProtection = csrf({ cookie: true })
-app.use((req, res, next) => {
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Skip CSRF for API endpoints using API keys or health checks
   if (req.path.startsWith('/api/v1') || req.path === '/health' || req.headers['x-api-key']) {
     return next()
   }
-  csrfProtection(req, res, next)
+  // Type assertion to handle csurf middleware types
+  return (csrfProtection as any)(req, res, next)
 })
 
 // Session cookie validation middleware (applies to all routes)
