@@ -47,14 +47,11 @@ app.use(
 // CSRF Protection (excluding API routes that use API keys)
 // Type fix: csurf is incompatible with Express 5 types, use type assertion
 const csrfProtection = csrf({ cookie: true })
-app.use((req, res, next) => {
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Skip CSRF for API endpoints using API keys or health checks
   if (req.path.startsWith('/api/v1') || req.path === '/health' || req.headers['x-api-key']) {
     return next()
   }
-  // Type assertion to work around Express 5 / csurf type incompatibility
-  // csurf expects Express 4 types, but we're using Express 5
-  csrfProtection(req as any, res as any, next)
 })
 
 // Session cookie validation middleware (applies to all routes)
