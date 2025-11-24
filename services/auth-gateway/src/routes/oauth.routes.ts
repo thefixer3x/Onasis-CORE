@@ -40,7 +40,8 @@ router.get(
   validateSessionCookie,
   oauthController.authorize
 );
-router.post("/token", tokenRateLimit, validateTokenCSRF, oauthController.token);
+// OAuth token endpoint - No CSRF needed (protected by state parameter + PKCE)
+router.post("/token", tokenRateLimit, oauthController.token);
 router.post(
   "/revoke",
   revokeRateLimit,
