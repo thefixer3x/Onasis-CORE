@@ -15,7 +15,6 @@ import {
 } from "../middleware/cors.js";
 import {
   generateAuthorizeCSRF,
-  validateTokenCSRF,
   setCSRFCookie,
   doubleSubmitCookie,
 } from "../middleware/csrf.js";

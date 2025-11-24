@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import cookieParser from 'cookie-parser'
-import csrf from 'csurf'
+// Removed vulnerable csurf package - using custom CSRF middleware instead
 import { xssSanitizer } from './middleware/xss-sanitizer.js'
 
 import { env } from '../config/env.js'
@@ -44,18 +44,11 @@ app.use(
   })
 )
 
-// CSRF Protection (excluding API routes that use API keys)
-// Type fix: csurf is incompatible with Express 5 types, use type assertion
-const csrfProtection = csrf({ cookie: true })
-app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Skip CSRF for API endpoints using API keys or health checks
-  if (req.path.startsWith('/api/v1') || req.path === '/health' || req.headers['x-api-key']) {
-    return next()
-  }
-  // Type assertion to work around Express 5 / csurf type incompatibility
-  // csurf expects Express 4 types, but we're using Express 5
-  csrfProtection(req as any, res as any, next)
-})
+// CSRF Protection is now handled per-route using custom middleware
+// - OAuth routes: Use custom CSRF in routes/oauth.routes.ts (setCSRFCookie, generateAuthorizeCSRF, etc.)
+// - API routes: Use API key authentication (no CSRF needed)
+// - Web routes: Use cookie-based sessions with SameSite (no global CSRF needed)
+// This approach avoids the vulnerable csurf package while maintaining security
 
 // Session cookie validation middleware (applies to all routes)
 app.use(validateSessionCookie)
