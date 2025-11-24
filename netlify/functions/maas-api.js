@@ -2,6 +2,7 @@ const express = require('express');
 const serverless = require('serverless-http');
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -12,6 +13,10 @@ const jwtSecret = process.env.SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error('Missing required Supabase environment variables');
+}
+
+if (!jwtSecret) {
+  console.error('Missing JWT secret (SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
 }
 
 const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey, {
@@ -36,6 +41,8 @@ app.use((req, res, next) => {
   res.setHeader('Content-Type', 'application/json');
   next();
 });
+
+const hashSecret = (value) => crypto.createHash('sha256').update(value || '').digest('hex');
 
 // JWT token verification
 const verifyJwtToken = async (req, res, next) => {
@@ -72,7 +79,7 @@ const verifyJwtToken = async (req, res, next) => {
       // Use the validate_vendor_api_key function from onasis-core
       const { data, error } = await supabase.rpc('validate_vendor_api_key', {
         p_key_id: keyId,
-        p_key_secret: keySecret
+        p_key_secret: hashSecret(keySecret)
       });
 
       if (error || !data || !data[0]?.is_valid) {
@@ -111,7 +118,7 @@ const verifyJwtToken = async (req, res, next) => {
       // Use the validate_vendor_api_key function from onasis-core
       const { data, error } = await supabase.rpc('validate_vendor_api_key', {
         p_key_id: keyId,
-        p_key_secret: token
+        p_key_secret: hashSecret(token)
       });
 
       if (error || !data || !data[0]?.is_valid) {
@@ -128,15 +135,60 @@ const verifyJwtToken = async (req, res, next) => {
         project_scope: 'lanonasis-maas'
       };
     } else {
-      // JWT token validation
+      // Try JWT token validation first
       try {
+        if (!jwtSecret) {
+          throw new Error('JWT secret not configured');
+        }
         const decoded = jwt.verify(token, jwtSecret);
         req.user = decoded;
       } catch (jwtError) {
-        return res.status(401).json({ 
-          error: 'Invalid JWT token',
-          code: 'JWT_INVALID'
-        });
+        // Not a JWT - try OAuth2 opaque token via auth-gateway introspection
+        const authGatewayUrl = process.env.AUTH_GATEWAY_URL || 'https://auth.lanonasis.com';
+        
+        try {
+          const introspectResponse = await fetch(`${authGatewayUrl}/oauth/introspect`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: new URLSearchParams({
+              token: token,
+              token_type_hint: 'access_token'
+            })
+          });
+
+          if (!introspectResponse.ok) {
+            return res.status(401).json({ 
+              error: 'Token introspection failed',
+              code: 'INTROSPECTION_FAILED'
+            });
+          }
+
+          const introspection = await introspectResponse.json();
+
+          // Check if token is active
+          if (!introspection.active) {
+            return res.status(401).json({ 
+              error: 'Token is not active or has expired',
+              code: 'TOKEN_INACTIVE'
+            });
+          }
+
+          // Set user context from introspection response
+          req.user = { 
+            id: introspection.sub || introspection.user_id,
+            sub: introspection.sub || introspection.user_id,
+            scope: Array.isArray(introspection.scope) ? introspection.scope : introspection.scope?.split(' ') || [],
+            project_scope: 'lanonasis-maas'
+          };
+        } catch (introspectError) {
+          console.error('Token introspection error:', introspectError);
+          return res.status(401).json({ 
+            error: 'Failed to validate token',
+            code: 'AUTH_VALIDATION_FAILED'
+          });
+        }
       }
     }
     
