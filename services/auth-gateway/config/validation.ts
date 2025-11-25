@@ -221,10 +221,6 @@ export async function validateOAuthClients(): Promise<ValidationResult & { summa
         byType: {}
     }
 
-    // #region agent log
-    fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:191',message:'validateOAuthClients entry',data:{nodeEnv:env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-
     try {
         if (!env.DATABASE_URL) {
             errors.push('Cannot validate OAuth clients: DATABASE_URL not configured')
@@ -262,10 +258,6 @@ export async function validateOAuthClients(): Promise<ValidationResult & { summa
             FROM auth_gateway.oauth_clients
         `)
 
-        // #region agent log
-        fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:235',message:'clients fetched from database',data:{clientCount:clients.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-
         summary.total = clients.rows.length
 
         if (clients.rows.length === 0) {
@@ -288,18 +280,10 @@ export async function validateOAuthClients(): Promise<ValidationResult & { summa
                 ? client.allowed_redirect_uris
                 : []
 
-            // #region agent log
-            fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:260',message:'validating client redirect URIs',data:{clientId:client.client_id,clientName:client.client_name,applicationType,redirectUriCount:redirectUris.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
-            // #endregion
-
             for (const uri of redirectUris) {
                 try {
                     const url = new URL(uri)
                     const isLocalhost = isLocalhostUri(uri)
-                    
-                    // #region agent log
-                    fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:270',message:'checking redirect URI',data:{uri,isLocalhost,applicationType,nodeEnv:env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
-                    // #endregion
 
                     // Localhost is EXPECTED for native/CLI/MCP clients - don't warn
                     if (isLocalhost && env.NODE_ENV === 'production') {
@@ -327,10 +311,6 @@ export async function validateOAuthClients(): Promise<ValidationResult & { summa
                 warnings.push(`Client '${client.client_name}' hasn't been updated in ${Math.round(daysSinceUpdate)} days`)
             }
         }
-
-        // #region agent log
-        fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:295',message:'validation complete',data:{errorCount:errors.length,warningCount:warnings.length,infoCount:info.length,summary},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
 
     } catch (error) {
         // Don't fail on validation errors, just warn
