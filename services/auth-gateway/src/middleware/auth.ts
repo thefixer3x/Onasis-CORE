@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
+import { validateAPIKey } from '../services/api-key.service.js'
 
 // Extend Express Request type to include user
 declare global {
@@ -11,28 +12,69 @@ declare global {
 }
 
 /**
- * Middleware to verify JWT token and attach user to request
+ * Middleware to verify JWT token or API key and attach user to request
+ * Supports both authentication methods:
+ * - JWT Bearer token: Authorization: Bearer <token>
+ * - API Key: X-API-Key: <hashed_key>
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // Try JWT token first
   const token = extractBearerToken(req.headers.authorization)
 
-  if (!token) {
-    return res.status(401).json({
-      error: 'No token provided',
-      code: 'AUTH_TOKEN_MISSING',
-    })
+  if (token) {
+    try {
+      const payload = verifyToken(token)
+      req.user = payload
+      return next()
+    } catch (error) {
+      // JWT invalid, try API key fallback
+    }
   }
 
-  try {
-    const payload = verifyToken(token)
-    req.user = payload
-    next()
-  } catch (error) {
-    return res.status(401).json({
-      error: (error as Error).message,
-      code: 'AUTH_TOKEN_INVALID',
-    })
+  // Try API key authentication
+  const apiKey = req.headers['x-api-key'] as string
+  if (apiKey) {
+    try {
+      const validation = await validateAPIKey(apiKey)
+      if (validation.valid && validation.userId) {
+        // Fetch user details from Supabase to get email and role
+        const { supabaseAdmin } = await import('../../db/client.js')
+        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(validation.userId)
+
+        if (userError || !userData?.user) {
+          // Fallback: use minimal payload if user lookup fails
+          req.user = {
+            sub: validation.userId,
+            email: `${validation.userId}@api-key.local`,
+            role: 'authenticated',
+            project_scope: validation.projectScope || 'lanonasis-maas',
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 3600,
+          }
+        } else {
+          // Create full user payload from API key validation and user data
+          req.user = {
+            sub: validation.userId,
+            email: userData.user.email || `${validation.userId}@api-key.local`,
+            role: userData.user.user_metadata?.role || 'authenticated',
+            project_scope: validation.projectScope || 'lanonasis-maas',
+            iat: Math.floor(Date.now() / 1000),
+            exp: Math.floor(Date.now() / 1000) + 3600,
+          }
+        }
+        return next()
+      }
+    } catch (error) {
+      // API key validation failed
+      console.error('API key validation error:', error)
+    }
   }
+
+  // No valid authentication found
+  return res.status(401).json({
+    error: 'No token provided',
+    code: 'AUTH_TOKEN_MISSING',
+  })
 }
 
 /**
