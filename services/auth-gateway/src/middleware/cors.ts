@@ -100,6 +100,12 @@ export const oauthCors = cors({
  */
 export function oauthSecurityHeaders(req: Request, res: Response, next: NextFunction): void {
     // Strict CSP for OAuth endpoints
+    // Only apply to OAuth routes, not web routes (web routes need form submission)
+    if (req.path.startsWith('/web/')) {
+        return next() // Skip CSP for web routes
+    }
+    
+    // Strict CSP for OAuth endpoints only
     res.setHeader(
         'Content-Security-Policy',
         "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'"
