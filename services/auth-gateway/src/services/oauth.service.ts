@@ -17,12 +17,14 @@ const REFRESH_TOKEN_TTL_SECONDS = Number(process.env.REFRESH_TOKEN_TTL_SECONDS) 
 
 export type OAuthStatus = 'active' | 'inactive' | 'revoked'
 export type OAuthClientType = 'public' | 'confidential'
+export type ApplicationType = 'native' | 'cli' | 'mcp' | 'web' | 'server'
 
 export interface OAuthClient {
     id: string
     client_id: string
     client_name: string
     client_type: OAuthClientType
+    application_type?: ApplicationType // Optional for backward compatibility
     require_pkce: boolean
     allowed_code_challenge_methods: CodeChallengeMethod[] | null
     allowed_redirect_uris: string[] | null

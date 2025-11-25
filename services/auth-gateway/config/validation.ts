@@ -5,6 +5,14 @@ interface ValidationResult {
     isValid: boolean
     errors: string[]
     warnings: string[]
+    info?: string[]
+}
+
+interface ClientValidationSummary {
+    total: number
+    active: number
+    inactive: number
+    byType: Record<string, number>
 }
 
 /**
@@ -186,16 +194,41 @@ function calculateEntropy(buffer: Buffer): number {
 }
 
 /**
+ * Check if a URI is a localhost URI
+ */
+function isLocalhostUri(uri: string): boolean {
+    try {
+        const url = new URL(uri)
+        return url.hostname === 'localhost' || 
+               url.hostname === '127.0.0.1' || 
+               url.hostname === '[::1]'
+    } catch {
+        return false
+    }
+}
+
+/**
  * Validate OAuth client configuration in database
  */
-export async function validateOAuthClients(): Promise<ValidationResult> {
+export async function validateOAuthClients(): Promise<ValidationResult & { summary?: ClientValidationSummary }> {
     const errors: string[] = []
     const warnings: string[] = []
+    const info: string[] = []
+    const summary: ClientValidationSummary = {
+        total: 0,
+        active: 0,
+        inactive: 0,
+        byType: {}
+    }
+
+    // #region agent log
+    fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:191',message:'validateOAuthClients entry',data:{nodeEnv:env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 
     try {
         if (!env.DATABASE_URL) {
             errors.push('Cannot validate OAuth clients: DATABASE_URL not configured')
-            return { isValid: false, errors, warnings }
+            return { isValid: false, errors, warnings, summary }
         }
 
         // Import database module dynamically to avoid circular dependencies
@@ -213,46 +246,73 @@ export async function validateOAuthClients(): Promise<ValidationResult> {
         
         if (!tableCheck.rows[0]?.exists) {
             warnings.push('OAuth clients table not found - skipping client validation')
-            return { isValid: true, errors, warnings }
+            return { isValid: true, errors, warnings, summary }
         }
 
-        // Validate existing OAuth clients
+        // Validate existing OAuth clients - include application_type if column exists
         const clients = await pool.query(`
             SELECT 
                 client_id, 
                 client_name, 
                 allowed_redirect_uris, 
                 status,
+                COALESCE(application_type, 'web') as application_type,
                 created_at, 
                 updated_at
             FROM auth_gateway.oauth_clients
         `)
+
+        // #region agent log
+        fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:235',message:'clients fetched from database',data:{clientCount:clients.rows.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+
+        summary.total = clients.rows.length
 
         if (clients.rows.length === 0) {
             warnings.push('No OAuth clients configured in database')
         }
 
         for (const client of clients.rows) {
-            // Check for inactive clients
+            const applicationType = (client.application_type || 'web') as string
+            summary.byType[applicationType] = (summary.byType[applicationType] || 0) + 1
+
+            // Track active/inactive
             if (client.status && client.status !== 'active') {
-                warnings.push(`OAuth client '${client.client_name}' is marked as ${client.status}`)
+                summary.inactive++
+                info.push(`Client '${client.client_name}' is marked as ${client.status}`)
+            } else {
+                summary.active++
             }
 
             const redirectUris = Array.isArray(client.allowed_redirect_uris)
                 ? client.allowed_redirect_uris
                 : []
 
+            // #region agent log
+            fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:260',message:'validating client redirect URIs',data:{clientId:client.client_id,clientName:client.client_name,applicationType,redirectUriCount:redirectUris.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'B'})}).catch(()=>{});
+            // #endregion
+
             for (const uri of redirectUris) {
                 try {
                     const url = new URL(uri)
-                    // Warn about localhost in production
-                    if (env.NODE_ENV === 'production' && 
-                        (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
-                        warnings.push(`Client '${client.client_name}' has localhost redirect URI in production: ${uri}`)
+                    const isLocalhost = isLocalhostUri(uri)
+                    
+                    // #region agent log
+                    fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:270',message:'checking redirect URI',data:{uri,isLocalhost,applicationType,nodeEnv:env.NODE_ENV},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'C'})}).catch(()=>{});
+                    // #endregion
+
+                    // Localhost is EXPECTED for native/CLI/MCP clients - don't warn
+                    if (isLocalhost && env.NODE_ENV === 'production') {
+                        // Only warn for web/server clients with localhost in production
+                        if (!['native', 'cli', 'mcp'].includes(applicationType)) {
+                            warnings.push(`Client '${client.client_name}' (${applicationType}) has localhost redirect URI in production: ${uri}`)
+                        }
+                        // For native/CLI/MCP, this is expected - no warning needed
                     }
-                    // Warn about non-HTTPS in production
+                    
+                    // Warn about non-HTTPS in production (except localhost)
                     if (env.NODE_ENV === 'production' && url.protocol === 'http:' &&
-                        !['localhost', '127.0.0.1'].includes(url.hostname)) {
+                        !isLocalhost) {
                         warnings.push(`Client '${client.client_name}' has non-HTTPS redirect URI: ${uri}`)
                     }
                 } catch (e) {
@@ -268,6 +328,10 @@ export async function validateOAuthClients(): Promise<ValidationResult> {
             }
         }
 
+        // #region agent log
+        fetch('http://localhost:7242/ingest/10153eb3-cb00-4151-abd0-28b6a5306481',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'validation.ts:295',message:'validation complete',data:{errorCount:errors.length,warningCount:warnings.length,infoCount:info.length,summary},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+
     } catch (error) {
         // Don't fail on validation errors, just warn
         warnings.push(`OAuth client validation skipped: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -276,7 +340,9 @@ export async function validateOAuthClients(): Promise<ValidationResult> {
     return {
         isValid: errors.length === 0,
         errors,
-        warnings
+        warnings,
+        info,
+        summary
     }
 }
 
@@ -350,17 +416,62 @@ export async function runAllValidations(): Promise<void> {
         throw new Error('Invalid OAuth configuration - server cannot start')
     }
 
-    // Report warnings
-    const allWarnings = [
-        ...envValidation.warnings,
-        ...sysValidation.warnings,
-        ...clientValidation.warnings
-    ]
+    // Report OAuth client summary if available
+    if (clientValidation.summary) {
+        const { summary } = clientValidation
+        console.log('')
+        console.log('📋 OAuth Configuration:')
+        console.log(`   Total clients: ${summary.total} (${summary.active} active, ${summary.inactive} inactive)`)
+        
+        // Type breakdown with labels
+        const typeLabels: Record<string, string> = {
+            native: '💻 Native/Desktop',
+            cli: '⌨️  CLI',
+            mcp: '🤖 MCP',
+            web: '🌐 Web',
+            server: '🖥️  Server'
+        }
+        
+        for (const [type, count] of Object.entries(summary.byType)) {
+            const label = typeLabels[type] || type
+            const note = ['native', 'cli', 'mcp'].includes(type) ? ' (localhost allowed)' : ''
+            console.log(`   ${label}: ${count}${note}`)
+        }
 
-    if (allWarnings.length > 0) {
-        console.warn('⚠️  OAuth configuration warnings:')
-        allWarnings.forEach(warning => console.warn(`   • ${warning}`))
+        // Show inactive clients (collapsed)
+        const inactiveClients = clientValidation.info?.filter(i => i.includes('marked as')) || []
+        if (inactiveClients.length > 0) {
+            console.log('')
+            console.log(`💤 Inactive clients (${inactiveClients.length}):`)
+            inactiveClients.forEach(info => {
+                const match = info.match(/Client '([^']+)' is marked as (\w+)/)
+                if (match) {
+                    console.log(`   • ${match[1]}`)
+                }
+            })
+        }
     }
 
+    // Separate warnings into categories
+    const envWarnings = envValidation.warnings
+    const sysWarnings = sysValidation.warnings
+    const clientWarnings = clientValidation.warnings
+
+    // Only show client warnings if there are any (excluding expected localhost for native/CLI/MCP)
+    if (clientWarnings.length > 0) {
+        console.log('')
+        console.log('⚠️  OAuth configuration notes:')
+        clientWarnings.forEach(warning => console.warn(`   • ${warning}`))
+    }
+
+    // Show environment and system warnings if any
+    const otherWarnings = [...envWarnings, ...sysWarnings]
+    if (otherWarnings.length > 0) {
+        console.log('')
+        console.log('⚠️  Configuration warnings:')
+        otherWarnings.forEach(warning => console.warn(`   • ${warning}`))
+    }
+
+    console.log('')
     console.log('✅ OAuth environment validation passed')
 }
