@@ -52,7 +52,7 @@ describe('OAuth2 PKCE Integration Tests', () => {
 
     afterAll(async () => {
         // Clean up test data
-        await dbPool.query('DELETE FROM oauth_clients WHERE client_id = $1', [testClientId])
+        await dbPool.query('DELETE FROM oauth_clients WHERE LOWER(client_id) = LOWER($1)', [testClientId])
         if (testUserId !== 'mock-user-id') {
             await dbPool.query('DELETE FROM users WHERE id = $1', [testUserId])
         }
@@ -60,8 +60,8 @@ describe('OAuth2 PKCE Integration Tests', () => {
 
     beforeEach(async () => {
         // Clean up any OAuth tokens/codes from previous tests
-        await dbPool.query('DELETE FROM oauth_authorization_codes WHERE client_id = $1', [testClientId])
-        await dbPool.query('DELETE FROM oauth_tokens WHERE client_id = $1', [testClientId])
+        await dbPool.query('DELETE FROM oauth_authorization_codes WHERE LOWER(client_id) = LOWER($1)', [testClientId])
+        await dbPool.query('DELETE FROM oauth_tokens WHERE LOWER(client_id) = LOWER($1)', [testClientId])
     })
 
     describe('Authorization Code Flow', () => {
