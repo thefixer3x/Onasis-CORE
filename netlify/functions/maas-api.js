@@ -57,8 +57,75 @@ const verifyJwtToken = async (req, res, next) => {
 
     const token = authHeader.substring(7);
     
-    // Check if this is an API key format (pk_xxx.sk_xxx or sk_xxx) or JWT token
-    if (token.includes('.') && token.startsWith('pk_')) {
+    // Check if this is a user API key (lano_* format)
+    if (token.startsWith('lano_')) {
+      // User API key format: lano_[random]
+      if (!supabase) {
+        console.error('[maas-api] Supabase client not initialized');
+        return res.status(503).json({ 
+          error: 'Database service unavailable',
+          code: 'SERVICE_UNAVAILABLE'
+        });
+      }
+
+      // Hash the key and look it up in api_keys table
+      const keyHash = hashSecret(token);
+      console.log('[maas-api] Validating lano_* API key, hash:', keyHash.substring(0, 16) + '...');
+      
+      const { data: apiKeyRecord, error: keyError } = await supabase
+        .from('api_keys')
+        .select('id, user_id, name, service, expires_at, is_active, created_at')
+        .eq('key_hash', keyHash)
+        .eq('is_active', true)
+        .single();
+
+      if (keyError) {
+        console.error('[maas-api] API key lookup error:', keyError.message, keyError.code);
+        return res.status(401).json({ 
+          error: 'Invalid API key',
+          code: 'AUTH_INVALID',
+          debug: process.env.NODE_ENV === 'development' ? keyError.message : undefined
+        });
+      }
+
+      if (!apiKeyRecord) {
+        console.warn('[maas-api] API key not found in database');
+        return res.status(401).json({ 
+          error: 'Invalid API key',
+          code: 'AUTH_INVALID'
+        });
+      }
+
+      console.log('[maas-api] API key validated successfully for user:', apiKeyRecord.user_id);
+
+      // Check if key has expired
+      if (apiKeyRecord.expires_at) {
+        const expiresAt = new Date(apiKeyRecord.expires_at);
+        if (expiresAt < new Date()) {
+          return res.status(401).json({ 
+            error: 'API key has expired',
+            code: 'KEY_EXPIRED'
+          });
+        }
+      }
+
+      // Update last_used timestamp (fire and forget)
+      supabase
+        .from('api_keys')
+        .update({ last_used: new Date().toISOString() })
+        .eq('id', apiKeyRecord.id)
+        .then(() => {}, () => {}); // Ignore errors
+
+      // Set user context
+      req.user = { 
+        id: apiKeyRecord.user_id,
+        user_id: apiKeyRecord.user_id,
+        api_key_id: apiKeyRecord.id,
+        api_key_name: apiKeyRecord.name,
+        service: apiKeyRecord.service || 'all',
+        project_scope: 'lanonasis-maas'
+      };
+    } else if (token.includes('.') && token.startsWith('pk_')) {
       // New vendor key format: pk_live_vendor_id.sk_live_secret
       const [keyId, keySecret] = token.split('.');
       
