@@ -57,27 +57,75 @@ const verifyJwtToken = async (req, res, next) => {
 
     const token = authHeader.substring(7);
     
-    // Check if this is a user API key (lano_* format)
-    if (token.startsWith('lano_')) {
-      // User API key format: lano_[random]
-      if (!supabase) {
-        console.error('[maas-api] Supabase client not initialized');
-        return res.status(503).json({ 
-          error: 'Database service unavailable',
-          code: 'SERVICE_UNAVAILABLE'
-        });
+    // First: Check for master API key (system key from environment)
+    const masterApiKey = process.env.MASTER_API_KEY;
+    if (masterApiKey) {
+      // Check raw master key match
+      if (token === masterApiKey) {
+        console.log('[maas-api] Master API key authenticated (raw)');
+        req.user = {
+          id: '00000000-0000-0000-0000-000000000001',
+          user_id: '00000000-0000-0000-0000-000000000001',
+          is_master: true,
+          project_scope: 'lanonasis-maas'
+        };
+        return next();
       }
-
+      
+      // Check hashed master key match (for client-side hashed keys)
+      const hashedMasterKey = hashSecret(masterApiKey);
+      if (token === hashedMasterKey || token.toLowerCase() === hashedMasterKey.toLowerCase()) {
+        console.log('[maas-api] Master API key authenticated (hashed)');
+        req.user = {
+          id: '00000000-0000-0000-0000-000000000001',
+          user_id: '00000000-0000-0000-0000-000000000001',
+          is_master: true,
+          project_scope: 'lanonasis-maas'
+        };
+        return next();
+      }
+    }
+    
+    // Check for user API keys in database (any format: lano_*, vibe_*, etc.)
+    if (supabase) {
       // Hash the key and look it up in api_keys table
       const keyHash = hashSecret(token);
-      console.log('[maas-api] Validating lano_* API key, hash:', keyHash.substring(0, 16) + '...');
+      console.log('[maas-api] Validating API key, hash:', keyHash.substring(0, 16) + '...');
       
-      const { data: apiKeyRecord, error: keyError } = await supabase
+      // Try key_hash first (new format), then fall back to key column (migration period)
+      let apiKeyRecord = null;
+      let keyError = null;
+      
+      // Method 1: Check key_hash column (SHA-256 hash)
+      const { data: hashMatch, error: hashError } = await supabase
         .from('api_keys')
         .select('id, user_id, name, service, expires_at, is_active, created_at')
         .eq('key_hash', keyHash)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
+      
+      if (hashMatch) {
+        apiKeyRecord = hashMatch;
+        console.log('[maas-api] Found key via key_hash column');
+      } else if (hashError) {
+        keyError = hashError;
+      } else {
+        // Method 2: Check key column (plaintext, during migration)
+        // Only if key_hash lookup didn't find anything
+        const { data: keyMatch, error: keyMatchError } = await supabase
+          .from('api_keys')
+          .select('id, user_id, name, service, expires_at, is_active, created_at')
+          .eq('key', token)
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        if (keyMatch) {
+          apiKeyRecord = keyMatch;
+          console.log('[maas-api] Found key in legacy key column (migration period)');
+        } else if (keyMatchError) {
+          keyError = keyMatchError;
+        }
+      }
 
       if (keyError) {
         console.error('[maas-api] API key lookup error:', keyError.message, keyError.code);
@@ -89,43 +137,47 @@ const verifyJwtToken = async (req, res, next) => {
       }
 
       if (!apiKeyRecord) {
-        console.warn('[maas-api] API key not found in database');
-        return res.status(401).json({ 
-          error: 'Invalid API key',
-          code: 'AUTH_INVALID'
-        });
-      }
+        // Key not found in database - continue to next validation method (JWT/OAuth)
+        console.log('[maas-api] API key not found in database, trying other auth methods...');
+      } else {
+        // Key found - validate and set user context
+        console.log('[maas-api] API key validated successfully for user:', apiKeyRecord.user_id);
 
-      console.log('[maas-api] API key validated successfully for user:', apiKeyRecord.user_id);
-
-      // Check if key has expired
-      if (apiKeyRecord.expires_at) {
-        const expiresAt = new Date(apiKeyRecord.expires_at);
-        if (expiresAt < new Date()) {
-          return res.status(401).json({ 
-            error: 'API key has expired',
-            code: 'KEY_EXPIRED'
-          });
+        // Check if key has expired
+        if (apiKeyRecord.expires_at) {
+          const expiresAt = new Date(apiKeyRecord.expires_at);
+          if (expiresAt < new Date()) {
+            return res.status(401).json({ 
+              error: 'API key has expired',
+              code: 'KEY_EXPIRED'
+            });
+          }
         }
+
+        // Update last_used timestamp (fire and forget)
+        supabase
+          .from('api_keys')
+          .update({ last_used: new Date().toISOString() })
+          .eq('id', apiKeyRecord.id)
+          .then(() => {}, () => {}); // Ignore errors
+
+        // Set user context
+        req.user = { 
+          id: apiKeyRecord.user_id,
+          user_id: apiKeyRecord.user_id,
+          api_key_id: apiKeyRecord.id,
+          api_key_name: apiKeyRecord.name,
+          service: apiKeyRecord.service || 'all',
+          project_scope: 'lanonasis-maas'
+        };
+        
+        return next();
       }
-
-      // Update last_used timestamp (fire and forget)
-      supabase
-        .from('api_keys')
-        .update({ last_used: new Date().toISOString() })
-        .eq('id', apiKeyRecord.id)
-        .then(() => {}, () => {}); // Ignore errors
-
-      // Set user context
-      req.user = { 
-        id: apiKeyRecord.user_id,
-        user_id: apiKeyRecord.user_id,
-        api_key_id: apiKeyRecord.id,
-        api_key_name: apiKeyRecord.name,
-        service: apiKeyRecord.service || 'all',
-        project_scope: 'lanonasis-maas'
-      };
-    } else if (token.includes('.') && token.startsWith('pk_')) {
+    }
+    
+    // If we get here, key wasn't found in database - try other auth methods
+    // (vendor keys, JWT, or OAuth introspection)
+    if (token.includes('.') && token.startsWith('pk_')) {
       // New vendor key format: pk_live_vendor_id.sk_live_secret
       const [keyId, keySecret] = token.split('.');
       
