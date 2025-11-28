@@ -82,6 +82,13 @@ app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
 
+// Map /auth/login to /web/login for backward compatibility and CLI
+app.get('/auth/login', (req, res) => {
+  // Forward query params to web login
+  const query = new URLSearchParams(req.query as Record<string, string>).toString()
+  res.redirect(`/web/login${query ? `?${query}` : ''}`)
+})
+
 // Backward compatibility: Mount OAuth routes under /api/v1/oauth as well
 // This ensures CLI tools using the old path still work
 app.use('/api/v1/oauth', oauthRoutes)
