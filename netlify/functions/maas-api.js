@@ -161,10 +161,32 @@ const verifyJwtToken = async (req, res, next) => {
           .eq('id', apiKeyRecord.id)
           .then(() => {}, () => {}); // Ignore errors
 
-        // Set user context
+        // Fetch user's organization_id from users table if available
+        let organizationId = apiKeyRecord.user_id; // Fallback to user_id
+        
+        if (supabase && apiKeyRecord.user_id) {
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('organization_id, id')
+              .eq('id', apiKeyRecord.user_id)
+              .maybeSingle();
+            
+            if (userData?.organization_id) {
+              organizationId = userData.organization_id;
+            }
+          } catch (userError) {
+            console.warn('[maas-api] Could not fetch user organization_id:', userError.message);
+            // Continue with user_id as fallback
+          }
+        }
+
+        // Set user context with organization_id
         req.user = { 
           id: apiKeyRecord.user_id,
           user_id: apiKeyRecord.user_id,
+          organization_id: organizationId,
+          vendor_org_id: organizationId, // Also set vendor_org_id for compatibility
           api_key_id: apiKeyRecord.id,
           api_key_name: apiKeyRecord.name,
           service: apiKeyRecord.service || 'all',
@@ -338,9 +360,15 @@ app.get('/api/v1/memory', async (req, res) => {
     const { limit = 20, offset = 0, memory_type, tags } = req.query;
 
     // Build query for memory entries
-    // For JWT users, use user_id instead of vendor_org_id
+    // Resolve organization ID from multiple sources
+    const organizationId = req.user.vendor_org_id 
+      || req.user.organization_id 
+      || req.user.organizationId
+      || req.user.id; // Fallback to user ID
+    
+    // Use vendor_org_id if available, otherwise use user_id
     const filterField = req.user.vendor_org_id ? 'vendor_org_id' : 'user_id';
-    const filterValue = req.user.vendor_org_id || req.user.id;
+    const filterValue = organizationId;
     
     let query = supabase
       .from('memory_entries')
@@ -407,11 +435,33 @@ app.post('/api/v1/memory', async (req, res) => {
       });
     }
 
+    // Resolve organization ID from multiple sources
+    // Priority: request body > user.vendor_org_id > user.organization_id > user.id (fallback)
+    const organizationId = req.body.organization_id 
+      || req.user.vendor_org_id 
+      || req.user.organization_id 
+      || req.user.organizationId
+      || req.user.id; // Fallback to user ID if no org ID available
+
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID',
+        debug: {
+          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id'],
+          has_user: !!req.user,
+          user_has_org_id: !!req.user?.organization_id,
+          user_has_vendor_org_id: !!req.user?.vendor_org_id,
+          body_has_org_id: !!req.body.organization_id
+        }
+      });
+    }
+
     // Insert memory entry
     const { data, error } = await supabase
       .from('memory_entries')
       .insert({
-        vendor_org_id: req.user.vendor_org_id,
+        vendor_org_id: organizationId,
         title,
         content,
         memory_type,
