@@ -40,7 +40,13 @@ app.use(
     origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-project-scope'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'x-project-scope',
+      'X-Project-Scope', // Support both cases
+      'X-Requested-With'
+    ],
   })
 )
 
@@ -55,6 +61,12 @@ app.use(validateSessionCookie)
 
 // Health check endpoint
 app.get('/health', async (_req: express.Request, res: express.Response) => {
+  // Set CORS headers explicitly for health endpoint
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-project-scope, X-Project-Scope')
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+
   const dbStatus = await checkDatabaseHealth()
   const redisStatus = await checkRedisHealth()
 
@@ -81,6 +93,13 @@ app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
+
+// Map /auth/login to /web/login for backward compatibility and CLI
+app.get('/auth/login', (req, res) => {
+  // Forward query params to web login
+  const query = new URLSearchParams(req.query as Record<string, string>).toString()
+  res.redirect(`/web/login${query ? `?${query}` : ''}`)
+})
 
 // Backward compatibility: Mount OAuth routes under /api/v1/oauth as well
 // This ensures CLI tools using the old path still work
