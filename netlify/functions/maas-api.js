@@ -34,6 +34,68 @@ app.use(require('cors')({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-Scope', 'X-API-Key']
 }));
 
+// Custom body parser middleware for serverless-http compatibility
+// This handles cases where express.json() doesn't parse correctly
+app.use((req, res, next) => {
+  // Only process POST/PUT/PATCH requests with JSON content
+  if ((req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') 
+      && req.headers['content-type']?.includes('application/json')) {
+    
+    // Check if body is already properly parsed (object with non-numeric keys)
+    const hasValidKeys = req.body && typeof req.body === 'object' && !Array.isArray(req.body) 
+        && !Buffer.isBuffer(req.body) && Object.keys(req.body).some(key => isNaN(parseInt(key)));
+    
+    if (hasValidKeys) {
+      return next();
+    }
+
+    // Body is not properly parsed - try to fix it
+    let rawBody = req.body;
+    let needsParsing = false;
+    
+    // Case 1: Body is an array (character codes)
+    if (Array.isArray(rawBody)) {
+      console.log('[maas-api] Body is array, reconstructing from character codes');
+      rawBody = String.fromCharCode(...rawBody);
+      needsParsing = true;
+    }
+    // Case 2: Body is object with only numeric keys (array-like object)
+    else if (rawBody && typeof rawBody === 'object' 
+        && Object.keys(rawBody).length > 0
+        && Object.keys(rawBody).every(key => !isNaN(parseInt(key)))) {
+      console.log('[maas-api] Body has numeric keys, reconstructing from character codes');
+      // Get values in order and convert to string
+      const values = Object.keys(rawBody)
+        .sort((a, b) => parseInt(a) - parseInt(b))
+        .map(key => rawBody[key]);
+      rawBody = String.fromCharCode(...values);
+      needsParsing = true;
+    }
+    // Case 3: Body is a Buffer
+    else if (Buffer.isBuffer(rawBody)) {
+      console.log('[maas-api] Body is Buffer, converting to string');
+      rawBody = rawBody.toString('utf8');
+      needsParsing = true;
+    }
+    // Case 4: Body is already a string
+    else if (typeof rawBody === 'string') {
+      needsParsing = true;
+    }
+
+    // Parse the reconstructed/raw body
+    if (needsParsing && rawBody) {
+      try {
+        req.body = JSON.parse(rawBody);
+        console.log('[maas-api] Successfully parsed body in middleware');
+      } catch (e) {
+        console.error('[maas-api] Failed to parse body in middleware:', e);
+        console.error('[maas-api] Raw body (first 200 chars):', rawBody.substring(0, 200));
+      }
+    }
+  }
+  next();
+});
+
 // Body parsing middleware - must be before routes
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -422,11 +484,29 @@ app.post('/api/v1/memory', async (req, res) => {
     console.log('[maas-api] Content-Type:', req.headers['content-type']);
     console.log('[maas-api] Raw body:', req.body);
     console.log('[maas-api] Body type:', typeof req.body);
-    console.log('[maas-api] Body keys:', req.body ? Object.keys(req.body) : 'null/undefined');
+    console.log('[maas-api] Is Array:', Array.isArray(req.body));
+    console.log('[maas-api] Is Buffer:', Buffer.isBuffer(req.body));
 
-    // Handle case where body might be a string (Netlify sometimes sends body as string)
+    // Handle different body formats from serverless-http/Netlify
     let bodyData = req.body;
-    if (typeof bodyData === 'string') {
+    
+    // Case 1: Body is a Buffer (common in serverless-http)
+    if (Buffer.isBuffer(bodyData)) {
+      try {
+        const bodyString = bodyData.toString('utf8');
+        bodyData = JSON.parse(bodyString);
+        console.log('[maas-api] Parsed body from Buffer:', bodyData);
+      } catch (e) {
+        console.error('[maas-api] Failed to parse body from Buffer:', e);
+        return res.status(400).json({
+          error: 'Invalid JSON in request body',
+          code: 'INVALID_JSON',
+          details: e.message
+        });
+      }
+    }
+    // Case 2: Body is a string
+    else if (typeof bodyData === 'string') {
       try {
         bodyData = JSON.parse(bodyData);
         console.log('[maas-api] Parsed body from string:', bodyData);
@@ -439,17 +519,63 @@ app.post('/api/v1/memory', async (req, res) => {
         });
       }
     }
+    // Case 3: Body is an array (shouldn't happen, but handle it)
+    else if (Array.isArray(bodyData)) {
+      console.error('[maas-api] Body is an array - this indicates a parsing issue');
+      // Try to reconstruct from array (this is a workaround)
+      try {
+        const bodyString = String.fromCharCode(...bodyData);
+        bodyData = JSON.parse(bodyString);
+        console.log('[maas-api] Reconstructed body from array:', bodyData);
+      } catch (e) {
+        console.error('[maas-api] Failed to reconstruct body from array:', e);
+        return res.status(400).json({
+          error: 'Request body parsing failed',
+          code: 'BODY_PARSE_ERROR',
+          details: 'Body was received as array - check Content-Type header',
+          received: {
+            bodyType: typeof req.body,
+            isArray: Array.isArray(req.body),
+            bodyLength: req.body?.length
+          }
+        });
+      }
+    }
+    // Case 4: Body is already an object (should be fine)
+    else if (typeof bodyData === 'object' && bodyData !== null) {
+      // Check if it's actually an object with proper keys, not an array-like object
+      if (Object.keys(bodyData).every(key => !isNaN(parseInt(key)))) {
+        // This is an array-like object (numeric keys) - treat as array
+        console.error('[maas-api] Body has numeric keys - treating as array');
+        try {
+          const bodyString = String.fromCharCode(...Object.values(bodyData));
+          bodyData = JSON.parse(bodyString);
+          console.log('[maas-api] Reconstructed body from array-like object:', bodyData);
+        } catch (e) {
+          console.error('[maas-api] Failed to reconstruct from array-like object:', e);
+          return res.status(400).json({
+            error: 'Request body parsing failed',
+            code: 'BODY_PARSE_ERROR',
+            details: 'Body has numeric keys - check Content-Type and body format',
+            received: {
+              bodyType: typeof req.body,
+              bodyKeys: Object.keys(req.body).slice(0, 10)
+            }
+          });
+        }
+      }
+    }
 
-    // If body is still empty/undefined, try to get it from raw body
-    if (!bodyData || Object.keys(bodyData).length === 0) {
-      console.error('[maas-api] Body is empty or undefined');
+    // Final validation
+    if (!bodyData || typeof bodyData !== 'object' || Array.isArray(bodyData)) {
+      console.error('[maas-api] Body is not a valid object after parsing');
       return res.status(400).json({
-        error: 'Request body is required',
-        code: 'MISSING_BODY',
+        error: 'Request body must be a JSON object',
+        code: 'INVALID_BODY_FORMAT',
         received: {
-          bodyType: typeof req.body,
-          bodyValue: req.body,
-          contentType: req.headers['content-type']
+          bodyType: typeof bodyData,
+          isArray: Array.isArray(bodyData),
+          bodyValue: bodyData
         }
       });
     }
@@ -1002,4 +1128,21 @@ app.use((req, res) => {
   });
 });
 
-exports.handler = serverless(app);
+// Configure serverless-http to properly handle JSON bodies
+exports.handler = serverless(app, {
+  binary: false, // Don't treat responses as binary
+  request: (request, event, context) => {
+    // Ensure body is properly parsed for JSON requests
+    if (event.body && event.headers['content-type']?.includes('application/json')) {
+      // If body is base64 encoded (Netlify sometimes does this)
+      if (event.isBase64Encoded) {
+        request.body = Buffer.from(event.body, 'base64').toString('utf8');
+      }
+      // If body is already a string, ensure it's set correctly
+      else if (typeof event.body === 'string') {
+        request.body = event.body;
+      }
+    }
+    return request;
+  }
+});
