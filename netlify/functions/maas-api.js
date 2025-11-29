@@ -601,108 +601,8 @@ app.post('/api/v1/memory', async (req, res) => {
       });
     }
 
-    // Debug: Log request details for troubleshooting
-    console.log('[maas-api] POST /api/v1/memory');
-    console.log('[maas-api] Content-Type:', req.headers['content-type']);
-    console.log('[maas-api] Raw body:', req.body);
-    console.log('[maas-api] Body type:', typeof req.body);
-    console.log('[maas-api] Is Array:', Array.isArray(req.body));
-    console.log('[maas-api] Is Buffer:', Buffer.isBuffer(req.body));
-
-    // Handle different body formats from serverless-http/Netlify
-    let bodyData = req.body;
-    
-    // Case 1: Body is a Buffer (common in serverless-http)
-    if (Buffer.isBuffer(bodyData)) {
-      try {
-        const bodyString = bodyData.toString('utf8');
-        bodyData = JSON.parse(bodyString);
-        console.log('[maas-api] Parsed body from Buffer:', bodyData);
-      } catch (e) {
-        console.error('[maas-api] Failed to parse body from Buffer:', e);
-        return res.status(400).json({
-          error: 'Invalid JSON in request body',
-          code: 'INVALID_JSON',
-          details: e.message
-        });
-      }
-    }
-    // Case 2: Body is a string
-    else if (typeof bodyData === 'string') {
-      try {
-        bodyData = JSON.parse(bodyData);
-        console.log('[maas-api] Parsed body from string:', bodyData);
-      } catch (e) {
-        console.error('[maas-api] Failed to parse body string:', e);
-        return res.status(400).json({
-          error: 'Invalid JSON in request body',
-          code: 'INVALID_JSON',
-          details: e.message
-        });
-      }
-    }
-    // Case 3: Body is an array (shouldn't happen, but handle it)
-    else if (Array.isArray(bodyData)) {
-      console.error('[maas-api] Body is an array - this indicates a parsing issue');
-      // Try to reconstruct from array (this is a workaround)
-      try {
-        const bodyString = String.fromCharCode(...bodyData);
-        bodyData = JSON.parse(bodyString);
-        console.log('[maas-api] Reconstructed body from array:', bodyData);
-      } catch (e) {
-        console.error('[maas-api] Failed to reconstruct body from array:', e);
-        return res.status(400).json({
-          error: 'Request body parsing failed',
-          code: 'BODY_PARSE_ERROR',
-          details: 'Body was received as array - check Content-Type header',
-          received: {
-            bodyType: typeof req.body,
-            isArray: Array.isArray(req.body),
-            bodyLength: req.body?.length
-          }
-        });
-      }
-    }
-    // Case 4: Body is already an object (should be fine)
-    else if (typeof bodyData === 'object' && bodyData !== null) {
-      // Check if it's actually an object with proper keys, not an array-like object
-      if (Object.keys(bodyData).every(key => !isNaN(parseInt(key)))) {
-        // This is an array-like object (numeric keys) - treat as array
-        console.error('[maas-api] Body has numeric keys - treating as array');
-        try {
-          const bodyString = String.fromCharCode(...Object.values(bodyData));
-          bodyData = JSON.parse(bodyString);
-          console.log('[maas-api] Reconstructed body from array-like object:', bodyData);
-        } catch (e) {
-          console.error('[maas-api] Failed to reconstruct from array-like object:', e);
-          return res.status(400).json({
-            error: 'Request body parsing failed',
-            code: 'BODY_PARSE_ERROR',
-            details: 'Body has numeric keys - check Content-Type and body format',
-            received: {
-              bodyType: typeof req.body,
-              bodyKeys: Object.keys(req.body).slice(0, 10)
-            }
-          });
-        }
-      }
-    }
-
-    // Final validation
-    if (!bodyData || typeof bodyData !== 'object' || Array.isArray(bodyData)) {
-      console.error('[maas-api] Body is not a valid object after parsing');
-      return res.status(400).json({
-        error: 'Request body must be a JSON object',
-        code: 'INVALID_BODY_FORMAT',
-        received: {
-          bodyType: typeof bodyData,
-          isArray: Array.isArray(bodyData),
-          bodyValue: bodyData
-        }
-      });
-    }
-
-    const { title, content, memory_type = 'context', tags = [], organization_id: bodyOrgId } = bodyData;
+    const bodyData = req.body || {};
+    const { title, content, memory_type = 'context', tags = [] } = bodyData;
 
     // Validate required fields
     if (!title || !content) {
@@ -715,7 +615,7 @@ app.post('/api/v1/memory', async (req, res) => {
           hasContent: !!content,
           titleValue: title,
           contentValue: content,
-          bodyKeys: Object.keys(bodyData || {})
+          bodyKeys: Object.keys(bodyData)
         }
       });
     }
@@ -735,7 +635,8 @@ app.post('/api/v1/memory', async (req, res) => {
     // 3. User context from API key (vendor_org_id, resolved)
     // 4. Fallback: try to resolve from vendor_org_id if available
     let organizationId = null;
-    
+    const bodyOrgId = bodyData.organization_id;
+
     if (bodyOrgId) {
       // If organization_id is provided in body, use it (user must have permission)
       // For now, we'll allow it if the user is authenticated
@@ -876,24 +777,18 @@ app.put('/api/v1/memory/:id', async (req, res) => {
     }
 
     const { id } = req.params;
-    
-    // Handle body parsing (same as POST)
-    let bodyData = req.body;
-    if (typeof bodyData === 'string') {
-      try {
-        bodyData = JSON.parse(bodyData);
-      } catch (e) {
-        return res.status(400).json({
-          error: 'Invalid JSON in request body',
-          code: 'INVALID_JSON'
-        });
-      }
+    const { title, content, memory_type, tags, metadata, organization_id: bodyOrgId } = req.body || {};
+
+    let organizationId = bodyOrgId || req.user?.organization_id || req.user?.vendor_org_id;
+
+    if (!organizationId && req.user?.vendor_org_id && supabase) {
+      organizationId = await resolveOrganizationId(
+        req.user.vendor_org_id,
+        null,
+        supabase
+      );
     }
 
-    const { title, content, memory_type, tags, metadata } = bodyData;
-
-    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
-    
     if (!organizationId) {
       return res.status(400).json({
         error: 'Organization ID is required',
@@ -1133,7 +1028,7 @@ app.post('/api/v1/memory/bulk/delete', async (req, res) => {
       });
     }
 
-    const { memory_ids } = req.body;
+    const { memory_ids } = req.body || {};
 
     if (!Array.isArray(memory_ids) || memory_ids.length === 0) {
       return res.status(400).json({
@@ -1183,31 +1078,29 @@ app.post('/api/v1/memory/search', async (req, res) => {
       });
     }
 
-    // Handle body parsing (same as POST /api/v1/memory)
     let bodyData = req.body;
     if (typeof bodyData === 'string') {
       try {
         bodyData = JSON.parse(bodyData);
-      } catch (e) {
+      } catch (error) {
         return res.status(400).json({
-          error: 'Invalid JSON in request body',
-          code: 'INVALID_JSON'
+          error: 'Invalid JSON payload',
+          code: 'INVALID_JSON',
+          details: error.message
         });
       }
     }
 
-    const { query, limit = 10, threshold = 0.7 } = bodyData;
+    const { query, limit = 10, memory_type, tags } = bodyData || {};
 
     if (!query) {
       return res.status(400).json({
-        error: 'Search query is required',
+        error: 'Query is required',
         code: 'VALIDATION_ERROR'
       });
     }
 
-    // Get organization/user context
     const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
-    const userId = req.user?.user_id || req.user?.id;
 
     if (!organizationId) {
       return res.status(400).json({
@@ -1216,19 +1109,32 @@ app.post('/api/v1/memory/search', async (req, res) => {
       });
     }
 
-    // Text-based search (vector search can be added later when OpenAI is configured)
-    const { data, error } = await supabase
+    const sanitizedQuery = query.replace(/%/g, '').replace(/_/g, '');
+    let searchQuery = supabase
       .from('memory_entries')
-      .select('id, title, content, memory_type, tags, created_at, updated_at')
-      .or(`title.ilike.%${query}%,content.ilike.%${query}%`)
+      .select('*')
       .eq('organization_id', organizationId)
       .limit(limit);
 
+    if (memory_type) {
+      searchQuery = searchQuery.eq('memory_type', memory_type);
+    }
+
+    if (tags && tags.length) {
+      const tagArray = Array.isArray(tags) ? tags : [tags];
+      searchQuery = searchQuery.contains('tags', tagArray);
+    }
+
+    searchQuery = searchQuery.or(
+      `title.ilike.%${sanitizedQuery}%,content.ilike.%${sanitizedQuery}%`
+    );
+
+    const { data, error } = await searchQuery;
+
     if (error) {
-      console.error('[maas-api] Search error:', error);
       return res.status(500).json({
         error: 'Search failed',
-        code: 'SEARCH_ERROR',
+        code: 'DB_ERROR',
         details: error.message
       });
     }
@@ -1301,21 +1207,16 @@ app.use((req, res) => {
   });
 });
 
-// Configure serverless-http to properly handle JSON bodies
 exports.handler = serverless(app, {
-  binary: false, // Don't treat responses as binary
-  request: (request, event, context) => {
-    // Ensure body is properly parsed for JSON requests
-    if (event.body && event.headers['content-type']?.includes('application/json')) {
-      // If body is base64 encoded (Netlify sometimes does this)
-      if (event.isBase64Encoded) {
-        request.body = Buffer.from(event.body, 'base64').toString('utf8');
-      }
-      // If body is already a string, ensure it's set correctly
-      else if (typeof event.body === 'string') {
-        request.body = event.body;
-      }
+  binary: false,
+  request: (request, event) => {
+    request.rawBody = event?.body;
+    request.isBase64Encoded = event?.isBase64Encoded;
+
+    if (event?.body && typeof event.body === 'string') {
+      request.body = event.body;
     }
+
     return request;
   }
 });
