@@ -34,7 +34,21 @@ app.use(require('cors')({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-Scope', 'X-API-Key']
 }));
 
-app.use(express.json());
+// Body parsing middleware - must be before routes
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Debug middleware to log request body (remove in production)
+if (process.env.DEBUG === 'true') {
+  app.use((req, res, next) => {
+    if (req.method === 'POST' || req.method === 'PUT') {
+      console.log('[maas-api] Request body:', JSON.stringify(req.body));
+      console.log('[maas-api] Content-Type:', req.headers['content-type']);
+      console.log('[maas-api] Body keys:', Object.keys(req.body || {}));
+    }
+    next();
+  });
+}
 
 // Middleware to ensure JSON responses
 app.use((req, res, next) => {
@@ -337,15 +351,21 @@ app.get('/api/v1/memory', async (req, res) => {
 
     const { limit = 20, offset = 0, memory_type, tags } = req.query;
 
-    // Build query for memory entries
-    // For JWT users, use user_id instead of vendor_org_id
-    const filterField = req.user.vendor_org_id ? 'vendor_org_id' : 'user_id';
-    const filterValue = req.user.vendor_org_id || req.user.id;
+    // Build query for memory entries using public.memory_entries schema
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    const userId = req.user?.user_id || req.user?.id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
     
     let query = supabase
       .from('memory_entries')
       .select('*')
-      .eq(filterField, filterValue)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -397,27 +417,82 @@ app.post('/api/v1/memory', async (req, res) => {
       });
     }
 
-    const { title, content, memory_type = 'context', tags = [] } = req.body;
+    // Debug: Log request details for troubleshooting
+    console.log('[maas-api] POST /api/v1/memory');
+    console.log('[maas-api] Content-Type:', req.headers['content-type']);
+    console.log('[maas-api] Raw body:', req.body);
+    console.log('[maas-api] Body type:', typeof req.body);
+    console.log('[maas-api] Body keys:', req.body ? Object.keys(req.body) : 'null/undefined');
+
+    // Handle case where body might be a string (Netlify sometimes sends body as string)
+    let bodyData = req.body;
+    if (typeof bodyData === 'string') {
+      try {
+        bodyData = JSON.parse(bodyData);
+        console.log('[maas-api] Parsed body from string:', bodyData);
+      } catch (e) {
+        console.error('[maas-api] Failed to parse body string:', e);
+        return res.status(400).json({
+          error: 'Invalid JSON in request body',
+          code: 'INVALID_JSON',
+          details: e.message
+        });
+      }
+    }
+
+    // If body is still empty/undefined, try to get it from raw body
+    if (!bodyData || Object.keys(bodyData).length === 0) {
+      console.error('[maas-api] Body is empty or undefined');
+      return res.status(400).json({
+        error: 'Request body is required',
+        code: 'MISSING_BODY',
+        received: {
+          bodyType: typeof req.body,
+          bodyValue: req.body,
+          contentType: req.headers['content-type']
+        }
+      });
+    }
+
+    const { title, content, memory_type = 'context', tags = [] } = bodyData;
 
     // Validate required fields
     if (!title || !content) {
+      console.error('[maas-api] Validation failed - title:', title, 'content:', content);
       return res.status(400).json({
         error: 'Title and content are required',
-        code: 'VALIDATION_ERROR'
+        code: 'VALIDATION_ERROR',
+        received: {
+          hasTitle: !!title,
+          hasContent: !!content,
+          titleValue: title,
+          contentValue: content,
+          bodyKeys: Object.keys(bodyData || {})
+        }
       });
     }
 
     // Insert memory entry
+    // Use organization_id from user context, fallback to vendor_org_id for compatibility
+    const organizationId = req.user.organization_id || req.user.vendor_org_id;
+    const userId = req.user.user_id || req.user.id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { data, error } = await supabase
       .from('memory_entries')
       .insert({
-        vendor_org_id: req.user.vendor_org_id,
+        organization_id: organizationId,
+        user_id: userId,
         title,
         content,
-        memory_type,
-        tags: tags || [],
-        created_by: req.user.id,
-        updated_by: req.user.id
+        memory_type: memory_type, // Use memory_type enum from public schema
+        tags: tags || []
       })
       .select()
       .single();
@@ -455,11 +530,20 @@ app.get('/api/v1/memory/:id', async (req, res) => {
 
     const { id } = req.params;
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { data, error } = await supabase
       .from('memory_entries')
       .select('*')
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq('organization_id', organizationId)
       .single();
 
     if (error) {
@@ -493,7 +577,30 @@ app.put('/api/v1/memory/:id', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { title, content, memory_type, tags, metadata } = req.body;
+    
+    // Handle body parsing (same as POST)
+    let bodyData = req.body;
+    if (typeof bodyData === 'string') {
+      try {
+        bodyData = JSON.parse(bodyData);
+      } catch (e) {
+        return res.status(400).json({
+          error: 'Invalid JSON in request body',
+          code: 'INVALID_JSON'
+        });
+      }
+    }
+
+    const { title, content, memory_type, tags, metadata } = bodyData;
+
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
 
     const updateData = {
       updated_at: new Date().toISOString()
@@ -509,7 +616,7 @@ app.put('/api/v1/memory/:id', async (req, res) => {
       .from('memory_entries')
       .update(updateData)
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq('organization_id', organizationId)
       .select()
       .single();
 
@@ -545,11 +652,20 @@ app.delete('/api/v1/memory/:id', async (req, res) => {
 
     const { id } = req.params;
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { error } = await supabase
       .from('memory_entries')
       .delete()
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) {
       throw error;
@@ -575,10 +691,19 @@ app.get('/api/v1/memory/count', async (req, res) => {
       });
     }
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { count, error } = await supabase
       .from('memory_entries')
       .select('*', { count: 'exact', head: true })
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
@@ -602,11 +727,20 @@ app.get('/api/v1/memory/stats', async (req, res) => {
       });
     }
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     // Get total count and breakdown by type
     const { data: typeBreakdown, error: typeError } = await supabase
       .from('memory_entries')
       .select('memory_type')
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (typeError) throw typeError;
 
@@ -619,7 +753,7 @@ app.get('/api/v1/memory/stats', async (req, res) => {
     const { data: recentMemories } = await supabase
       .from('memory_entries')
       .select('*')
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .limit(5);
 
@@ -649,14 +783,34 @@ app.post('/api/v1/memory/:id/access', async (req, res) => {
 
     const { id } = req.params;
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
+    // Use last_accessed (not last_accessed_at) for public schema
+    // First, get current access_count
+    const { data: currentData } = await supabase
+      .from('memory_entries')
+      .select('access_count')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .single();
+
+    const newAccessCount = (currentData?.access_count || 0) + 1;
+
     const { error } = await supabase
       .from('memory_entries')
       .update({ 
         last_accessed: new Date().toISOString(),
-        access_count: supabase.raw('access_count + 1')
+        access_count: newAccessCount
       })
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
@@ -689,11 +843,20 @@ app.post('/api/v1/memory/bulk/delete', async (req, res) => {
       });
     }
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { error } = await supabase
       .from('memory_entries')
       .delete()
       .in('id', memory_ids)
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
@@ -714,19 +877,75 @@ app.post('/api/v1/memory/bulk/delete', async (req, res) => {
 
 app.post('/api/v1/memory/search', async (req, res) => {
   try {
-    const { query, limit = 10 } = req.body;
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    // Handle body parsing (same as POST /api/v1/memory)
+    let bodyData = req.body;
+    if (typeof bodyData === 'string') {
+      try {
+        bodyData = JSON.parse(bodyData);
+      } catch (e) {
+        return res.status(400).json({
+          error: 'Invalid JSON in request body',
+          code: 'INVALID_JSON'
+        });
+      }
+    }
+
+    const { query, limit = 10, threshold = 0.7 } = bodyData;
+
+    if (!query) {
+      return res.status(400).json({
+        error: 'Search query is required',
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    // Get organization/user context
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    const userId = req.user?.user_id || req.user?.id;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
+    // Text-based search (vector search can be added later when OpenAI is configured)
+    const { data, error } = await supabase
+      .from('memory_entries')
+      .select('id, title, content, memory_type, tags, created_at, updated_at')
+      .or(`title.ilike.%${query}%,content.ilike.%${query}%`)
+      .eq('organization_id', organizationId)
+      .limit(limit);
+
+    if (error) {
+      console.error('[maas-api] Search error:', error);
+      return res.status(500).json({
+        error: 'Search failed',
+        code: 'SEARCH_ERROR',
+        details: error.message
+      });
+    }
 
     res.json({
-      data: [],
+      data: data || [],
       query,
-      results_count: 0,
+      results_count: data?.length || 0,
       message: 'Search completed successfully'
     });
   } catch (error) {
-    console.error('Memory search error:', error);
+    console.error('[maas-api] Memory search error:', error);
     res.status(500).json({ 
       error: 'Internal server error',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      details: error.message
     });
   }
 });
