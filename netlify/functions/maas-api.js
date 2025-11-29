@@ -120,6 +120,67 @@ app.use((req, res, next) => {
 
 const hashSecret = (value) => crypto.createHash('sha256').update(value || '').digest('hex');
 
+/**
+ * Resolve organization_id from vendor_org_id or return existing organization_id
+ * For public.memory_entries, we need organization_id (from public.organizations)
+ * Vendor API keys provide vendor_org_id (from vendor_organizations)
+ * 
+ * Strategy:
+ * 1. If organization_id already exists, use it
+ * 2. Check if vendor_org_id exists in public.organizations (same UUID)
+ * 3. Check if vendor_organizations has an organization_id mapping
+ * 4. Fallback: use vendor_org_id directly (if they're the same in your setup)
+ */
+const resolveOrganizationId = async (vendorOrgId, existingOrgId, supabaseClient) => {
+  // If we already have organization_id, use it
+  if (existingOrgId) {
+    return existingOrgId;
+  }
+
+  // If no vendor_org_id, can't resolve
+  if (!vendorOrgId || !supabaseClient) {
+    return null;
+  }
+
+  try {
+    // Strategy 1: Check if vendor_org_id exists in public.organizations (same UUID)
+    // This handles the case where vendor_org_id == organization_id
+    const { data: orgData, error: orgError } = await supabaseClient
+      .from('organizations')
+      .select('id')
+      .eq('id', vendorOrgId)
+      .maybeSingle(); // Use maybeSingle to avoid error if not found
+
+    if (!orgError && orgData?.id) {
+      console.log('[maas-api] Found organization_id matching vendor_org_id:', orgData.id);
+      return orgData.id;
+    }
+
+    // Strategy 2: Check if vendor_organizations table has organization_id column
+    // Some setups might have a direct mapping
+    const { data: vendorOrgData, error: vendorError } = await supabaseClient
+      .from('vendor_organizations')
+      .select('id, organization_id')
+      .eq('id', vendorOrgId)
+      .maybeSingle();
+
+    if (!vendorError && vendorOrgData?.organization_id) {
+      console.log('[maas-api] Found organization_id from vendor_organizations:', vendorOrgData.organization_id);
+      return vendorOrgData.organization_id;
+    }
+
+    // Strategy 3: Fallback - use vendor_org_id as organization_id
+    // This works if your setup uses the same UUID for both
+    // OR if public.memory_entries.organization_id can accept vendor_org_id values
+    console.log('[maas-api] Using vendor_org_id as organization_id (fallback):', vendorOrgId);
+    return vendorOrgId;
+  } catch (error) {
+    console.error('[maas-api] Error resolving organization_id:', error);
+    // Final fallback: use vendor_org_id as organization_id
+    return vendorOrgId;
+  }
+};
+
 // JWT token verification
 const verifyJwtToken = async (req, res, next) => {
   try {
@@ -237,6 +298,19 @@ const verifyJwtToken = async (req, res, next) => {
           .eq('id', apiKeyRecord.id)
           .then(() => {}, () => {}); // Ignore errors
 
+        // Resolve organization_id if available from API key record
+        // API keys might have organization_id directly, or we need to look it up
+        let organizationId = apiKeyRecord.organization_id || null;
+        
+        // If API key has vendor_org_id, resolve it
+        if (!organizationId && apiKeyRecord.vendor_org_id) {
+          organizationId = await resolveOrganizationId(
+            apiKeyRecord.vendor_org_id,
+            null,
+            supabase
+          );
+        }
+
         // Set user context
         req.user = { 
           id: apiKeyRecord.user_id,
@@ -244,6 +318,8 @@ const verifyJwtToken = async (req, res, next) => {
           api_key_id: apiKeyRecord.id,
           api_key_name: apiKeyRecord.name,
           service: apiKeyRecord.service || 'all',
+          organization_id: organizationId, // Add organization_id for public.memory_entries
+          vendor_org_id: apiKeyRecord.vendor_org_id, // Keep vendor_org_id for compatibility
           project_scope: 'lanonasis-maas'
         };
         
@@ -285,9 +361,17 @@ const verifyJwtToken = async (req, res, next) => {
         });
       }
 
+      // Resolve organization_id from vendor_org_id for public.memory_entries compatibility
+      const organizationId = await resolveOrganizationId(
+        data[0].vendor_org_id,
+        null,
+        supabase
+      );
+
       req.user = { 
         id: data[0].vendor_code || 'api-user', 
         vendor_org_id: data[0].vendor_org_id,
+        organization_id: organizationId, // Add organization_id for public.memory_entries
         project_scope: 'lanonasis-maas'
       };
     } else if (token.startsWith('sk_')) {
@@ -324,9 +408,17 @@ const verifyJwtToken = async (req, res, next) => {
         });
       }
 
+      // Resolve organization_id from vendor_org_id for public.memory_entries compatibility
+      const organizationId = await resolveOrganizationId(
+        data[0].vendor_org_id,
+        null,
+        supabase
+      );
+
       req.user = { 
         id: data[0].vendor_code || 'api-user', 
         vendor_org_id: data[0].vendor_org_id,
+        organization_id: organizationId, // Add organization_id for public.memory_entries
         project_scope: 'lanonasis-maas'
       };
     } else {
