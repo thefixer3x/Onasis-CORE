@@ -350,12 +350,10 @@ const verifyJwtToken = async (req, res, next) => {
           id: apiKeyRecord.user_id,
           user_id: apiKeyRecord.user_id,
           organization_id: organizationId,
-          vendor_org_id: organizationId, // Also set vendor_org_id for compatibility
+          vendor_org_id: apiKeyRecord.vendor_org_id || organizationId, // Use vendor_org_id if available, otherwise use organizationId
           api_key_id: apiKeyRecord.id,
           api_key_name: apiKeyRecord.name,
           service: apiKeyRecord.service || 'all',
-          organization_id: organizationId, // Add organization_id for public.memory_entries
-          vendor_org_id: apiKeyRecord.vendor_org_id, // Keep vendor_org_id for compatibility
           project_scope: 'lanonasis-maas'
         };
         
