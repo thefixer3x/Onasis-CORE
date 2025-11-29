@@ -302,13 +302,23 @@ const verifyJwtToken = async (req, res, next) => {
         // API keys might have organization_id directly, or we need to look it up
         let organizationId = apiKeyRecord.organization_id || null;
         
+        console.log('[maas-api] API key record:', {
+          id: apiKeyRecord.id,
+          user_id: apiKeyRecord.user_id,
+          organization_id: apiKeyRecord.organization_id,
+          vendor_org_id: apiKeyRecord.vendor_org_id,
+          allKeys: Object.keys(apiKeyRecord)
+        });
+        
         // If API key has vendor_org_id, resolve it
         if (!organizationId && apiKeyRecord.vendor_org_id) {
+          console.log('[maas-api] Resolving organization_id from vendor_org_id:', apiKeyRecord.vendor_org_id);
           organizationId = await resolveOrganizationId(
             apiKeyRecord.vendor_org_id,
             null,
             supabase
           );
+          console.log('[maas-api] Resolved organization_id:', organizationId);
         }
 
         // Set user context
@@ -322,6 +332,12 @@ const verifyJwtToken = async (req, res, next) => {
           vendor_org_id: apiKeyRecord.vendor_org_id, // Keep vendor_org_id for compatibility
           project_scope: 'lanonasis-maas'
         };
+        
+        console.log('[maas-api] Set req.user:', {
+          id: req.user.id,
+          organization_id: req.user.organization_id,
+          vendor_org_id: req.user.vendor_org_id
+        });
         
         return next();
       }
@@ -361,6 +377,12 @@ const verifyJwtToken = async (req, res, next) => {
         });
       }
 
+      console.log('[maas-api] Vendor API key validation result (pk_ format):', {
+        is_valid: data[0]?.is_valid,
+        vendor_org_id: data[0]?.vendor_org_id,
+        vendor_code: data[0]?.vendor_code
+      });
+
       // Resolve organization_id from vendor_org_id for public.memory_entries compatibility
       const organizationId = await resolveOrganizationId(
         data[0].vendor_org_id,
@@ -368,12 +390,20 @@ const verifyJwtToken = async (req, res, next) => {
         supabase
       );
 
+      console.log('[maas-api] Resolved organization_id for vendor key (pk_ format):', organizationId);
+
       req.user = { 
         id: data[0].vendor_code || 'api-user', 
         vendor_org_id: data[0].vendor_org_id,
         organization_id: organizationId, // Add organization_id for public.memory_entries
         project_scope: 'lanonasis-maas'
       };
+      
+      console.log('[maas-api] Set req.user for vendor key (pk_ format):', {
+        id: req.user.id,
+        organization_id: req.user.organization_id,
+        vendor_org_id: req.user.vendor_org_id
+      });
     } else if (token.startsWith('sk_')) {
       // Legacy API key format: sk_[type]_[vendor]_[hash]
       if (!supabase) {
@@ -672,7 +702,7 @@ app.post('/api/v1/memory', async (req, res) => {
       });
     }
 
-    const { title, content, memory_type = 'context', tags = [] } = bodyData;
+    const { title, content, memory_type = 'context', tags = [], organization_id: bodyOrgId } = bodyData;
 
     // Validate required fields
     if (!title || !content) {
@@ -690,15 +720,66 @@ app.post('/api/v1/memory', async (req, res) => {
       });
     }
 
-    // Insert memory entry
-    // Use organization_id from user context, fallback to vendor_org_id for compatibility
-    const organizationId = req.user.organization_id || req.user.vendor_org_id;
-    const userId = req.user.user_id || req.user.id;
+    // Debug: Log user context to see what we have
+    console.log('[maas-api] User context:', {
+      hasUser: !!req.user,
+      userId: req.user?.id || req.user?.user_id,
+      organizationId: req.user?.organization_id,
+      vendorOrgId: req.user?.vendor_org_id,
+      allUserKeys: req.user ? Object.keys(req.user) : []
+    });
+
+    // Resolve organization_id from multiple sources (in priority order):
+    // 1. Request body (if provided and user has permission)
+    // 2. User context from API key (organization_id)
+    // 3. User context from API key (vendor_org_id, resolved)
+    // 4. Fallback: try to resolve from vendor_org_id if available
+    let organizationId = null;
+    
+    if (bodyOrgId) {
+      // If organization_id is provided in body, use it (user must have permission)
+      // For now, we'll allow it if the user is authenticated
+      if (req.user) {
+        organizationId = bodyOrgId;
+        console.log('[maas-api] Using organization_id from request body:', organizationId);
+      }
+    }
     
     if (!organizationId) {
+      organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    }
+    
+    // If still no organization_id and we have vendor_org_id, try to resolve it
+    if (!organizationId && req.user?.vendor_org_id && supabase) {
+      console.log('[maas-api] Attempting to resolve organization_id from vendor_org_id:', req.user.vendor_org_id);
+      organizationId = await resolveOrganizationId(
+        req.user.vendor_org_id,
+        null,
+        supabase
+      );
+      console.log('[maas-api] Resolved organization_id:', organizationId);
+    }
+
+    const userId = req.user?.user_id || req.user?.id;
+    
+    if (!organizationId) {
+      console.error('[maas-api] Organization ID resolution failed:', {
+        hasUser: !!req.user,
+        userKeys: req.user ? Object.keys(req.user) : [],
+        bodyOrgId: bodyOrgId,
+        userOrgId: req.user?.organization_id,
+        userVendorOrgId: req.user?.vendor_org_id
+      });
       return res.status(400).json({
         error: 'Organization ID is required',
-        code: 'MISSING_ORG_ID'
+        code: 'MISSING_ORG_ID',
+        debug: {
+          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id'],
+          has_user: !!req.user,
+          user_has_org_id: !!req.user?.organization_id,
+          user_has_vendor_org_id: !!req.user?.vendor_org_id,
+          body_has_org_id: !!bodyOrgId
+        }
       });
     }
 

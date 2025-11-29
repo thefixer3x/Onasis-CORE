@@ -40,7 +40,13 @@ app.use(
     origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-project-scope'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'x-project-scope',
+      'X-Project-Scope', // Support both cases
+      'X-Requested-With'
+    ],
   })
 )
 
@@ -55,6 +61,12 @@ app.use(validateSessionCookie)
 
 // Health check endpoint
 app.get('/health', async (_req: express.Request, res: express.Response) => {
+  // Set CORS headers explicitly for health endpoint
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-project-scope, X-Project-Scope')
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+
   const dbStatus = await checkDatabaseHealth()
   const redisStatus = await checkRedisHealth()
 
