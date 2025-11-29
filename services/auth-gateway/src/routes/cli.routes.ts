@@ -330,7 +330,7 @@ router.get("/cli-login", (req, res) => {
           <span class="dot red"></span>
           <span class="dot yellow"></span>
           <span class="dot green"></span>
-          <span class="title">cli.lanonasis.com</span>
+          <span class="title">${typeof window !== 'undefined' ? window.location.hostname : 'cli.lanonasis.com'}</span>
         </div>
 
         <div class="terminal-content">
@@ -565,26 +565,45 @@ router.get("/cli-login", (req, res) => {
               throw new Error(data.error || 'Authentication failed');
             }
 
-            // CLI-specific: Display token for copying
-            if (data.access_token || data.api_key) {
-              const token = data.api_key || data.access_token;
-              
-              showMessage(
-                '<strong>✅ Authentication Successful!</strong><br><br>' +
-                '<div class="token-display">' + token + '</div>' +
-                '<button class="copy-btn btn" onclick="copyToClipboard(\\'' + token + '\\')">📋 COPY TOKEN</button>' +
-                '<br><br>' +
-                '<small>Copy this token and paste it into your CLI when prompted.</small>',
-                'success'
-              );
-
-              // Clear password fields
-              document.getElementById('password').value = '';
-              if (currentMode === 'signup') {
-                document.getElementById('name').value = '';
-              }
+            // Check if we have a return_to parameter (OAuth flow)
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnTo = urlParams.get('return_to');
+            
+            if (returnTo) {
+              // OAuth flow: Redirect back to OAuth authorize endpoint
+              // Use a full page reload to ensure cookies are sent
+              showMessage('✓ Authentication successful! Redirecting...', 'success');
+              setTimeout(() => {
+                // Decode and redirect - ensure full URL if needed
+                const redirectUrl = decodeURIComponent(returnTo);
+                // If it's a relative URL, make it absolute
+                const finalUrl = redirectUrl.startsWith('http') 
+                  ? redirectUrl 
+                  : window.location.origin + redirectUrl;
+                window.location.replace(finalUrl);
+              }, 1000); // Slightly longer delay to ensure cookie is set
             } else {
-              showMessage('✓ Authentication successful!', 'success');
+              // CLI token flow: Display token for copying
+              if (data.access_token || data.api_key) {
+                const token = data.api_key || data.access_token;
+                
+                showMessage(
+                  '<strong>✅ Authentication Successful!</strong><br><br>' +
+                  '<div class="token-display">' + token + '</div>' +
+                  '<button class="copy-btn btn" onclick="copyToClipboard(\\'' + token + '\\')">📋 COPY TOKEN</button>' +
+                  '<br><br>' +
+                  '<small>Copy this token and paste it into your CLI when prompted.</small>',
+                  'success'
+                );
+
+                // Clear password fields
+                document.getElementById('password').value = '';
+                if (currentMode === 'signup') {
+                  document.getElementById('name').value = '';
+                }
+              } else {
+                showMessage('✓ Authentication successful!', 'success');
+              }
             }
           } catch (error) {
             console.error('Auth error:', error);

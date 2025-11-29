@@ -34,7 +34,83 @@ app.use(require('cors')({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Project-Scope', 'X-API-Key']
 }));
 
-app.use(express.json());
+// Custom body parser middleware for serverless-http compatibility
+// This handles cases where express.json() doesn't parse correctly
+app.use((req, res, next) => {
+  // Only process POST/PUT/PATCH requests with JSON content
+  if ((req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') 
+      && req.headers['content-type']?.includes('application/json')) {
+    
+    // Check if body is already properly parsed (object with non-numeric keys)
+    const hasValidKeys = req.body && typeof req.body === 'object' && !Array.isArray(req.body) 
+        && !Buffer.isBuffer(req.body) && Object.keys(req.body).some(key => isNaN(parseInt(key)));
+    
+    if (hasValidKeys) {
+      return next();
+    }
+
+    // Body is not properly parsed - try to fix it
+    let rawBody = req.body;
+    let needsParsing = false;
+    
+    // Case 1: Body is an array (character codes)
+    if (Array.isArray(rawBody)) {
+      console.log('[maas-api] Body is array, reconstructing from character codes');
+      rawBody = String.fromCharCode(...rawBody);
+      needsParsing = true;
+    }
+    // Case 2: Body is object with only numeric keys (array-like object)
+    else if (rawBody && typeof rawBody === 'object' 
+        && Object.keys(rawBody).length > 0
+        && Object.keys(rawBody).every(key => !isNaN(parseInt(key)))) {
+      console.log('[maas-api] Body has numeric keys, reconstructing from character codes');
+      // Get values in order and convert to string
+      const values = Object.keys(rawBody)
+        .sort((a, b) => parseInt(a) - parseInt(b))
+        .map(key => rawBody[key]);
+      rawBody = String.fromCharCode(...values);
+      needsParsing = true;
+    }
+    // Case 3: Body is a Buffer
+    else if (Buffer.isBuffer(rawBody)) {
+      console.log('[maas-api] Body is Buffer, converting to string');
+      rawBody = rawBody.toString('utf8');
+      needsParsing = true;
+    }
+    // Case 4: Body is already a string
+    else if (typeof rawBody === 'string') {
+      needsParsing = true;
+    }
+
+    // Parse the reconstructed/raw body
+    if (needsParsing && rawBody) {
+      try {
+        req.body = JSON.parse(rawBody);
+        console.log('[maas-api] Successfully parsed body in middleware');
+      } catch (e) {
+        console.error('[maas-api] Failed to parse body in middleware:', e);
+        console.error('[maas-api] Raw body (first 200 chars):', rawBody.substring(0, 200));
+      }
+    }
+  }
+  next();
+});
+
+// Body parsing middleware - must be before routes
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Debug middleware to log request body (remove in production)
+if (process.env.DEBUG === 'true') {
+  app.use((req, res, next) => {
+    if (req.method === 'POST' || req.method === 'PUT') {
+      console.log('[maas-api] Request body:', JSON.stringify(req.body));
+      console.log('[maas-api] Content-Type:', req.headers['content-type']);
+      console.log('[maas-api] Body keys:', Object.keys(req.body || {}));
+    }
+    next();
+  });
+}
 
 // Middleware to ensure JSON responses
 app.use((req, res, next) => {
@@ -43,6 +119,67 @@ app.use((req, res, next) => {
 });
 
 const hashSecret = (value) => crypto.createHash('sha256').update(value || '').digest('hex');
+
+/**
+ * Resolve organization_id from vendor_org_id or return existing organization_id
+ * For public.memory_entries, we need organization_id (from public.organizations)
+ * Vendor API keys provide vendor_org_id (from vendor_organizations)
+ * 
+ * Strategy:
+ * 1. If organization_id already exists, use it
+ * 2. Check if vendor_org_id exists in public.organizations (same UUID)
+ * 3. Check if vendor_organizations has an organization_id mapping
+ * 4. Fallback: use vendor_org_id directly (if they're the same in your setup)
+ */
+const resolveOrganizationId = async (vendorOrgId, existingOrgId, supabaseClient) => {
+  // If we already have organization_id, use it
+  if (existingOrgId) {
+    return existingOrgId;
+  }
+
+  // If no vendor_org_id, can't resolve
+  if (!vendorOrgId || !supabaseClient) {
+    return null;
+  }
+
+  try {
+    // Strategy 1: Check if vendor_org_id exists in public.organizations (same UUID)
+    // This handles the case where vendor_org_id == organization_id
+    const { data: orgData, error: orgError } = await supabaseClient
+      .from('organizations')
+      .select('id')
+      .eq('id', vendorOrgId)
+      .maybeSingle(); // Use maybeSingle to avoid error if not found
+
+    if (!orgError && orgData?.id) {
+      console.log('[maas-api] Found organization_id matching vendor_org_id:', orgData.id);
+      return orgData.id;
+    }
+
+    // Strategy 2: Check if vendor_organizations table has organization_id column
+    // Some setups might have a direct mapping
+    const { data: vendorOrgData, error: vendorError } = await supabaseClient
+      .from('vendor_organizations')
+      .select('id, organization_id')
+      .eq('id', vendorOrgId)
+      .maybeSingle();
+
+    if (!vendorError && vendorOrgData?.organization_id) {
+      console.log('[maas-api] Found organization_id from vendor_organizations:', vendorOrgData.organization_id);
+      return vendorOrgData.organization_id;
+    }
+
+    // Strategy 3: Fallback - use vendor_org_id as organization_id
+    // This works if your setup uses the same UUID for both
+    // OR if public.memory_entries.organization_id can accept vendor_org_id values
+    console.log('[maas-api] Using vendor_org_id as organization_id (fallback):', vendorOrgId);
+    return vendorOrgId;
+  } catch (error) {
+    console.error('[maas-api] Error resolving organization_id:', error);
+    // Final fallback: use vendor_org_id as organization_id
+    return vendorOrgId;
+  }
+};
 
 // JWT token verification
 const verifyJwtToken = async (req, res, next) => {
@@ -161,10 +298,31 @@ const verifyJwtToken = async (req, res, next) => {
           .eq('id', apiKeyRecord.id)
           .then(() => {}, () => {}); // Ignore errors
 
-        // Fetch user's organization_id from users table if available
-        let organizationId = apiKeyRecord.user_id; // Fallback to user_id
+        // Resolve organization_id if available from API key record
+        // API keys might have organization_id directly, or we need to look it up
+        let organizationId = apiKeyRecord.organization_id || null;
         
-        if (supabase && apiKeyRecord.user_id) {
+        console.log('[maas-api] API key record:', {
+          id: apiKeyRecord.id,
+          user_id: apiKeyRecord.user_id,
+          organization_id: apiKeyRecord.organization_id,
+          vendor_org_id: apiKeyRecord.vendor_org_id,
+          allKeys: Object.keys(apiKeyRecord)
+        });
+        
+        // If API key has vendor_org_id, resolve it
+        if (!organizationId && apiKeyRecord.vendor_org_id) {
+          console.log('[maas-api] Resolving organization_id from vendor_org_id:', apiKeyRecord.vendor_org_id);
+          organizationId = await resolveOrganizationId(
+            apiKeyRecord.vendor_org_id,
+            null,
+            supabase
+          );
+          console.log('[maas-api] Resolved organization_id:', organizationId);
+        }
+        
+        // Fallback: Fetch user's organization_id from users table if still not found
+        if (!organizationId && supabase && apiKeyRecord.user_id) {
           try {
             const { data: userData } = await supabase
               .from('users')
@@ -174,11 +332,17 @@ const verifyJwtToken = async (req, res, next) => {
             
             if (userData?.organization_id) {
               organizationId = userData.organization_id;
+              console.log('[maas-api] Found organization_id from users table:', organizationId);
             }
           } catch (userError) {
             console.warn('[maas-api] Could not fetch user organization_id:', userError.message);
-            // Continue with user_id as fallback
           }
+        }
+        
+        // Final fallback to user_id if no organization_id found
+        if (!organizationId) {
+          organizationId = apiKeyRecord.user_id;
+          console.log('[maas-api] Using user_id as organization_id fallback:', organizationId);
         }
 
         // Set user context with organization_id
@@ -190,8 +354,16 @@ const verifyJwtToken = async (req, res, next) => {
           api_key_id: apiKeyRecord.id,
           api_key_name: apiKeyRecord.name,
           service: apiKeyRecord.service || 'all',
+          organization_id: organizationId, // Add organization_id for public.memory_entries
+          vendor_org_id: apiKeyRecord.vendor_org_id, // Keep vendor_org_id for compatibility
           project_scope: 'lanonasis-maas'
         };
+        
+        console.log('[maas-api] Set req.user:', {
+          id: req.user.id,
+          organization_id: req.user.organization_id,
+          vendor_org_id: req.user.vendor_org_id
+        });
         
         return next();
       }
@@ -231,11 +403,33 @@ const verifyJwtToken = async (req, res, next) => {
         });
       }
 
+      console.log('[maas-api] Vendor API key validation result (pk_ format):', {
+        is_valid: data[0]?.is_valid,
+        vendor_org_id: data[0]?.vendor_org_id,
+        vendor_code: data[0]?.vendor_code
+      });
+
+      // Resolve organization_id from vendor_org_id for public.memory_entries compatibility
+      const organizationId = await resolveOrganizationId(
+        data[0].vendor_org_id,
+        null,
+        supabase
+      );
+
+      console.log('[maas-api] Resolved organization_id for vendor key (pk_ format):', organizationId);
+
       req.user = { 
         id: data[0].vendor_code || 'api-user', 
         vendor_org_id: data[0].vendor_org_id,
+        organization_id: organizationId, // Add organization_id for public.memory_entries
         project_scope: 'lanonasis-maas'
       };
+      
+      console.log('[maas-api] Set req.user for vendor key (pk_ format):', {
+        id: req.user.id,
+        organization_id: req.user.organization_id,
+        vendor_org_id: req.user.vendor_org_id
+      });
     } else if (token.startsWith('sk_')) {
       // Legacy API key format: sk_[type]_[vendor]_[hash]
       if (!supabase) {
@@ -270,9 +464,17 @@ const verifyJwtToken = async (req, res, next) => {
         });
       }
 
+      // Resolve organization_id from vendor_org_id for public.memory_entries compatibility
+      const organizationId = await resolveOrganizationId(
+        data[0].vendor_org_id,
+        null,
+        supabase
+      );
+
       req.user = { 
         id: data[0].vendor_code || 'api-user', 
         vendor_org_id: data[0].vendor_org_id,
+        organization_id: organizationId, // Add organization_id for public.memory_entries
         project_scope: 'lanonasis-maas'
       };
     } else {
@@ -359,21 +561,30 @@ app.get('/api/v1/memory', async (req, res) => {
 
     const { limit = 20, offset = 0, memory_type, tags } = req.query;
 
-    // Build query for memory entries
+    // Build query for memory entries using public.memory_entries schema
     // Resolve organization ID from multiple sources
-    const organizationId = req.user.vendor_org_id 
-      || req.user.organization_id 
-      || req.user.organizationId
-      || req.user.id; // Fallback to user ID
+    const organizationId = req.user?.organization_id 
+      || req.user?.vendor_org_id 
+      || req.user?.organizationId
+      || req.user?.id; // Fallback to user ID
     
-    // Use vendor_org_id if available, otherwise use user_id
-    const filterField = req.user.vendor_org_id ? 'vendor_org_id' : 'user_id';
-    const filterValue = organizationId;
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID',
+        debug: {
+          sources_checked: ['user.organization_id', 'user.vendor_org_id', 'user.id'],
+          has_user: !!req.user,
+          user_has_org_id: !!req.user?.organization_id,
+          user_has_vendor_org_id: !!req.user?.vendor_org_id
+        }
+      });
+    }
     
     let query = supabase
       .from('memory_entries')
       .select('*')
-      .eq(filterField, filterValue)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -425,23 +636,98 @@ app.post('/api/v1/memory', async (req, res) => {
       });
     }
 
-    const { title, content, memory_type = 'context', tags = [] } = req.body;
+    const bodyData = req.body || {};
+    const { title, content, memory_type = 'context', tags = [] } = bodyData;
 
     // Validate required fields
     if (!title || !content) {
+      console.error('[maas-api] Validation failed - title:', title, 'content:', content);
       return res.status(400).json({
         error: 'Title and content are required',
-        code: 'VALIDATION_ERROR'
+        code: 'VALIDATION_ERROR',
+        received: {
+          hasTitle: !!title,
+          hasContent: !!content,
+          titleValue: title,
+          contentValue: content,
+          bodyKeys: Object.keys(bodyData)
+        }
+      });
+    }
+
+    // Debug: Log user context to see what we have
+    console.log('[maas-api] User context:', {
+      hasUser: !!req.user,
+      userId: req.user?.id || req.user?.user_id,
+      organizationId: req.user?.organization_id,
+      vendorOrgId: req.user?.vendor_org_id,
+      allUserKeys: req.user ? Object.keys(req.user) : []
+    });
+
+    // Resolve organization_id from multiple sources (in priority order):
+    // 1. Request body (if provided and user has permission)
+    // 2. User context from API key (organization_id)
+    // 3. User context from API key (vendor_org_id, resolved)
+    // 4. Fallback: try to resolve from vendor_org_id if available
+    let organizationId = null;
+    const bodyOrgId = bodyData.organization_id;
+
+    if (bodyOrgId) {
+      // If organization_id is provided in body, use it (user must have permission)
+      // For now, we'll allow it if the user is authenticated
+      if (req.user) {
+        organizationId = bodyOrgId;
+        console.log('[maas-api] Using organization_id from request body:', organizationId);
+      }
+    }
+    
+    if (!organizationId) {
+      organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    }
+    
+    // If still no organization_id and we have vendor_org_id, try to resolve it
+    if (!organizationId && req.user?.vendor_org_id && supabase) {
+      console.log('[maas-api] Attempting to resolve organization_id from vendor_org_id:', req.user.vendor_org_id);
+      organizationId = await resolveOrganizationId(
+        req.user.vendor_org_id,
+        null,
+        supabase
+      );
+      console.log('[maas-api] Resolved organization_id:', organizationId);
+    }
+
+    const userId = req.user?.user_id || req.user?.id;
+    
+    if (!organizationId) {
+      console.error('[maas-api] Organization ID resolution failed:', {
+        hasUser: !!req.user,
+        userKeys: req.user ? Object.keys(req.user) : [],
+        bodyOrgId: bodyOrgId,
+        userOrgId: req.user?.organization_id,
+        userVendorOrgId: req.user?.vendor_org_id
+      });
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID',
+        debug: {
+          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id'],
+          has_user: !!req.user,
+          user_has_org_id: !!req.user?.organization_id,
+          user_has_vendor_org_id: !!req.user?.vendor_org_id,
+          body_has_org_id: !!bodyOrgId
+        }
       });
     }
 
     // Resolve organization ID from multiple sources
     // Priority: request body > user.vendor_org_id > user.organization_id > user.id (fallback)
     const organizationId = req.body.organization_id 
-      || req.user.vendor_org_id 
-      || req.user.organization_id 
-      || req.user.organizationId
-      || req.user.id; // Fallback to user ID if no org ID available
+      || req.user?.vendor_org_id 
+      || req.user?.organization_id 
+      || req.user?.organizationId
+      || req.user?.id; // Fallback to user ID if no org ID available
+    
+    const userId = req.user?.user_id || req.user?.id;
 
     if (!organizationId) {
       return res.status(400).json({
@@ -461,13 +747,12 @@ app.post('/api/v1/memory', async (req, res) => {
     const { data, error } = await supabase
       .from('memory_entries')
       .insert({
-        vendor_org_id: organizationId,
+        organization_id: organizationId,
+        user_id: userId,
         title,
         content,
-        memory_type,
-        tags: tags || [],
-        created_by: req.user.id,
-        updated_by: req.user.id
+        memory_type: memory_type, // Use memory_type enum from public schema
+        tags: tags || []
       })
       .select()
       .single();
@@ -505,11 +790,20 @@ app.get('/api/v1/memory/:id', async (req, res) => {
 
     const { id } = req.params;
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { data, error } = await supabase
       .from('memory_entries')
       .select('*')
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq('organization_id', organizationId)
       .single();
 
     if (error) {
@@ -543,7 +837,24 @@ app.put('/api/v1/memory/:id', async (req, res) => {
     }
 
     const { id } = req.params;
-    const { title, content, memory_type, tags, metadata } = req.body;
+    const { title, content, memory_type, tags, metadata, organization_id: bodyOrgId } = req.body || {};
+
+    let organizationId = bodyOrgId || req.user?.organization_id || req.user?.vendor_org_id;
+
+    if (!organizationId && req.user?.vendor_org_id && supabase) {
+      organizationId = await resolveOrganizationId(
+        req.user.vendor_org_id,
+        null,
+        supabase
+      );
+    }
+
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
 
     const updateData = {
       updated_at: new Date().toISOString()
@@ -559,7 +870,7 @@ app.put('/api/v1/memory/:id', async (req, res) => {
       .from('memory_entries')
       .update(updateData)
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq('organization_id', organizationId)
       .select()
       .single();
 
@@ -595,11 +906,20 @@ app.delete('/api/v1/memory/:id', async (req, res) => {
 
     const { id } = req.params;
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { error } = await supabase
       .from('memory_entries')
       .delete()
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) {
       throw error;
@@ -625,10 +945,19 @@ app.get('/api/v1/memory/count', async (req, res) => {
       });
     }
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { count, error } = await supabase
       .from('memory_entries')
       .select('*', { count: 'exact', head: true })
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
@@ -652,11 +981,20 @@ app.get('/api/v1/memory/stats', async (req, res) => {
       });
     }
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     // Get total count and breakdown by type
     const { data: typeBreakdown, error: typeError } = await supabase
       .from('memory_entries')
       .select('memory_type')
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (typeError) throw typeError;
 
@@ -669,7 +1007,7 @@ app.get('/api/v1/memory/stats', async (req, res) => {
     const { data: recentMemories } = await supabase
       .from('memory_entries')
       .select('*')
-      .eq('vendor_org_id', req.user.vendor_org_id)
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: false })
       .limit(5);
 
@@ -699,14 +1037,34 @@ app.post('/api/v1/memory/:id/access', async (req, res) => {
 
     const { id } = req.params;
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
+    // Use last_accessed (not last_accessed_at) for public schema
+    // First, get current access_count
+    const { data: currentData } = await supabase
+      .from('memory_entries')
+      .select('access_count')
+      .eq('id', id)
+      .eq('organization_id', organizationId)
+      .single();
+
+    const newAccessCount = (currentData?.access_count || 0) + 1;
+
     const { error } = await supabase
       .from('memory_entries')
       .update({ 
         last_accessed: new Date().toISOString(),
-        access_count: supabase.raw('access_count + 1')
+        access_count: newAccessCount
       })
       .eq('id', id)
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
@@ -730,7 +1088,7 @@ app.post('/api/v1/memory/bulk/delete', async (req, res) => {
       });
     }
 
-    const { memory_ids } = req.body;
+    const { memory_ids } = req.body || {};
 
     if (!Array.isArray(memory_ids) || memory_ids.length === 0) {
       return res.status(400).json({
@@ -739,11 +1097,20 @@ app.post('/api/v1/memory/bulk/delete', async (req, res) => {
       });
     }
 
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+    
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
     const { error } = await supabase
       .from('memory_entries')
       .delete()
       .in('id', memory_ids)
-      .eq('vendor_org_id', req.user.vendor_org_id);
+      .eq('organization_id', organizationId);
 
     if (error) throw error;
 
@@ -764,19 +1131,86 @@ app.post('/api/v1/memory/bulk/delete', async (req, res) => {
 
 app.post('/api/v1/memory/search', async (req, res) => {
   try {
-    const { query, limit = 10 } = req.body;
+    if (!supabase) {
+      return res.status(503).json({ 
+        error: 'Database service unavailable',
+        code: 'SERVICE_UNAVAILABLE'
+      });
+    }
+
+    let bodyData = req.body;
+    if (typeof bodyData === 'string') {
+      try {
+        bodyData = JSON.parse(bodyData);
+      } catch (error) {
+        return res.status(400).json({
+          error: 'Invalid JSON payload',
+          code: 'INVALID_JSON',
+          details: error.message
+        });
+      }
+    }
+
+    const { query, limit = 10, memory_type, tags } = bodyData || {};
+
+    if (!query) {
+      return res.status(400).json({
+        error: 'Query is required',
+        code: 'VALIDATION_ERROR'
+      });
+    }
+
+    const organizationId = req.user?.organization_id || req.user?.vendor_org_id;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        error: 'Organization ID is required',
+        code: 'MISSING_ORG_ID'
+      });
+    }
+
+    const sanitizedQuery = query.replace(/%/g, '').replace(/_/g, '');
+    let searchQuery = supabase
+      .from('memory_entries')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .limit(limit);
+
+    if (memory_type) {
+      searchQuery = searchQuery.eq('memory_type', memory_type);
+    }
+
+    if (tags && tags.length) {
+      const tagArray = Array.isArray(tags) ? tags : [tags];
+      searchQuery = searchQuery.contains('tags', tagArray);
+    }
+
+    searchQuery = searchQuery.or(
+      `title.ilike.%${sanitizedQuery}%,content.ilike.%${sanitizedQuery}%`
+    );
+
+    const { data, error } = await searchQuery;
+
+    if (error) {
+      return res.status(500).json({
+        error: 'Search failed',
+        code: 'DB_ERROR',
+        details: error.message
+      });
+    }
 
     res.json({
-      data: [],
+      data: data || [],
       query,
-      results_count: 0,
+      results_count: data?.length || 0,
       message: 'Search completed successfully'
     });
   } catch (error) {
-    console.error('Memory search error:', error);
+    console.error('[maas-api] Memory search error:', error);
     res.status(500).json({ 
       error: 'Internal server error',
-      code: 'INTERNAL_ERROR'
+      code: 'INTERNAL_ERROR',
+      details: error.message
     });
   }
 });
@@ -833,4 +1267,16 @@ app.use((req, res) => {
   });
 });
 
-exports.handler = serverless(app);
+exports.handler = serverless(app, {
+  binary: false,
+  request: (request, event) => {
+    request.rawBody = event?.body;
+    request.isBase64Encoded = event?.isBase64Encoded;
+
+    if (event?.body && typeof event.body === 'string') {
+      request.body = event.body;
+    }
+
+    return request;
+  }
+});

@@ -12,11 +12,11 @@ const router = express.Router()
  * Show browser login page
  */
 router.get('/login', (req, res) => {
-    const returnTo = (req.query.return_to as string) || process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com'
-    const error = req.query.error as string
+  const returnTo = (req.query.return_to as string) || process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com'
+  const error = req.query.error as string
 
-    // Render login form
-    res.send(`
+  // Render login form
+  res.send(`
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -159,108 +159,115 @@ router.get('/login', (req, res) => {
  * Handle web login form submission
  */
 router.post('/login', async (req, res) => {
-    const { email, password, return_to } = req.body
+  const { email, password, return_to } = req.body
 
-    if (!email || !password) {
-        return res.redirect(`/web/login?error=${encodeURIComponent('Email and password are required')}&return_to=${encodeURIComponent(return_to || '')}`)
+  if (!email || !password) {
+    return res.redirect(`/web/login?error=${encodeURIComponent('Email and password are required')}&return_to=${encodeURIComponent(return_to || '')}`)
+  }
+
+  try {
+    // Authenticate with Supabase
+    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error || !data.user) {
+      await logAuthEvent({
+        event_type: 'login_failed',
+        platform: 'web',
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        success: false,
+        error_message: error?.message || 'Invalid credentials',
+        metadata: { email },
+      })
+
+      return res.redirect(`/web/login?error=${encodeURIComponent(error?.message || 'Invalid credentials')}&return_to=${encodeURIComponent(return_to || '')}`)
     }
 
-    try {
-        // Authenticate with Supabase
-        const { data, error } = await supabaseAdmin.auth.signInWithPassword({
-            email,
-            password,
-        })
+    // Upsert user account
+    await upsertUserAccount({
+      user_id: data.user.id,
+      email: data.user.email!,
+      role: data.user.role || 'authenticated',
+      provider: data.user.app_metadata?.provider,
+      raw_metadata: data.user.user_metadata || {},
+      last_sign_in_at: data.user.last_sign_in_at || null,
+    })
 
-        if (error || !data.user) {
-            await logAuthEvent({
-                event_type: 'login_failed',
-                platform: 'web',
-                ip_address: req.ip,
-                user_agent: req.headers['user-agent'],
-                success: false,
-                error_message: error?.message || 'Invalid credentials',
-                metadata: { email },
-            })
+    // Generate tokens
+    const tokens = generateTokenPair({
+      sub: data.user.id,
+      email: data.user.email!,
+      role: data.user.role || 'authenticated',
+      platform: 'web',
+    })
 
-            return res.redirect(`/web/login?error=${encodeURIComponent(error?.message || 'Invalid credentials')}&return_to=${encodeURIComponent(return_to || '')}`)
-        }
+    // Create session
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+    await createSession({
+      user_id: data.user.id,
+      platform: 'web',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      expires_at: expiresAt,
+    })
 
-        // Upsert user account
-        await upsertUserAccount({
-            user_id: data.user.id,
-            email: data.user.email!,
-            role: data.user.role || 'authenticated',
-            provider: data.user.app_metadata?.provider,
-            raw_metadata: data.user.user_metadata || {},
-            last_sign_in_at: data.user.last_sign_in_at || null,
-        })
+    // Log successful login
+    await logAuthEvent({
+      event_type: 'login_success',
+      user_id: data.user.id,
+      platform: 'web',
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+    })
 
-        // Generate tokens
-        const tokens = generateTokenPair({
-            sub: data.user.id,
-            email: data.user.email!,
-            role: data.user.role || 'authenticated',
-            platform: 'web',
-        })
+    // Set HTTP-only session cookies
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+    const isProduction = process.env.NODE_ENV === 'production'
 
-        // Create session
-        const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
-        await createSession({
-            user_id: data.user.id,
-            platform: 'web',
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            ip_address: req.ip,
-            user_agent: req.headers['user-agent'],
-            expires_at: expiresAt,
-        })
+    res.cookie('lanonasis_session', tokens.access_token, {
+      domain: cookieDomain,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+    })
 
-        // Log successful login
-        await logAuthEvent({
-            event_type: 'login_success',
-            user_id: data.user.id,
-            platform: 'web',
-            ip_address: req.ip,
-            user_agent: req.headers['user-agent'],
-            success: true,
-        })
+    res.cookie('lanonasis_user', JSON.stringify({
+      id: data.user.id,
+      email: data.user.email,
+      role: data.user.role,
+    }), {
+      domain: cookieDomain,
+      httpOnly: false, // Readable by JavaScript
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    })
 
-        // Set HTTP-only session cookies
-        const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
-        const isProduction = process.env.NODE_ENV === 'production'
+    // Redirect to dashboard - ensure it goes to /dashboard, not .com/
+    const dashboardUrl = process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com'
+    let redirectUrl = return_to || `${dashboardUrl}/dashboard`
 
-        res.cookie('lanonasis_session', tokens.access_token, {
-            domain: cookieDomain,
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            path: '/',
-        })
-
-        res.cookie('lanonasis_user', JSON.stringify({
-            id: data.user.id,
-            email: data.user.email,
-            role: data.user.role,
-        }), {
-            domain: cookieDomain,
-            httpOnly: false, // Readable by JavaScript
-            secure: isProduction,
-            sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: '/',
-        })
-
-        // Redirect to personalized dashboard
-        const dashboardUrl = process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com'
-        const redirectUrl = return_to || `${dashboardUrl}/dashboard/home`
-
-        return res.redirect(redirectUrl)
-    } catch (error) {
-        console.error('Web login error:', error)
-        return res.redirect(`/web/login?error=${encodeURIComponent('An unexpected error occurred')}&return_to=${encodeURIComponent(return_to || '')}`)
+    // Fix: If return_to is just the domain or ends with .com/, redirect to /dashboard
+    if (redirectUrl && (redirectUrl.endsWith('.com') || redirectUrl.endsWith('.com/'))) {
+      redirectUrl = `${redirectUrl.replace(/\/$/, '').replace(/\.com$/, '.com')}/dashboard`
+    } else if (redirectUrl && !redirectUrl.includes('/dashboard') && redirectUrl.includes('dashboard.lanonasis.com')) {
+      redirectUrl = `${dashboardUrl}/dashboard`
     }
+
+    return res.redirect(redirectUrl)
+  } catch (error) {
+    console.error('Web login error:', error)
+    return res.redirect(`/web/login?error=${encodeURIComponent('An unexpected error occurred')}&return_to=${encodeURIComponent(return_to || '')}`)
+  }
 })
 
 /**
@@ -268,20 +275,20 @@ router.post('/login', async (req, res) => {
  * Handle web logout
  */
 router.get('/logout', (req, res) => {
-    const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+  const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
 
-    // Clear session cookies
-    res.clearCookie('lanonasis_session', {
-        domain: cookieDomain,
-        path: '/',
-    })
-    res.clearCookie('lanonasis_user', {
-        domain: cookieDomain,
-        path: '/',
-    })
+  // Clear session cookies
+  res.clearCookie('lanonasis_session', {
+    domain: cookieDomain,
+    path: '/',
+  })
+  res.clearCookie('lanonasis_user', {
+    domain: cookieDomain,
+    path: '/',
+  })
 
-    // Redirect to login page
-    res.redirect('/web/login')
+  // Redirect to login page
+  res.redirect('/web/login')
 })
 
 export default router

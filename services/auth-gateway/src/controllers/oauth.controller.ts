@@ -97,8 +97,11 @@ export async function authorize(req: Request, res: Response) {
 
     if (!userId) {
         // Redirect to login page with return URL
+        // Use CLI login form for CLI clients, web login for others
         const returnUrl = req.originalUrl
-        return res.redirect(`/web/login?return_to=${encodeURIComponent(returnUrl)}`)
+        const isCLIClient = payload.client_id === 'lanonasis-cli' || payload.client_id?.includes('cli')
+        const loginPath = isCLIClient ? '/auth/cli-login' : '/web/login'
+        return res.redirect(`${loginPath}?return_to=${encodeURIComponent(returnUrl)}`)
     }
 
     try {
