@@ -298,35 +298,24 @@ const verifyJwtToken = async (req, res, next) => {
           .eq('id', apiKeyRecord.id)
           .then(() => {}, () => {}); // Ignore errors
 
-        // Resolve organization_id if available from API key record
-        // API keys might have organization_id directly, or we need to look it up
-        let organizationId = apiKeyRecord.organization_id || null;
+        // API keys table only has user_id, not organization_id or vendor_org_id
+        // We must fetch organization_id from the users table
+        let organizationId = null;
         
         console.log('[maas-api] API key record:', {
           id: apiKeyRecord.id,
           user_id: apiKeyRecord.user_id,
-          organization_id: apiKeyRecord.organization_id,
-          vendor_org_id: apiKeyRecord.vendor_org_id,
+          name: apiKeyRecord.name,
+          service: apiKeyRecord.service,
           allKeys: Object.keys(apiKeyRecord)
         });
         
-        // If API key has vendor_org_id, resolve it
-        if (!organizationId && apiKeyRecord.vendor_org_id) {
-          console.log('[maas-api] Resolving organization_id from vendor_org_id:', apiKeyRecord.vendor_org_id);
-          organizationId = await resolveOrganizationId(
-            apiKeyRecord.vendor_org_id,
-            null,
-            supabase
-          );
-          console.log('[maas-api] Resolved organization_id:', organizationId);
-        }
-        
-        // Fallback: Fetch user's organization_id from users table if still not found
-        if (!organizationId && supabase && apiKeyRecord.user_id) {
+        // Fetch user's organization_id from users table
+        if (supabase && apiKeyRecord.user_id) {
           try {
             const { data: userData, error: userError } = await supabase
               .from('users')
-              .select('organization_id, id')
+              .select('organization_id, id, email')
               .eq('id', apiKeyRecord.user_id)
               .maybeSingle();
             
@@ -335,11 +324,16 @@ const verifyJwtToken = async (req, res, next) => {
             } else if (userData?.organization_id) {
               organizationId = userData.organization_id;
               console.log('[maas-api] Found organization_id from users table:', organizationId);
+            } else if (userData) {
+              console.warn('[maas-api] User found but has no organization_id:', {
+                user_id: apiKeyRecord.user_id,
+                email: userData.email
+              });
             } else {
-              console.warn('[maas-api] User found but has no organization_id:', apiKeyRecord.user_id);
+              console.warn('[maas-api] User not found in users table:', apiKeyRecord.user_id);
             }
           } catch (userError) {
-            console.warn('[maas-api] Could not fetch user organization_id:', userError.message);
+            console.warn('[maas-api] Exception fetching user organization_id:', userError.message);
           }
         }
         
@@ -351,7 +345,7 @@ const verifyJwtToken = async (req, res, next) => {
           id: apiKeyRecord.user_id,
           user_id: apiKeyRecord.user_id,
           organization_id: organizationId,
-          vendor_org_id: apiKeyRecord.vendor_org_id || organizationId, // Use vendor_org_id if available, otherwise use organizationId
+          vendor_org_id: organizationId, // Use organizationId for vendor_org_id compatibility
           api_key_id: apiKeyRecord.id,
           api_key_name: apiKeyRecord.name,
           service: apiKeyRecord.service || 'all',
