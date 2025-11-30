@@ -310,27 +310,42 @@ const verifyJwtToken = async (req, res, next) => {
           allKeys: Object.keys(apiKeyRecord)
         });
         
-        // Fetch user's organization_id from users table
+        // Fetch user's organization_id from users tables
+        // Try maas.users first (MaaS schema), then public.users (legacy)
         if (supabase && apiKeyRecord.user_id) {
           try {
-            const { data: userData, error: userError } = await supabase
+            // Try maas.users first (preferred for MaaS)
+            const { data: maasUserData, error: maasUserError } = await supabase
+              .schema('maas')
               .from('users')
-              .select('organization_id, id, email')
-              .eq('id', apiKeyRecord.user_id)
+              .select('organization_id, user_id, email')
+              .eq('user_id', apiKeyRecord.user_id)
               .maybeSingle();
             
-            if (userError) {
-              console.warn('[maas-api] Error fetching user organization_id:', userError.message);
-            } else if (userData?.organization_id) {
-              organizationId = userData.organization_id;
-              console.log('[maas-api] Found organization_id from users table:', organizationId);
-            } else if (userData) {
-              console.warn('[maas-api] User found but has no organization_id:', {
-                user_id: apiKeyRecord.user_id,
-                email: userData.email
-              });
+            if (!maasUserError && maasUserData?.organization_id) {
+              organizationId = maasUserData.organization_id;
+              console.log('[maas-api] Found organization_id from maas.users:', organizationId);
             } else {
-              console.warn('[maas-api] User not found in users table:', apiKeyRecord.user_id);
+              // Fallback to public.users
+              const { data: userData, error: userError } = await supabase
+                .from('users')
+                .select('organization_id, id, email')
+                .eq('id', apiKeyRecord.user_id)
+                .maybeSingle();
+              
+              if (!userError && userData?.organization_id) {
+                organizationId = userData.organization_id;
+                console.log('[maas-api] Found organization_id from public.users:', organizationId);
+              } else if (userError) {
+                console.warn('[maas-api] Error fetching user organization_id:', userError.message);
+              } else if (userData) {
+                console.warn('[maas-api] User found but has no organization_id:', {
+                  user_id: apiKeyRecord.user_id,
+                  email: userData.email
+                });
+              } else {
+                console.warn('[maas-api] User not found in users tables:', apiKeyRecord.user_id);
+              }
             }
           } catch (userError) {
             console.warn('[maas-api] Exception fetching user organization_id:', userError.message);
