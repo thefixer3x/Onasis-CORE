@@ -545,12 +545,13 @@ export async function login(req: Request, res: Response) {
     if (platform === 'web') {
       const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
       const isProduction = process.env.NODE_ENV === 'production'
+      const sameSiteSetting = isProduction ? 'none' : 'lax'
 
       res.cookie('lanonasis_session', tokens.access_token, {
         domain: cookieDomain,
         httpOnly: true,
-        secure: isProduction,
-        sameSite: 'lax',
+        secure: isProduction ? true : false,
+        sameSite: sameSiteSetting,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       })
@@ -563,8 +564,8 @@ export async function login(req: Request, res: Response) {
       }), {
         domain: cookieDomain,
         httpOnly: false, // Readable by JavaScript
-        secure: isProduction,
-        sameSite: 'lax',
+        secure: isProduction ? true : false,
+        sameSite: sameSiteSetting,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/',
       })
