@@ -324,26 +324,27 @@ const verifyJwtToken = async (req, res, next) => {
         // Fallback: Fetch user's organization_id from users table if still not found
         if (!organizationId && supabase && apiKeyRecord.user_id) {
           try {
-            const { data: userData } = await supabase
+            const { data: userData, error: userError } = await supabase
               .from('users')
               .select('organization_id, id')
               .eq('id', apiKeyRecord.user_id)
               .maybeSingle();
             
-            if (userData?.organization_id) {
+            if (userError) {
+              console.warn('[maas-api] Error fetching user organization_id:', userError.message);
+            } else if (userData?.organization_id) {
               organizationId = userData.organization_id;
               console.log('[maas-api] Found organization_id from users table:', organizationId);
+            } else {
+              console.warn('[maas-api] User found but has no organization_id:', apiKeyRecord.user_id);
             }
           } catch (userError) {
             console.warn('[maas-api] Could not fetch user organization_id:', userError.message);
           }
         }
         
-        // Final fallback to user_id if no organization_id found
-        if (!organizationId) {
-          organizationId = apiKeyRecord.user_id;
-          console.log('[maas-api] Using user_id as organization_id fallback:', organizationId);
-        }
+        // DO NOT use user_id as organization_id - it violates foreign key constraint
+        // If we still don't have organization_id, we'll need to handle it in the endpoint
 
         // Set user context with organization_id
         req.user = { 
@@ -694,45 +695,49 @@ app.post('/api/v1/memory', async (req, res) => {
       console.log('[maas-api] Resolved organization_id:', organizationId);
     }
 
-    // Final fallback: use user.id if no organization_id found
-    if (!organizationId) {
-      organizationId = req.user?.id;
-      console.log('[maas-api] Using user.id as organization_id fallback:', organizationId);
+    // Try to fetch organization_id from users table if still not found
+    if (!organizationId && supabase && req.user?.id) {
+      try {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('organization_id, id')
+          .eq('id', req.user.id)
+          .maybeSingle();
+        
+        if (userError) {
+          console.warn('[maas-api] Error fetching user organization_id from users table:', userError.message);
+        } else if (userData?.organization_id) {
+          organizationId = userData.organization_id;
+          console.log('[maas-api] Found organization_id from users table in endpoint:', organizationId);
+        }
+      } catch (userError) {
+        console.warn('[maas-api] Exception fetching user organization_id:', userError.message);
+      }
     }
 
     const userId = req.user?.user_id || req.user?.id;
     
+    // DO NOT use user.id as organization_id - it violates foreign key constraint
+    // organization_id must exist in the organizations table
     if (!organizationId) {
       console.error('[maas-api] Organization ID resolution failed:', {
         hasUser: !!req.user,
         userKeys: req.user ? Object.keys(req.user) : [],
         bodyOrgId: bodyOrgId,
         userOrgId: req.user?.organization_id,
-        userVendorOrgId: req.user?.vendor_org_id
+        userVendorOrgId: req.user?.vendor_org_id,
+        userId: userId
       });
       return res.status(400).json({
-        error: 'Organization ID is required',
+        error: 'Organization ID is required. User must be associated with an organization.',
         code: 'MISSING_ORG_ID',
         debug: {
-          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id', 'user.id'],
+          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id', 'users.organization_id'],
           has_user: !!req.user,
           user_has_org_id: !!req.user?.organization_id,
           user_has_vendor_org_id: !!req.user?.vendor_org_id,
-          body_has_org_id: !!bodyOrgId
-        }
-      });
-    }
-
-    if (!organizationId) {
-      return res.status(400).json({
-        error: 'Organization ID is required',
-        code: 'MISSING_ORG_ID',
-        debug: {
-          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id'],
-          has_user: !!req.user,
-          user_has_org_id: !!req.user?.organization_id,
-          user_has_vendor_org_id: !!req.user?.vendor_org_id,
-          body_has_org_id: !!req.body.organization_id
+          body_has_org_id: !!bodyOrgId,
+          user_id: userId
         }
       });
     }
@@ -1274,3 +1279,4 @@ exports.handler = serverless(app, {
     return request;
   }
 });
+
