@@ -315,9 +315,9 @@ const verifyJwtToken = async (req, res, next) => {
         if (supabase && apiKeyRecord.user_id) {
           try {
             // Try maas.users first (preferred for MaaS)
+            // Use RPC or direct query since .schema() might not work with service role
             const { data: maasUserData, error: maasUserError } = await supabase
-              .schema('maas')
-              .from('users')
+              .from('maas.users')
               .select('organization_id, user_id, email')
               .eq('user_id', apiKeyRecord.user_id)
               .maybeSingle();
