@@ -694,6 +694,12 @@ app.post('/api/v1/memory', async (req, res) => {
       console.log('[maas-api] Resolved organization_id:', organizationId);
     }
 
+    // Final fallback: use user.id if no organization_id found
+    if (!organizationId) {
+      organizationId = req.user?.id;
+      console.log('[maas-api] Using user.id as organization_id fallback:', organizationId);
+    }
+
     const userId = req.user?.user_id || req.user?.id;
     
     if (!organizationId) {
@@ -708,7 +714,7 @@ app.post('/api/v1/memory', async (req, res) => {
         error: 'Organization ID is required',
         code: 'MISSING_ORG_ID',
         debug: {
-          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id'],
+          sources_checked: ['request_body', 'user.organization_id', 'user.vendor_org_id', 'user.id'],
           has_user: !!req.user,
           user_has_org_id: !!req.user?.organization_id,
           user_has_vendor_org_id: !!req.user?.vendor_org_id,
@@ -716,16 +722,6 @@ app.post('/api/v1/memory', async (req, res) => {
         }
       });
     }
-
-    // Resolve organization ID from multiple sources
-    // Priority: request body > user.vendor_org_id > user.organization_id > user.id (fallback)
-    const organizationId = req.body.organization_id 
-      || req.user?.vendor_org_id 
-      || req.user?.organization_id 
-      || req.user?.organizationId
-      || req.user?.id; // Fallback to user ID if no org ID available
-    
-    const userId = req.user?.user_id || req.user?.id;
 
     if (!organizationId) {
       return res.status(400).json({
