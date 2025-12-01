@@ -501,7 +501,9 @@ const verifyJwtToken = async (req, res, next) => {
           const introspectResponse = await fetch(`${authGatewayUrl}/oauth/introspect`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
+              'Content-Type': 'application/x-www-form-urlencoded',
+              // Include Origin header for server-to-server introspection requests
+              'Origin': 'https://api.lanonasis.com'
             },
             body: new URLSearchParams({
               token: token,

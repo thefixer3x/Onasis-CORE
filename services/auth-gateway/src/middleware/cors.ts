@@ -145,6 +145,13 @@ export function validateReferer(req: Request, res: Response, next: NextFunction)
         return next()
     }
 
+    // Skip referer validation for /oauth/introspect endpoint
+    // Server-to-server introspection requests don't have Referer headers
+    // Protection is provided by rate limiting and the token itself
+    if (req.path === '/introspect' || req.path.endsWith('/oauth/introspect')) {
+        return next()
+    }
+
     const referer = req.get('Referer') || req.get('Origin')
 
     if (!referer && env.NODE_ENV === 'production') {
