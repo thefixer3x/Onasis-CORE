@@ -152,6 +152,20 @@ export function validateReferer(req: Request, res: Response, next: NextFunction)
         return next()
     }
 
+    // Skip referer validation for /oauth/device endpoint
+    // Device code flow is used by CLI/terminal apps which don't have Referer headers
+    // Protection is provided by rate limiting and the device_code itself
+    if (req.path === '/device' || req.path.endsWith('/oauth/device')) {
+        return next()
+    }
+
+    // Skip referer validation for /oauth/revoke endpoint
+    // Token revocation may be called from SDKs/desktop apps without Referer
+    // Protection is provided by requiring the token being revoked
+    if (req.path === '/revoke' || req.path.endsWith('/oauth/revoke')) {
+        return next()
+    }
+
     const referer = req.get('Referer') || req.get('Origin')
 
     if (!referer && env.NODE_ENV === 'production') {
