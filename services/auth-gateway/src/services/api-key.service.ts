@@ -417,14 +417,13 @@ export async function validateAPIKey(apiKey: string): Promise<{
 
       if (vsecureError) {
         // Schema doesn't exist or table doesn't exist - this is expected in Supabase
-        // Only log if it's not a schema/table not found error
-        if (vsecureError.code === '42P01' || 
+        // Silently skip - no logging needed for expected missing schema
+        if (!(vsecureError.code === '42P01' || 
             vsecureError.message.includes('schema "vsecure" does not exist') ||
             vsecureError.message.includes('schema must be one of') ||
             vsecureError.message.includes('relation') ||
-            vsecureError.message.includes('does not exist')) {
-          // Schema doesn't exist - this is expected in Supabase, silently continue
-        } else {
+            vsecureError.message.includes('does not exist'))) {
+          // Only log unexpected errors (not schema-not-found errors)
           console.warn('[api-key.service] vsecure.lanonasis_api_keys lookup error:', vsecureError.message)
         }
       } else if (vsecureKeys && vsecureKeys.length > 0) {
