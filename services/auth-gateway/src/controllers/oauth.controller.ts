@@ -150,6 +150,14 @@ export async function authorize(req: Request, res: Response) {
             redirectUrl.searchParams.set('state', payload.state)
         }
 
+        logger.info('OAuth authorize success, redirecting to callback', {
+            client_id: client.client_id,
+            redirect_uri: redirectUrl.toString(),
+            has_code: !!result.authorizationCode,
+            has_state: !!payload.state,
+            user_id: userId
+        })
+
         return res.redirect(302, redirectUrl.toString())
     } catch (error) {
         await logOAuthEvent({
