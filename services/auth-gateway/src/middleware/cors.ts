@@ -51,6 +51,16 @@ export const standardCors = cors({
 })
 
 /**
+ * Server-to-server origins that are always allowed for internal API communication
+ * These are trusted Lanonasis services that need to call OAuth endpoints
+ */
+const TRUSTED_SERVER_ORIGINS = [
+    'https://api.lanonasis.com',
+    'https://mcp.lanonasis.com',
+    'https://maas.lanonasis.com'
+]
+
+/**
  * Strict CORS configuration for OAuth endpoints
  * More restrictive to prevent CSRF and other attacks
  */
@@ -58,6 +68,11 @@ export const oauthCors = cors({
     origin: (origin, callback) => {
         // Allow same-origin requests (no origin header)
         if (!origin) {
+            return callback(null, true)
+        }
+
+        // Always allow trusted server-to-server origins
+        if (TRUSTED_SERVER_ORIGINS.includes(origin)) {
             return callback(null, true)
         }
 
