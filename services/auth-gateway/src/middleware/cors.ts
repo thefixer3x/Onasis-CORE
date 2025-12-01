@@ -104,7 +104,7 @@ export function oauthSecurityHeaders(req: Request, res: Response, next: NextFunc
     if (req.path.startsWith('/web/')) {
         return next() // Skip CSP for web routes
     }
-    
+
     // Strict CSP for OAuth endpoints only
     res.setHeader(
         'Content-Security-Policy',
