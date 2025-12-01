@@ -379,6 +379,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
         // Check if it's a schema/table not found error (expected in some deployments)
         if (securityServiceError.code === '42P01' || 
             securityServiceError.message.includes('schema "security_service" does not exist') ||
+            securityServiceError.message.includes('schema must be one of') ||
             securityServiceError.message.includes('relation') ||
             securityServiceError.message.includes('does not exist')) {
           // Schema doesn't exist - this is fine, continue to other schemas
@@ -419,6 +420,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
         // Only log if it's not a schema/table not found error
         if (vsecureError.code === '42P01' || 
             vsecureError.message.includes('schema "vsecure" does not exist') ||
+            vsecureError.message.includes('schema must be one of') ||
             vsecureError.message.includes('relation') ||
             vsecureError.message.includes('does not exist')) {
           // Schema doesn't exist - this is expected in Supabase, silently continue
