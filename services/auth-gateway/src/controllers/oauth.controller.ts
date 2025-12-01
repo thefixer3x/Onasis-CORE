@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import { z } from 'zod'
+import { logger } from '../utils/logger.js'
 import {
     OAuthServiceError,
     createAuthorizationCode,
