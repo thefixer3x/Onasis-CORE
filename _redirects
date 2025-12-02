@@ -34,6 +34,8 @@
 # Proxy all /v1/auth requests to VPS auth gateway
 /v1/auth/*        https://auth.lanonasis.com/v1/auth/:splat           200!
 /api/v1/auth/*    https://auth.lanonasis.com/v1/auth/:splat           200!
+# Token introspection endpoint for SSO validation
+/api/v1/auth/introspect  https://auth.lanonasis.com/oauth/introspect   200!
 # Supabase OAuth callback - forward to auth gateway
 /auth/callback    https://auth.lanonasis.com/v1/auth/oauth/callback   301!
 
