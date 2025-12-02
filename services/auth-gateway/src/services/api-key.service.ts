@@ -341,7 +341,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
     // Check if the key is already a SHA-256 hash (64 hex characters)
     // Some clients (like IDE extensions) hash keys client-side before sending
     const isHash = /^[a-f0-9]{64}$/i.test(apiKey.trim())
-    
+
     if (!isHash) {
       // Only check prefixes for raw API keys, not hashes
       if (apiKey.startsWith('vx_')) {
@@ -377,11 +377,11 @@ export async function validateAPIKey(apiKey: string): Promise<{
 
       if (securityServiceError) {
         // Check if it's a schema/table not found error (expected in some deployments)
-        if (securityServiceError.code === '42P01' || 
-            securityServiceError.message.includes('schema "security_service" does not exist') ||
-            securityServiceError.message.includes('schema must be one of') ||
-            securityServiceError.message.includes('relation') ||
-            securityServiceError.message.includes('does not exist')) {
+        if (securityServiceError.code === '42P01' ||
+          securityServiceError.message.includes('schema "security_service" does not exist') ||
+          securityServiceError.message.includes('schema must be one of') ||
+          securityServiceError.message.includes('relation') ||
+          securityServiceError.message.includes('does not exist')) {
           // Schema doesn't exist - this is fine, continue to other schemas
         } else {
           console.warn('[api-key.service] security_service.stored_api_keys lookup error:', securityServiceError.message)
@@ -418,11 +418,11 @@ export async function validateAPIKey(apiKey: string): Promise<{
       if (vsecureError) {
         // Schema doesn't exist or table doesn't exist - this is expected in Supabase
         // Silently skip - no logging needed for expected missing schema
-        if (!(vsecureError.code === '42P01' || 
-            vsecureError.message.includes('schema "vsecure" does not exist') ||
-            vsecureError.message.includes('schema must be one of') ||
-            vsecureError.message.includes('relation') ||
-            vsecureError.message.includes('does not exist'))) {
+        if (!(vsecureError.code === '42P01' ||
+          vsecureError.message.includes('schema "vsecure" does not exist') ||
+          vsecureError.message.includes('schema must be one of') ||
+          vsecureError.message.includes('relation') ||
+          vsecureError.message.includes('does not exist'))) {
           // Only log unexpected errors (not schema-not-found errors)
           console.warn('[api-key.service] vsecure.lanonasis_api_keys lookup error:', vsecureError.message)
         }
