@@ -439,7 +439,21 @@ const verifyJwtToken = async (req, res, next) => {
           }
         }
 
-        // DO NOT use user_id as organization_id - it violates foreign key constraint
+        // Use default organization if none found (Lanonasis org)
+        const DEFAULT_ORGANIZATION_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+        if (!organizationId) {
+          console.log("[maas-api] No organization_id found for user, using default Lanonasis org");
+          organizationId = DEFAULT_ORGANIZATION_ID;
+        }
+
+        // Use default organization if none found (Lanonasis org)
+    const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+    if (!organizationId) {
+      console.log("[maas-api] No organization_id found, using default Lanonasis org");
+      organizationId = DEFAULT_ORG_ID;
+    }
+
+    // DO NOT use user.id as organization_id - it violates foreign key constraint
         // If we still don't have organization_id, we'll need to handle it in the endpoint
 
         // Set user context with organization_id
@@ -848,6 +862,13 @@ app.post("/api/v1/memory", async (req, res) => {
     }
 
     const userId = req.user?.user_id || req.user?.id;
+
+    // Use default organization if none found (Lanonasis org)
+    const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+    if (!organizationId) {
+      console.log("[maas-api] No organization_id found, using default Lanonasis org");
+      organizationId = DEFAULT_ORG_ID;
+    }
 
     // DO NOT use user.id as organization_id - it violates foreign key constraint
     // organization_id must exist in the organizations table
