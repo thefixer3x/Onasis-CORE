@@ -229,14 +229,22 @@ const resolveOrganizationId = async (
 const verifyJwtToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const apiKeyHeader = req.headers["x-api-key"];
+    
+    // Support both Authorization: Bearer and X-API-Key headers
+    let token = null;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      token = authHeader.substring(7);
+    } else if (apiKeyHeader) {
+      token = apiKeyHeader;
+    }
+    
+    if (!token) {
       return res.status(401).json({
         error: "No token provided",
         code: "AUTH_REQUIRED",
       });
     }
-
-    const token = authHeader.substring(7);
 
     // First: Check for master API key (system key from environment)
     const masterApiKey = process.env.MASTER_API_KEY;
