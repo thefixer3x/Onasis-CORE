@@ -34,6 +34,8 @@
 # Proxy all /v1/auth requests to VPS auth gateway
 /v1/auth/*        https://auth.lanonasis.com/v1/auth/:splat           200!
 /api/v1/auth/*    https://auth.lanonasis.com/v1/auth/:splat           200!
+# Supabase OAuth callback - forward to auth gateway
+/auth/callback    https://auth.lanonasis.com/v1/auth/oauth/callback   301!
 
 # Dashboard authentication callback
 /auth/dashboard/callback  /.netlify/functions/dashboard-callback    200
@@ -60,3 +62,5 @@
 
 # Catch-all for API Gateway (LOWEST PRIORITY - catch remaining routes)
 /api/*            /.netlify/functions/api-gateway/:splat        200
+
+
