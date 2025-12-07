@@ -230,7 +230,7 @@ const verifyJwtToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     const apiKeyHeader = req.headers["x-api-key"];
-    
+
     // Support both Authorization: Bearer and X-API-Key headers
     let token = null;
     if (authHeader && authHeader.startsWith("Bearer ")) {
@@ -238,7 +238,7 @@ const verifyJwtToken = async (req, res, next) => {
     } else if (apiKeyHeader) {
       token = apiKeyHeader;
     }
-    
+
     if (!token) {
       return res.status(401).json({
         error: "No token provided",
@@ -450,18 +450,22 @@ const verifyJwtToken = async (req, res, next) => {
         // Use default organization if none found (Lanonasis org)
         const DEFAULT_ORGANIZATION_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
         if (!organizationId) {
-          console.log("[maas-api] No organization_id found for user, using default Lanonasis org");
+          console.log(
+            "[maas-api] No organization_id found for user, using default Lanonasis org"
+          );
           organizationId = DEFAULT_ORGANIZATION_ID;
         }
 
         // Use default organization if none found (Lanonasis org)
-    const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
-    if (!organizationId) {
-      console.log("[maas-api] No organization_id found, using default Lanonasis org");
-      organizationId = DEFAULT_ORG_ID;
-    }
+        const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+        if (!organizationId) {
+          console.log(
+            "[maas-api] No organization_id found, using default Lanonasis org"
+          );
+          organizationId = DEFAULT_ORG_ID;
+        }
 
-    // DO NOT use user.id as organization_id - it violates foreign key constraint
+        // DO NOT use user.id as organization_id - it violates foreign key constraint
         // If we still don't have organization_id, we'll need to handle it in the endpoint
 
         // Set user context with organization_id
@@ -606,6 +610,9 @@ const verifyJwtToken = async (req, res, next) => {
         const decoded = jwt.verify(token, jwtSecret);
         req.user = decoded;
       } catch (jwtError) {
+        console.warn("JWT verification failed, attempting introspection", {
+          message: jwtError instanceof Error ? jwtError.message : jwtError,
+        });
         // Not a JWT - try OAuth2 opaque token via auth-gateway introspection
         const authGatewayUrl =
           process.env.AUTH_GATEWAY_URL || "https://auth.lanonasis.com";
@@ -675,7 +682,29 @@ const verifyJwtToken = async (req, res, next) => {
 
 // Apply auth middleware to protected routes
 app.use("/api/v1/memory", verifyJwtToken);
-app.use("/api/v1/memories", verifyJwtToken);
+
+// Temporary alias for legacy /api/v1/memories paths
+app.all("/api/v1/memories*", verifyJwtToken, (req, res) => {
+  const originalUrl = req.originalUrl || req.url;
+  const queryIndex = originalUrl.indexOf("?");
+  const basePath =
+    queryIndex === -1 ? originalUrl : originalUrl.slice(0, queryIndex);
+  const queryString = queryIndex === -1 ? "" : originalUrl.slice(queryIndex);
+  const canonicalPath = basePath.replace("/api/v1/memories", "/api/v1/memory");
+
+  // Prevent redirect loops if path is already canonical
+  if (canonicalPath === basePath) {
+    return res.status(404).json({
+      error: "Endpoint not found",
+      code: "ENDPOINT_NOT_FOUND",
+    });
+  }
+
+  const redirectTarget = `${canonicalPath}${queryString}`;
+  res.setHeader("X-Lanonasis-Memory-Alias", "memories->memory");
+  res.setHeader("Cache-Control", "no-store");
+  return res.redirect(307, redirectTarget);
+});
 
 // Memory endpoints
 app.get("/api/v1/memory", async (req, res) => {
@@ -874,7 +903,9 @@ app.post("/api/v1/memory", async (req, res) => {
     // Use default organization if none found (Lanonasis org)
     const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
     if (!organizationId) {
-      console.log("[maas-api] No organization_id found, using default Lanonasis org");
+      console.log(
+        "[maas-api] No organization_id found, using default Lanonasis org"
+      );
       organizationId = DEFAULT_ORG_ID;
     }
 
@@ -1409,7 +1440,7 @@ app.get("/health", (req, res) => {
 });
 
 // Error handling
-app.use((error, req, res, next) => {
+app.use((error, req, res, _next) => {
   console.error("MaaS API error:", error);
   res.status(500).json({
     error: "Internal MaaS API error",
