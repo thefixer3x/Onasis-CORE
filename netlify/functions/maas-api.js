@@ -684,7 +684,9 @@ const verifyJwtToken = async (req, res, next) => {
 app.use("/api/v1/memory", verifyJwtToken);
 
 // Temporary alias for legacy /api/v1/memories paths
-app.all("/api/v1/memories*", verifyJwtToken, (req, res) => {
+const legacyMemoriesPattern = /^\/api\/v1\/memories(\/.*)?$/;
+
+app.all(legacyMemoriesPattern, verifyJwtToken, (req, res) => {
   const originalUrl = req.originalUrl || req.url;
   const queryIndex = originalUrl.indexOf("?");
   const basePath =
