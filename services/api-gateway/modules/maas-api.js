@@ -141,7 +141,7 @@ const auditLog = async (req, res, next) => {
 // Audit logging function
 const logAuditEvent = async (event) => {
   try {
-    const { data, error } = await supabase.from("core.logs").insert([event]);
+    const { error } = await supabase.from("core.logs").insert([event]);
 
     if (error) {
       logger.error("Failed to log audit event", { error: error.message });
