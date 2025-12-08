@@ -25,12 +25,35 @@ import { validateSessionCookie } from './middleware/session.js'
 
 const app = express()
 
+// Health endpoint with permissive CORS (must be before global CORS middleware)
+app.options("/health", (_req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  res.status(204).end();
+});
+
+app.get("/health", async (_req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  const { checkDatabaseHealth } = await import("../db/client.js");
+  const { checkRedisHealth } = await import("./services/cache.service.js");
+  const dbStatus = await checkDatabaseHealth();
+  const redisStatus = await checkRedisHealth();
+  const overallStatus = dbStatus.healthy ? (redisStatus.healthy ? "ok" : "degraded") : "unhealthy";
+  res.json({ status: overallStatus, service: "auth-gateway", database: dbStatus, cache: redisStatus, timestamp: new Date().toISOString() });
+});
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:"],
       connectSrc: ["'self'", "https://auth.lanonasis.com", "https://dashboard.lanonasis.com"],
@@ -38,6 +61,7 @@ app.use(helmet({
       objectSrc: ["'none'"],
       frameAncestors: ["'self'"],
       formAction: ["'self'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
     },
   },
 }))
@@ -73,30 +97,7 @@ app.use(
 // Session cookie validation middleware (applies to all routes)
 app.use(validateSessionCookie)
 
-// Health check endpoint
-app.get('/health', async (_req: express.Request, res: express.Response) => {
-  // Set CORS headers explicitly for health endpoint
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-project-scope, X-Project-Scope')
-  res.setHeader('Access-Control-Allow-Credentials', 'true')
 
-  const dbStatus = await checkDatabaseHealth()
-  const redisStatus = await checkRedisHealth()
-
-  // Overall status: ok if both healthy, degraded if Redis down but DB up, unhealthy if DB down
-  const overallStatus = dbStatus.healthy
-    ? (redisStatus.healthy ? 'ok' : 'degraded')
-    : 'unhealthy'
-
-  res.json({
-    status: overallStatus,
-    service: 'auth-gateway',
-    database: dbStatus,
-    cache: redisStatus,
-    timestamp: new Date().toISOString(),
-  })
-})
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
