@@ -97,6 +97,18 @@ async function bootstrapUsers(): Promise<number> {
             continue
           }
 
+          // Check if user events already exist in event store (idempotency)
+          const { rows: existingEvents } = await client.query(
+            `SELECT 1 FROM auth_gateway.events 
+             WHERE aggregate_type = 'user' AND aggregate_id = $1 LIMIT 1`,
+            [userId]
+          )
+
+          if (existingEvents.length > 0) {
+            console.log(`   ⏭️  User already in event store: ${email}`)
+            continue
+          }
+
           // Upsert into auth_gateway.user_accounts
           await client.query(
             `
@@ -115,7 +127,7 @@ async function bootstrapUsers(): Promise<number> {
             [userId, email, role, provider, metadata, lastSignIn || null]
           )
 
-          // Emit UserUpserted event
+          // Emit UserUpserted event (only for new users)
           await appendEventWithOutbox(
             {
               aggregate_type: 'user',
@@ -135,7 +147,7 @@ async function bootstrapUsers(): Promise<number> {
             client
           )
 
-          console.log(`   ✅ Bootstrapped user: ${email}`)
+          console.log(`   ✅ NEW user bootstrapped: ${email}`)
           totalUsers++
         }
 
@@ -181,6 +193,18 @@ async function bootstrapApiKeys(): Promise<number> {
     await client.query('BEGIN')
 
     for (const key of apiKeys as SupabaseApiKey[]) {
+      // Check if API key events already exist in event store (idempotency)
+      const { rows: existingEvents } = await client.query(
+        `SELECT 1 FROM auth_gateway.events 
+         WHERE aggregate_type = 'api_key' AND aggregate_id = $1 LIMIT 1`,
+        [key.id]
+      )
+
+      if (existingEvents.length > 0) {
+        console.log(`   ⏭️  API key already in event store: ${key.name}`)
+        continue
+      }
+
       // Note: We DON'T copy API keys to Neon - they stay in Supabase
       // We just emit events so the event store knows about them
 
@@ -204,7 +228,7 @@ async function bootstrapApiKeys(): Promise<number> {
         client
       )
 
-      console.log(`   ✅ Emitted event for API key: ${key.name} (user: ${key.user_id})`)
+      console.log(`   ✅ NEW API key bootstrapped: ${key.name} (user: ${key.user_id})`)
       totalKeys++
     }
 
