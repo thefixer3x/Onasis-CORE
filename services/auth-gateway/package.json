@@ -16,7 +16,8 @@
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "outbox:forward": "tsx src/workers/outbox-forwarder.ts"
+    "outbox:forward": "tsx src/workers/outbox-forwarder.ts",
+    "bootstrap:supabase": "tsx scripts/bootstrap-from-supabase.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
