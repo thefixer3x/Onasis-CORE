@@ -19,6 +19,7 @@ import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import oauthRoutes from './routes/oauth.routes.js'
 import webRoutes from './routes/web.routes.js'
+import syncRoutes from './routes/sync.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
@@ -117,6 +118,7 @@ app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
+app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallback)
 
 // Map /auth/login to /web/login for backward compatibility and CLI
 app.get('/auth/login', (req, res) => {

@@ -45,5 +45,27 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     },
+    {
+      name: 'bootstrap-sync',
+      script: 'node_modules/.bin/tsx',
+      args: 'scripts/bootstrap-from-supabase.ts',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,  // Cron mode - don't auto-restart
+      watch: false,
+      cron_restart: '*/15 * * * *',  // Run every 15 minutes
+      env: {
+        NODE_ENV: 'production',
+      },
+      env_production: {
+        NODE_ENV: 'production',
+      },
+      error_file: 'logs/bootstrap-sync-error.log',
+      out_file: 'logs/bootstrap-sync-out.log',
+      log_file: 'logs/bootstrap-sync-combined.log',
+      time: true,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    },
   ],
 }
