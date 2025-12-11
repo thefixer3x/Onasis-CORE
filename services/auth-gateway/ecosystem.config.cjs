@@ -23,5 +23,27 @@ module.exports = {
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     },
+    {
+      name: 'outbox-forwarder',
+      script: 'node_modules/.bin/tsx',
+      args: 'src/workers/outbox-forwarder.ts',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,  // Cron mode - don't auto-restart
+      watch: false,
+      cron_restart: '* * * * *',  // Run every minute
+      env: {
+        NODE_ENV: 'production',
+      },
+      env_production: {
+        NODE_ENV: 'production',
+      },
+      error_file: 'logs/outbox-forwarder-error.log',
+      out_file: 'logs/outbox-forwarder-out.log',
+      log_file: 'logs/outbox-forwarder-combined.log',
+      time: true,
+      merge_logs: true,
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    },
   ],
 }

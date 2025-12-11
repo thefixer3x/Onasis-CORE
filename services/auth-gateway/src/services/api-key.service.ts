@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { supabaseAdmin } from '../../db/client.js'
+import { appendEventWithOutbox } from './event.service.js'
 
 export interface ApiKey {
   id: string
@@ -135,6 +136,22 @@ export async function createApiKey(
       throw new Error(`Failed to create API key: ${error.message}`)
     }
 
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: data.id,
+      event_type: 'ApiKeyCreated',
+      payload: {
+        user_id,
+        access_level: data.access_level,
+        expires_at: data.expires_at,
+        name: data.name,
+        created_at: data.created_at,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
     return {
       id: data.id,
       name: data.name,
@@ -254,6 +271,20 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
       throw new Error('Failed to rotate API key')
     }
 
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: updatedKey.id,
+      event_type: 'ApiKeyRotated',
+      payload: {
+        user_id: updatedKey.user_id,
+        access_level: updatedKey.access_level,
+        expires_at: updatedKey.expires_at,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
     return {
       id: updatedKey.id,
       name: updatedKey.name,
@@ -285,6 +316,19 @@ export async function revokeApiKey(key_id: string, user_id: string): Promise<boo
       throw new Error(`Failed to revoke API key: ${error.message}`)
     }
 
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: key_id,
+      event_type: 'ApiKeyRevoked',
+      payload: {
+        user_id,
+        is_active: false,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
     return true
   } catch (error) {
     throw new Error(`Revoke API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -305,6 +349,18 @@ export async function deleteApiKey(key_id: string, user_id: string): Promise<boo
     if (error) {
       throw new Error(`Failed to delete API key: ${error.message}`)
     }
+
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: key_id,
+      event_type: 'ApiKeyDeleted',
+      payload: {
+        user_id,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
 
     return true
   } catch (error) {

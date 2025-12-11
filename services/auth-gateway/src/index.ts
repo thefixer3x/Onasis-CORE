@@ -42,10 +42,19 @@ app.get("/health", async (_req, res) => {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   const { checkDatabaseHealth } = await import("../db/client.js");
   const { checkRedisHealth } = await import("./services/cache.service.js");
+  const { getOutboxStats } = await import("./services/event.service.js");
   const dbStatus = await checkDatabaseHealth();
   const redisStatus = await checkRedisHealth();
+  const outboxStatus = await getOutboxStats();
   const overallStatus = dbStatus.healthy ? (redisStatus.healthy ? "ok" : "degraded") : "unhealthy";
-  res.json({ status: overallStatus, service: "auth-gateway", database: dbStatus, cache: redisStatus, timestamp: new Date().toISOString() });
+  res.json({
+    status: overallStatus,
+    service: "auth-gateway",
+    database: dbStatus,
+    cache: redisStatus,
+    outbox: outboxStatus,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Security middleware

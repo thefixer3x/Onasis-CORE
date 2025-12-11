@@ -15,7 +15,8 @@
     "test:load": "k6 run tests/load/oauth-flow.js",
     "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "outbox:forward": "tsx src/workers/outbox-forwarder.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

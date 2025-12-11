@@ -387,57 +387,36 @@ const verifyJwtToken = async (req, res, next) => {
           allKeys: Object.keys(apiKeyRecord),
         });
 
-        // Fetch user's organization_id from users tables
-        // Try maas.users first (MaaS schema), then public.users (legacy)
+        // Fetch user's organization_id from public.users table
+        // NOTE: maas schema was never applied to live DB, using public schema only
         if (supabase && apiKeyRecord.user_id) {
           try {
-            // Try maas.users first (preferred for MaaS)
-            // Use RPC or direct query since .schema() might not work with service role
-            const { data: maasUserData, error: maasUserError } = await supabase
-              .from("maas.users")
-              .select("organization_id, user_id, email")
-              .eq("user_id", apiKeyRecord.user_id)
+            // Query public.users for organization_id
+            const { data: userData, error: userError } = await supabase
+              .from("users")
+              .select("organization_id, id, email")
+              .eq("id", apiKeyRecord.user_id)
               .maybeSingle();
 
-            if (!maasUserError && maasUserData?.organization_id) {
-              organizationId = maasUserData.organization_id;
+            if (!userError && userData?.organization_id) {
+              organizationId = userData.organization_id;
               console.log(
-                "[maas-api] Found organization_id from maas.users:",
+                "[maas-api] Found organization_id from public.users:",
                 organizationId
               );
-            } else {
-              // Fallback to public.users
-              const { data: userData, error: userError } = await supabase
-                .from("users")
-                .select("organization_id, id, email")
-                .eq("id", apiKeyRecord.user_id)
-                .maybeSingle();
-
-              if (!userError && userData?.organization_id) {
-                organizationId = userData.organization_id;
-                console.log(
-                  "[maas-api] Found organization_id from public.users:",
-                  organizationId
-                );
-              } else if (userError) {
-                console.warn(
-                  "[maas-api] Error fetching user organization_id:",
-                  userError.message
-                );
-              } else if (userData) {
-                console.warn(
-                  "[maas-api] User found but has no organization_id:",
-                  {
-                    user_id: apiKeyRecord.user_id,
-                    email: userData.email,
-                  }
-                );
-              } else {
-                console.warn(
-                  "[maas-api] User not found in users tables:",
-                  apiKeyRecord.user_id
-                );
-              }
+            } else if (userError) {
+              console.warn(
+                "[maas-api] Error fetching user organization_id:",
+                userError.message
+              );
+            } else if (userData) {
+              console.warn(
+                "[maas-api] User found but has no organization_id:",
+                {
+                  user_id: apiKeyRecord.user_id,
+                  email: userData.email,
+                }
+              );
             }
           } catch (userError) {
             console.warn(
@@ -454,15 +433,6 @@ const verifyJwtToken = async (req, res, next) => {
             "[maas-api] No organization_id found for user, using default Lanonasis org"
           );
           organizationId = DEFAULT_ORGANIZATION_ID;
-        }
-
-        // Use default organization if none found (Lanonasis org)
-        const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
-        if (!organizationId) {
-          console.log(
-            "[maas-api] No organization_id found, using default Lanonasis org"
-          );
-          organizationId = DEFAULT_ORG_ID;
         }
 
         // DO NOT use user.id as organization_id - it violates foreign key constraint
