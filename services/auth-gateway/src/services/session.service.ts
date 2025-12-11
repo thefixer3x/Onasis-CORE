@@ -1,4 +1,5 @@
 import { dbPool } from '../../db/client.js'
+import { appendEventWithOutbox } from './event.service.js'
 import crypto from 'node:crypto'
 
 export interface CreateSessionParams {
@@ -43,14 +44,16 @@ function hashToken(token: string): string {
 export async function createSession(params: CreateSessionParams): Promise<Session> {
   const client = await dbPool.connect()
   try {
+    await client.query('BEGIN')
+
     const result = await client.query(
       `
-      INSERT INTO auth_gateway.sessions (
-        user_id, platform, token_hash, refresh_token_hash,
-        client_id, scope, ip_address, user_agent,
-        expires_at, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *
+        INSERT INTO auth_gateway.sessions (
+          user_id, platform, token_hash, refresh_token_hash,
+          client_id, scope, ip_address, user_agent,
+          expires_at, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        RETURNING *
       `,
       [
         params.user_id,
@@ -65,7 +68,33 @@ export async function createSession(params: CreateSessionParams): Promise<Sessio
         params.metadata || {},
       ]
     )
-    return result.rows[0] as Session
+
+    const session = result.rows[0] as Session
+
+    await appendEventWithOutbox(
+      {
+        aggregate_type: 'session',
+        aggregate_id: session.id,
+        event_type: 'SessionCreated',
+        payload: {
+          user_id: session.user_id,
+          platform: session.platform,
+          scope: session.scope,
+          expires_at: session.expires_at,
+        },
+        metadata: {
+          ip_address: session.ip_address,
+          user_agent: session.user_agent,
+        },
+      },
+      client
+    )
+
+    await client.query('COMMIT')
+    return session
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
   } finally {
     client.release()
   }
@@ -118,16 +147,46 @@ export async function touchSession(sessionId: string): Promise<void> {
 export async function revokeSession(token: string): Promise<boolean> {
   const client = await dbPool.connect()
   try {
+    await client.query('BEGIN')
+
     const result = await client.query(
       `
-      DELETE FROM auth_gateway.sessions
-      WHERE token_hash = $1
-      RETURNING id
+        DELETE FROM auth_gateway.sessions
+        WHERE token_hash = $1
+        RETURNING id, user_id, platform, scope, expires_at
       `,
       [hashToken(token)]
     )
-    const affected = result.rowCount ?? 0
-    return affected > 0
+
+    const deleted = result.rows[0] as
+      | { id: string; user_id: string; platform: string; scope: string[] | null; expires_at: Date }
+      | undefined
+
+    if (!deleted) {
+      await client.query('COMMIT')
+      return false
+    }
+
+    await appendEventWithOutbox(
+      {
+        aggregate_type: 'session',
+        aggregate_id: deleted.id,
+        event_type: 'SessionRevoked',
+        payload: {
+          user_id: deleted.user_id,
+          platform: deleted.platform,
+          scope: deleted.scope,
+          expires_at: deleted.expires_at,
+        },
+      },
+      client
+    )
+
+    await client.query('COMMIT')
+    return true
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
   } finally {
     client.release()
   }

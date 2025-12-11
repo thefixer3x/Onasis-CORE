@@ -68,8 +68,10 @@ The Fixer Initiative database uses a **domain-driven, multi-tenant architecture*
 ### Central Hub (34 tables)
 
 #### control_room (8 tables)
+
 **Purpose:** Application registry & orchestration  
 **Tables:**
+
 - `apps` - Application registry (52 apps)
 - `users` - Control room users
 - `profiles` - User profiles
@@ -80,8 +82,10 @@ The Fixer Initiative database uses a **domain-driven, multi-tenant architecture*
 - `audit_log` - Activity logging
 
 #### auth (18 tables)
+
 **Purpose:** Centralized authentication  
 **Tables:**
+
 - `users` - Primary identities
 - `identities` - Linked providers (Google, GitHub, etc.)
 - `sessions` - Active sessions
@@ -102,8 +106,10 @@ The Fixer Initiative database uses a **domain-driven, multi-tenant architecture*
 - `instances` - Multi-instance support
 
 #### auth_gateway (8 tables)
+
 **Purpose:** API gateway & admin access  
 **Tables:**
+
 - `api_clients` - API keys
 - `sessions` - Gateway sessions
 - `auth_codes` - OAuth auth codes
@@ -118,8 +124,10 @@ The Fixer Initiative database uses a **domain-driven, multi-tenant architecture*
 ### Infrastructure Layer (15 tables)
 
 #### agent_banks (6 tables)
+
 **Purpose:** AI memory & execution  
 **Tables:**
+
 - `memories` - Core memory storage (vector embeddings)
 - `memory_search_logs` - Search history
 - `sessions` - AI conversation sessions
@@ -128,8 +136,10 @@ The Fixer Initiative database uses a **domain-driven, multi-tenant architecture*
 - `settings` - Agent settings
 
 #### app_sd_ghost (9 tables)
+
 **Purpose:** Memory-as-a-Service  
 **Tables:**
+
 - `memory_entries` - Persistent memories
 - `memory_access_patterns` - Usage analytics
 - `memory_search_analytics` - Search metrics
@@ -170,24 +180,30 @@ Each of 18 apps has 3 standard tables: `users`, `profiles`, `settings`
 ### Shared Services (23 tables)
 
 #### analytics (3 tables)
+
 **Purpose:** Usage tracking  
 **Tables:** `users`, `profiles`, `settings`
 
 #### billing (3 tables)
+
 **Purpose:** Payment processing  
 **Tables:** `users`, `profiles`, `settings`
 
 #### vendors (3 tables)
+
 **Purpose:** Third-party APIs  
 **Tables:** `users`, `profiles`, `settings`
 
 #### shared_services (3 tables)
+
 **Purpose:** Cross-app utilities  
 **Tables:** `users`, `profiles`, `settings`
 
 #### client_services (5 tables)
+
 **Purpose:** Multi-tenant orgs  
 **Tables:**
+
 - `organizations`
 - `accounts`
 - `billing_records`
@@ -195,8 +211,10 @@ Each of 18 apps has 3 standard tables: `users`, `profiles`, `settings`
 - `usage_logs`
 
 #### credit (3 tables)
+
 **Purpose:** Credit marketplace  
 **Tables:**
+
 - `providers`
 - `applications`
 - `bids`
@@ -206,7 +224,9 @@ Each of 18 apps has 3 standard tables: `users`, `profiles`, `settings`
 ### Legacy Layer (19 tables)
 
 #### public (18 tables)
+
 Historical tables being migrated:
+
 - `profiles`, `organizations`, `teams`, `team_members`
 - `tasks`, `sub_tasks`, `task_dependencies`, `task_priorities`, `task_statuses`
 - `projects`, `project_stages`, `project_teams`, `company_projects`
@@ -215,6 +235,7 @@ Historical tables being migrated:
 - `simple_users`, `playing_with_neon`
 
 #### neon_auth (1 table)
+
 **Purpose:** Auth synchronization  
 **Tables:** `users_sync`
 
@@ -223,17 +244,20 @@ Historical tables being migrated:
 ## Naming Conventions
 
 ### Schemas
+
 - **Control:** `control_room`, `auth`, `auth_gateway`
 - **Apps:** `app_*` prefix (e.g., `app_your_service`)
 - **Infrastructure:** descriptive names (`agent_banks`, `app_sd_ghost`)
 - **Shared:** descriptive names (`billing`, `vendors`, `analytics`)
 
 ### Tables
+
 - **Singular nouns:** `user`, `profile`, `setting` (not users)
 - **Descriptive:** `memory_search_log`, `oauth_client`
 - **Standard pattern:** All apps have `users`, `profiles`, `settings`
 
 ### Columns
+
 - **IDs:** `id` (UUID primary key), `user_id`, `app_id`
 - **Timestamps:** `created_at`, `updated_at`, `deleted_at`
 - **Metadata:** `metadata` (JSONB for flexible storage)
@@ -244,7 +268,9 @@ Historical tables being migrated:
 ## Data Flow
 
 ### User Authentication Flow
+
 \`\`\`
+
 1. User → auth_gateway.api_clients (API key check)
 2. User → auth.users (identity verification)
 3. User → auth.sessions (session creation)
@@ -253,7 +279,9 @@ Historical tables being migrated:
 \`\`\`
 
 ### AI Memory Flow
+
 \`\`\`
+
 1. Query → agent_banks.memories (vector search)
 2. Result → agent_banks.memory_search_logs (track search)
 3. Response → app_sd_ghost.ai_response_cache (cache)
@@ -261,7 +289,9 @@ Historical tables being migrated:
 \`\`\`
 
 ### Multi-Tenant Flow
+
 \`\`\`
+
 1. Org → client_services.organizations (tenant)
 2. User → client_services.accounts (org member)
 3. Usage → client_services.usage_logs (track)
@@ -273,6 +303,7 @@ Historical tables being migrated:
 ## Best Practices
 
 ### When to Create New Schema
+
 - ✅ New major application/service
 - ✅ Strong domain boundary
 - ✅ Independent deployment
@@ -280,12 +311,14 @@ Historical tables being migrated:
 - ❌ Temporary table
 
 ### When to Use Existing Schema
+
 - ✅ Extends existing functionality
 - ✅ Shares lifecycle with parent
 - ✅ Tightly coupled data
 - ✅ Same access patterns
 
 ### Standard Table Pattern
+
 All apps should include:
 \`\`\`sql
 CREATE TABLE app_name.users (...);
@@ -298,6 +331,7 @@ CREATE TABLE app_name.settings (...);
 ## Migration Path
 
 ### Adding New App
+
 1. Register in `control_room.apps`
 2. Create `app_*` schema
 3. Add standard tables (users, profiles, settings)
@@ -305,6 +339,7 @@ CREATE TABLE app_name.settings (...);
 5. Register endpoints in `control_room.service_endpoints`
 
 ### Deprecating App
+
 1. Mark `control_room.apps.status = 'deprecated'`
 2. Revoke `control_room.user_app_access`
 3. Archive data
@@ -315,8 +350,9 @@ CREATE TABLE app_name.settings (...);
 ## Quick Reference
 
 ### Count Tables by Schema
+
 \`\`\`sql
-SELECT 
+SELECT
     schemaname,
     COUNT(*) as table_count
 FROM pg_tables
@@ -326,6 +362,7 @@ ORDER BY table_count DESC;
 \`\`\`
 
 ### Find App by Name
+
 \`\`\`sql
 SELECT app_id, app_name, target_schema, status
 FROM control_room.apps
@@ -333,8 +370,9 @@ WHERE app_name ILIKE '%task%';
 \`\`\`
 
 ### Check Schema Size
+
 \`\`\`sql
-SELECT 
+SELECT
     schemaname,
     pg_size_pretty(SUM(pg_total_relation_size(schemaname||'.'||tablename))) as size
 FROM pg_tables
