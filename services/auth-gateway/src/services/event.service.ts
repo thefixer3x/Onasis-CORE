@@ -81,12 +81,20 @@ export async function appendEvent(
   client: PoolClient | null = null
 ): Promise<AppendedEvent> {
   return withClient(client, async (cx) => {
+    // Use advisory lock instead of FOR UPDATE with aggregate
+    // Generate a lock key from the aggregate type and ID
+    const lockKey = `${params.aggregate_type}:${params.aggregate_id}`
+    const lockHash = crypto.createHash('sha256').update(lockKey).digest()
+    const lockId = lockHash.readBigInt64BE(0)
+
+    // Acquire advisory lock (automatically released at transaction end)
+    await cx.query('SELECT pg_advisory_xact_lock($1)', [lockId])
+
     const { rows } = await cx.query<{ next_version: number }>(
       `
         SELECT COALESCE(MAX(version), 0) + 1 AS next_version
         FROM auth_gateway.events
         WHERE aggregate_type = $1 AND aggregate_id = $2
-        FOR UPDATE
       `,
       [params.aggregate_type, params.aggregate_id]
     )
