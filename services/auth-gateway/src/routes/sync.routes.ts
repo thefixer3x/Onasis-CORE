@@ -23,9 +23,13 @@ const router = Router()
  */
 router.post('/api-key', async (req: Request, res: Response) => {
   try {
-    // Verify webhook secret (if configured)
+    // Verify webhook secret (REQUIRED in production)
     const webhookSecret = process.env.WEBHOOK_SECRET
-    if (webhookSecret && req.headers['x-webhook-secret'] !== webhookSecret) {
+    if (!webhookSecret) {
+      console.error('CRITICAL: WEBHOOK_SECRET not configured - rejecting sync request')
+      return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
+    }
+    if (req.headers['x-webhook-secret'] !== webhookSecret) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
@@ -92,9 +96,13 @@ router.post('/api-key', async (req: Request, res: Response) => {
  */
 router.post('/user', async (req: Request, res: Response) => {
   try {
-    // Verify webhook secret (if configured)
+    // Verify webhook secret (REQUIRED in production)
     const webhookSecret = process.env.WEBHOOK_SECRET
-    if (webhookSecret && req.headers['x-webhook-secret'] !== webhookSecret) {
+    if (!webhookSecret) {
+      console.error('CRITICAL: WEBHOOK_SECRET not configured - rejecting sync request')
+      return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
+    }
+    if (req.headers['x-webhook-secret'] !== webhookSecret) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
