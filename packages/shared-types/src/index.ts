@@ -1,5 +1,7 @@
 // Shared TypeScript types and interfaces for Onasis ecosystem
 
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+
 // User and Authentication Types
 export interface User {
   id: string;
@@ -76,7 +78,7 @@ export interface BillingInfo {
 // Component Props Types (for UI consistency)
 export interface BaseComponentProps {
   className?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
   'data-testid'?: string;
 }
 
@@ -85,7 +87,7 @@ export interface ButtonProps extends BaseComponentProps {
   size?: 'sm' | 'md' | 'lg';
   disabled?: boolean;
   loading?: boolean;
-  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onClick?: (event: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
 // Export utility types
