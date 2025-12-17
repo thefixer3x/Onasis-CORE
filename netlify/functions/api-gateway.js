@@ -1,5 +1,3 @@
-const { Handler } = require("@netlify/functions");
-
 // Main API Gateway function for Onasis-CORE
 exports.handler = async (event, context) => {
   try {
