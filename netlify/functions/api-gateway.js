@@ -219,6 +219,18 @@ async function routeRequest(path, method, headers, body, query) {
       // Extract API key from Bearer token for Supabase anon key auth
       const apiKey = authHeader.replace('Bearer ', '');
       
+      // Transform OpenAI messages format to prompt format for edge function
+      let prompt = '';
+      if (body.messages && Array.isArray(body.messages)) {
+        // Extract the last user message as the prompt
+        const userMessages = body.messages.filter(m => m.role === 'user');
+        if (userMessages.length > 0) {
+          prompt = userMessages[userMessages.length - 1].content;
+        }
+      } else if (body.prompt) {
+        prompt = body.prompt;
+      }
+      
       const chatResponse = await fetch(supabaseUrl, {
         method: "POST",
         headers: {
@@ -228,7 +240,10 @@ async function routeRequest(path, method, headers, body, query) {
           "x-lanonasis-api-key": apiKey,
         },
         body: JSON.stringify({
-          ...body,
+          prompt: prompt,
+          model: body.model || 'gpt-4o-mini',
+          messages: body.messages,
+          stream: body.stream || false,
           api_key: apiKey,
         }),
       });
