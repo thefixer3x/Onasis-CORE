@@ -386,7 +386,7 @@ export const Dashboard: React.FC = () => {
                 </h3>
                 <div className="bg-gray-900 rounded-lg p-4">
                   <code className="text-sm text-green-400">
-                    npm install @lanonasis/api-sdk
+                    npm install @lanonasis/sdk
                   </code>
                 </div>
               </div>
@@ -397,7 +397,7 @@ export const Dashboard: React.FC = () => {
                 </h3>
                 <div className="bg-gray-900 rounded-lg p-4">
                   <pre className="text-sm text-gray-300">
-                    {`import { LanonasisClient } from '@lanonasis/api-sdk'
+                    {`import { LanonasisClient } from '@lanonasis/sdk'
 
 const client = new LanonasisClient({
   apiKey: '${apiKey}'

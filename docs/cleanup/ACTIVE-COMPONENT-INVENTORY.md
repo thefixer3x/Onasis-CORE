@@ -54,7 +54,7 @@ The `.npmrc` forces Bun, so prefer the following:
 | API server (CJS)  | `server/package.json`                | `start`, `dev` (nodemon)             | Active for local dev; shares deps with root but maintain separately because it is CommonJS. |
 | Auth gateway (TS) | `services/auth-gateway/package.json` | `dev`, `build`, `start`, `lint`      | Feature-complete auth service; decide whether to migrate or decommission before pruning.    |
 | UI kit            | `packages/ui-kit/package.json`       | `build`, `dev`, `lint`, `clean`      | Component library; not imported by the SPA today.                                           |
-| Privacy SDK       | `packages/privacy-sdk/package.json`  | `build`, `dev`, `lint`, `type-check` | Supports data masking; unused by SPA. Relies on `@onasis/shared-types`.                     |
+| Privacy SDK       | `packages/privacy-sdk/package.json`  | `build`, `dev`, `lint`, `type-check` | Supports data masking; unused by SPA. Relies on `@lanonasis/shared-types`.                  |
 | Shared types      | `packages/shared-types/package.json` | `build`, `dev`, `lint`, `type-check` | Provides DTOs; only consumed by `privacy-sdk`.                                              |
 
 ## Candidate cleanup focus areas

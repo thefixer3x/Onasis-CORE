@@ -9,6 +9,9 @@ router.get('/oauth', authController.oauthProvider)
 router.get('/oauth/callback', authController.oauthCallback)
 router.post('/login', authController.login)
 
+// Token exchange endpoint - bridges Supabase auth to auth-gateway tokens
+router.post('/token/exchange', authController.exchangeSupabaseToken)
+
 // Protected routes
 router.post('/logout', requireAuth, authController.logout)
 router.get('/session', requireAuth, authController.getSession)

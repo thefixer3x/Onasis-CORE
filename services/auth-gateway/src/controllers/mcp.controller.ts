@@ -188,6 +188,33 @@ export async function cliLogin(req: Request, res: Response) {
       success: true,
     })
 
+    // Set HTTP-only session cookie for OAuth flow continuation
+    // This allows the user to be authenticated when redirected back to OAuth authorize
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+    const isProduction = process.env.NODE_ENV === 'production'
+
+    res.cookie('lanonasis_session', tokens.access_token, {
+      domain: cookieDomain,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+    })
+
+    res.cookie('lanonasis_user', JSON.stringify({
+      id: data.user.id,
+      email: data.user.email,
+      role: data.user.role,
+    }), {
+      domain: cookieDomain,
+      httpOnly: false, // Readable by JavaScript
+      secure: isProduction,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    })
+
     return res.json({
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
