@@ -51,6 +51,16 @@ export const standardCors = cors({
 })
 
 /**
+ * Server-to-server origins that are always allowed for internal API communication
+ * These are trusted Lanonasis services that need to call OAuth endpoints
+ */
+const TRUSTED_SERVER_ORIGINS = [
+    'https://api.lanonasis.com',
+    'https://mcp.lanonasis.com',
+    'https://maas.lanonasis.com'
+]
+
+/**
  * Strict CORS configuration for OAuth endpoints
  * More restrictive to prevent CSRF and other attacks
  */
@@ -58,6 +68,11 @@ export const oauthCors = cors({
     origin: (origin, callback) => {
         // Allow same-origin requests (no origin header)
         if (!origin) {
+            return callback(null, true)
+        }
+
+        // Always allow trusted server-to-server origins
+        if (TRUSTED_SERVER_ORIGINS.includes(origin)) {
             return callback(null, true)
         }
 
@@ -104,7 +119,7 @@ export function oauthSecurityHeaders(req: Request, res: Response, next: NextFunc
     if (req.path.startsWith('/web/')) {
         return next() // Skip CSP for web routes
     }
-    
+
     // Strict CSP for OAuth endpoints only
     res.setHeader(
         'Content-Security-Policy',
@@ -142,6 +157,27 @@ export function validateReferer(req: Request, res: Response, next: NextFunction)
     // Skip referer validation for /oauth/token endpoint
     // PKCE provides CSRF protection via code_verifier for native apps and CLIs
     if (req.path === '/token' || req.path.endsWith('/oauth/token')) {
+        return next()
+    }
+
+    // Skip referer validation for /oauth/introspect endpoint
+    // Server-to-server introspection requests don't have Referer headers
+    // Protection is provided by rate limiting and the token itself
+    if (req.path === '/introspect' || req.path.endsWith('/oauth/introspect')) {
+        return next()
+    }
+
+    // Skip referer validation for /oauth/device endpoint
+    // Device code flow is used by CLI/terminal apps which don't have Referer headers
+    // Protection is provided by rate limiting and the device_code itself
+    if (req.path === '/device' || req.path.endsWith('/oauth/device')) {
+        return next()
+    }
+
+    // Skip referer validation for /oauth/revoke endpoint
+    // Token revocation may be called from SDKs/desktop apps without Referer
+    // Protection is provided by requiring the token being revoked
+    if (req.path === '/revoke' || req.path.endsWith('/oauth/revoke')) {
         return next()
     }
 

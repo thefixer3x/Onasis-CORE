@@ -8,7 +8,8 @@ The Foreign API Key Manager addresses the critical missing component in the Onas
 
 ## 🎯 Problem Solved
 
-**Before:** 
+**Before:**
+
 ```javascript
 // Hardcoded in environment variables
 const VENDOR_CONFIGS = {
@@ -19,6 +20,7 @@ const VENDOR_CONFIGS = {
 ```
 
 **After:**
+
 ```javascript
 // Dynamic key retrieval
 const apiKey = await keyManager.getVendorKey('openai', 'primary');
@@ -40,16 +42,19 @@ const apiKey = await keyManager.getVendorKey('openai', 'primary');
 ## 🔒 Security Features
 
 ### **Encryption**
+
 - **Algorithm**: AES-256-GCM with random IV
 - **Key Storage**: Environment variable `KEY_ENCRYPTION_SECRET`
 - **Data Format**: `{encrypted, iv, authTag}`
 
 ### **Access Control**
+
 - **Admin Only**: Only users with `role: 'admin'` can manage keys
 - **JWT Authentication**: Token-based access via Supabase Auth
 - **RLS Policies**: Row-level security in database
 
 ### **Audit Trail**
+
 - **Key Access Logging**: Track when keys are retrieved
 - **Admin Actions**: Log create, update, delete, rotate operations
 - **IP Tracking**: Record admin IP addresses for security
@@ -59,7 +64,9 @@ const apiKey = await keyManager.getVendorKey('openai', 'primary');
 ### **Base URL**: `https://api.lanonasis.com/v1/keys`
 
 ### **Authentication**
+
 All endpoints require admin authentication:
+
 ```
 Authorization: Bearer <admin-jwt-token>
 ```
@@ -67,11 +74,13 @@ Authorization: Bearer <admin-jwt-token>
 ### **Vendor Key Management**
 
 #### **List All Vendor Keys**
+
 ```http
 GET /v1/keys/vendors
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -92,11 +101,13 @@ GET /v1/keys/vendors
 ```
 
 #### **Get Specific Vendor Key (Decrypted)**
+
 ```http
 GET /v1/keys/vendors/{id}
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -113,11 +124,13 @@ GET /v1/keys/vendors/{id}
 ```
 
 #### **Create New Vendor Key**
+
 ```http
 POST /v1/keys/vendors
 ```
 
 **Request:**
+
 ```json
 {
   "vendor_name": "anthropic",
@@ -128,6 +141,7 @@ POST /v1/keys/vendors
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -143,11 +157,13 @@ POST /v1/keys/vendors
 ```
 
 #### **Update Vendor Key**
+
 ```http
 PUT /v1/keys/vendors/{id}
 ```
 
 **Request:**
+
 ```json
 {
   "key_name": "primary-updated",
@@ -158,11 +174,13 @@ PUT /v1/keys/vendors/{id}
 ```
 
 #### **Rotate Vendor Key**
+
 ```http
 POST /v1/keys/vendors/{id}/rotate
 ```
 
 **Request:**
+
 ```json
 {
   "new_api_key": "sk-new-rotated-key-1234567890abcdef..."
@@ -170,6 +188,7 @@ POST /v1/keys/vendors/{id}/rotate
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -182,11 +201,13 @@ POST /v1/keys/vendors/{id}/rotate
 ```
 
 #### **Deactivate Vendor Key**
+
 ```http
 DELETE /v1/keys/vendors/{id}
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -195,11 +216,13 @@ DELETE /v1/keys/vendors/{id}
 ```
 
 ### **Health Check**
+
 ```http
 GET /v1/keys/health
 ```
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -218,6 +241,7 @@ GET /v1/keys/health
 ## 💾 Database Schema
 
 ### **vendor_api_keys Table**
+
 ```sql
 CREATE TABLE vendor_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -235,6 +259,7 @@ CREATE TABLE vendor_api_keys (
 ```
 
 ### **vendor_key_audit_log Table**
+
 ```sql
 CREATE TABLE vendor_key_audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -283,6 +308,7 @@ async function fetchVendorKey(vendor, keyName) {
 ## 🚀 Deployment
 
 ### **Environment Variables Required**
+
 ```bash
 # Encryption key for vendor keys (32+ characters)
 KEY_ENCRYPTION_SECRET=your-secure-encryption-key-32-chars-min
@@ -293,12 +319,14 @@ SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ### **Database Migration**
+
 ```bash
 # Apply the vendor keys migration
 psql -f supabase/migrations/003_vendor_api_keys.sql
 ```
 
 ### **Service Startup**
+
 ```bash
 # Local development
 npm run key-manager
@@ -310,6 +338,7 @@ npm run key-manager
 ## 🧪 Testing
 
 ### **Test Key Creation**
+
 ```bash
 curl -X POST https://api.lanonasis.com/v1/keys/vendors \
   -H "Authorization: Bearer <admin-token>" \
@@ -323,6 +352,7 @@ curl -X POST https://api.lanonasis.com/v1/keys/vendors \
 ```
 
 ### **Test Key Retrieval**
+
 ```bash
 curl https://api.lanonasis.com/v1/keys/vendors \
   -H "Authorization: Bearer <admin-token>"

@@ -1,5 +1,3 @@
-const { Handler } = require("@netlify/functions");
-
 // Main API Gateway function for Onasis-CORE
 exports.handler = async (event, context) => {
   try {
@@ -212,20 +210,70 @@ async function routeRequest(path, method, headers, body, query) {
     }
   }
 
-  // Chat completions endpoint
+  // Chat completions endpoint - proxy to Supabase edge function
   if (path.includes("/chat/completions") && method === "POST") {
-    return {
-      statusCode: 501,
-      body: {
-        error: {
-          message:
-            "Chat completions endpoint not implemented in serverless mode",
-          type: "not_implemented",
-          code: "CHAT_NOT_IMPLEMENTED",
+    try {
+      const supabaseUrl = "https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/ai-chat";
+      const authHeader = headers.authorization || headers.Authorization || '';
+      
+      // Extract API key from Bearer token for Supabase anon key auth
+      const apiKey = authHeader.replace('Bearer ', '');
+      
+      // Transform OpenAI messages format to prompt format for edge function
+      let prompt = '';
+      if (body.messages && Array.isArray(body.messages)) {
+        // Extract the last user message as the prompt
+        const userMessages = body.messages.filter(m => m.role === 'user');
+        if (userMessages.length > 0) {
+          prompt = userMessages[userMessages.length - 1].content;
+        }
+      } else if (body.prompt) {
+        prompt = body.prompt;
+      }
+      
+      const chatResponse = await fetch(supabaseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+          "apikey": process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+          "x-lanonasis-api-key": apiKey,
         },
-        request_id: requestId,
-      },
-    };
+        body: JSON.stringify({
+          prompt: prompt,
+          model: body.model || 'gpt-4o-mini',
+          messages: body.messages,
+          stream: body.stream || false,
+          api_key: apiKey,
+        }),
+      });
+
+      const responseBody = await chatResponse.text();
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(responseBody);
+      } catch {
+        parsedBody = { message: responseBody };
+      }
+
+      return {
+        statusCode: chatResponse.status,
+        body: parsedBody,
+      };
+    } catch (error) {
+      console.error("Chat proxy error:", error);
+      return {
+        statusCode: 502,
+        body: {
+          error: {
+            message: "Failed to reach chat service",
+            type: "proxy_error",
+            code: "CHAT_SERVICE_UNAVAILABLE",
+          },
+          request_id: requestId,
+        },
+      };
+    }
   }
 
   // Models endpoint

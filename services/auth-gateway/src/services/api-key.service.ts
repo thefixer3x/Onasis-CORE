@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { supabaseAdmin } from '../../db/client.js'
+import { appendEventWithOutbox } from './event.service.js'
 
 export interface ApiKey {
   id: string
@@ -135,6 +136,22 @@ export async function createApiKey(
       throw new Error(`Failed to create API key: ${error.message}`)
     }
 
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: data.id,
+      event_type: 'ApiKeyCreated',
+      payload: {
+        user_id,
+        access_level: data.access_level,
+        expires_at: data.expires_at,
+        name: data.name,
+        created_at: data.created_at,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
     return {
       id: data.id,
       name: data.name,
@@ -254,6 +271,20 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
       throw new Error('Failed to rotate API key')
     }
 
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: updatedKey.id,
+      event_type: 'ApiKeyRotated',
+      payload: {
+        user_id: updatedKey.user_id,
+        access_level: updatedKey.access_level,
+        expires_at: updatedKey.expires_at,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
     return {
       id: updatedKey.id,
       name: updatedKey.name,
@@ -285,6 +316,19 @@ export async function revokeApiKey(key_id: string, user_id: string): Promise<boo
       throw new Error(`Failed to revoke API key: ${error.message}`)
     }
 
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: key_id,
+      event_type: 'ApiKeyRevoked',
+      payload: {
+        user_id,
+        is_active: false,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
     return true
   } catch (error) {
     throw new Error(`Revoke API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -305,6 +349,18 @@ export async function deleteApiKey(key_id: string, user_id: string): Promise<boo
     if (error) {
       throw new Error(`Failed to delete API key: ${error.message}`)
     }
+
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: key_id,
+      event_type: 'ApiKeyDeleted',
+      payload: {
+        user_id,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
 
     return true
   } catch (error) {
@@ -338,29 +394,77 @@ export async function validateAPIKey(apiKey: string): Promise<{
       return { valid: false, reason: 'Invalid API key format' }
     }
 
-    // Check for deprecated prefixes and log warnings
-    if (apiKey.startsWith('vx_')) {
-      console.warn(
-        `⚠️  DEPRECATED: API key with "vx_" prefix used (${apiKey.substring(0, 8)}...). ` +
-        'Support for "vx_" keys will be removed soon. Please regenerate with "lano_" prefix.'
-      )
-    } else if (apiKey.startsWith('lns_')) {
-      console.warn(
-        `⚠️  DEPRECATED: API key with "lns_" prefix used (${apiKey.substring(0, 8)}...). ` +
-        'This prefix has been replaced with "lano_". Please regenerate your API key.'
-      )
-    } else if (!apiKey.startsWith('lano_')) {
-      // During migration, we're lenient but still validate the key
-      console.warn(
-        `⚠️  WARNING: API key with unknown prefix detected (${apiKey.substring(0, 8)}...). ` +
-        'Expected "lano_" prefix. Key will still be validated against database.'
-      )
+    // Check if the key is already a SHA-256 hash (64 hex characters)
+    // Some clients (like IDE extensions) hash keys client-side before sending
+    const isHash = /^[a-f0-9]{64}$/i.test(apiKey.trim())
+
+    if (!isHash) {
+      // Only check prefixes for raw API keys, not hashes
+      if (apiKey.startsWith('vx_')) {
+        console.warn(
+          `⚠️  DEPRECATED: API key with "vx_" prefix used (${apiKey.substring(0, 8)}...). ` +
+          'Support for "vx_" keys will be removed soon. Please regenerate with "lano_" prefix.'
+        )
+      } else if (apiKey.startsWith('lns_')) {
+        console.warn(
+          `⚠️  DEPRECATED: API key with "lns_" prefix used (${apiKey.substring(0, 8)}...). ` +
+          'This prefix has been replaced with "lano_". Please regenerate your API key.'
+        )
+      } else if (!apiKey.startsWith('lano_')) {
+        // During migration, we're lenient but still validate the key
+        console.warn(
+          `⚠️  WARNING: API key with unknown prefix detected (${apiKey.substring(0, 8)}...). ` +
+          'Expected "lano_" prefix. Key will still be validated against database.'
+        )
+      }
     }
 
-    // Collect keys from both vsecure (new) and public (legacy) schemas
+    // Collect keys from multiple schemas (supporting migration from Neon to Supabase)
+    // Priority: security_service > vsecure > public
     const allKeys: any[] = []
 
-    // New schema: vsecure.lanonasis_api_keys
+    // 1. Try security_service schema (primary location in Supabase after migration from Neon)
+    try {
+      const { data: securityServiceKeys, error: securityServiceError } = await supabaseAdmin
+        .schema('security_service')
+        .from('stored_api_keys')
+        .select('*')
+        .eq('status', 'active') // Use status enum if available
+
+      if (securityServiceError) {
+        // Check if it's a schema/table not found error (expected in some deployments)
+        if (securityServiceError.code === '42P01' ||
+          securityServiceError.message.includes('schema "security_service" does not exist') ||
+          securityServiceError.message.includes('schema must be one of') ||
+          securityServiceError.message.includes('relation') ||
+          securityServiceError.message.includes('does not exist')) {
+          // Schema doesn't exist - this is fine, continue to other schemas
+        } else {
+          console.warn('[api-key.service] security_service.stored_api_keys lookup error:', securityServiceError.message)
+        }
+      } else if (securityServiceKeys && securityServiceKeys.length > 0) {
+        // Map security_service.stored_api_keys structure to common format
+        securityServiceKeys.forEach((k: any) => {
+          const isActive = k.status === 'active' || (k.is_active ?? true)
+          if (isActive) {
+            allKeys.push({
+              ...k,
+              key_hash: k.encrypted_value || k.key_hash, // stored_api_keys uses encrypted_value
+              user_id: k.created_by || k.user_id || k.owner_id,
+            })
+          }
+        })
+      }
+    } catch (err: any) {
+      // Schema doesn't exist - this is fine, continue to other schemas
+      if (err.message && !err.message.includes('schema') && !err.message.includes('does not exist')) {
+        console.warn('[api-key.service] security_service schema access failed:', err.message)
+      }
+    }
+
+    // 2. Try vsecure schema (if it exists in this deployment)
+    // Note: vsecure schema may not be available in all Supabase instances
+    // This was the original Neon schema, now migrated to security_service in Supabase
     try {
       const { data: vsecureKeys, error: vsecureError } = await supabaseAdmin
         .schema('vsecure')
@@ -368,7 +472,16 @@ export async function validateAPIKey(apiKey: string): Promise<{
         .select('*')
 
       if (vsecureError) {
-        console.warn('vsecure.lanonasis_api_keys lookup error:', vsecureError.message)
+        // Schema doesn't exist or table doesn't exist - this is expected in Supabase
+        // Silently skip - no logging needed for expected missing schema
+        if (!(vsecureError.code === '42P01' ||
+          vsecureError.message.includes('schema "vsecure" does not exist') ||
+          vsecureError.message.includes('schema must be one of') ||
+          vsecureError.message.includes('relation') ||
+          vsecureError.message.includes('does not exist'))) {
+          // Only log unexpected errors (not schema-not-found errors)
+          console.warn('[api-key.service] vsecure.lanonasis_api_keys lookup error:', vsecureError.message)
+        }
       } else if (vsecureKeys && vsecureKeys.length > 0) {
         // Filter active keys by status/is_active flags if present
         vsecureKeys.forEach((k: any) => {
@@ -377,11 +490,15 @@ export async function validateAPIKey(apiKey: string): Promise<{
           if (isActive) allKeys.push(k)
         })
       }
-    } catch (err) {
-      console.warn('vsecure.lanonasis_api_keys lookup failed:', err)
+    } catch (err: any) {
+      // Schema doesn't exist - this is fine, continue to public schema
+      // Don't log errors for missing schemas as this is expected in Supabase
+      if (err.message && !err.message.includes('schema') && !err.message.includes('does not exist')) {
+        console.warn('[api-key.service] vsecure schema access failed:', err.message)
+      }
     }
 
-    // Legacy schema: public.api_keys
+    // 3. Legacy schema: public.api_keys (dashboard/user-generated keys)
     try {
       const { data: legacyKeys, error: legacyError } = await supabaseAdmin
         .from('api_keys')
@@ -389,12 +506,12 @@ export async function validateAPIKey(apiKey: string): Promise<{
         .eq('is_active', true)
 
       if (legacyError) {
-        console.warn('public.api_keys lookup error:', legacyError.message)
+        console.warn('[api-key.service] public.api_keys lookup error:', legacyError.message)
       } else if (legacyKeys && legacyKeys.length > 0) {
         allKeys.push(...legacyKeys)
       }
-    } catch (err) {
-      console.warn('public.api_keys lookup failed:', err)
+    } catch (err: any) {
+      console.warn('[api-key.service] public.api_keys lookup failed:', err.message || err)
     }
 
     if (allKeys.length === 0) {
