@@ -145,7 +145,7 @@ export async function getClient(clientId: string): Promise<OAuthClient | null> {
     }
 
     // Cache miss - fetch from database
-    const result = await dbPool.query('SELECT * FROM auth_gateway.oauth_clients WHERE client_id = $1', [clientId])
+    const result = await dbPool.query('SELECT * FROM auth_gateway.oauth_clients WHERE LOWER(client_id) = LOWER($1)', [clientId])
     const client = (result.rows[0] as OAuthClient | undefined) ?? null
 
     // Cache the result (including null to prevent repeated DB queries)
