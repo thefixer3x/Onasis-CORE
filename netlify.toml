@@ -22,6 +22,31 @@
   status = 200
   force = true
 
+# API Gateway routes - must come before SPA catch-all
+[[redirects]]
+  from = "/v1/*"
+  to = "/.netlify/functions/api-gateway"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/v1/*"
+  to = "/.netlify/functions/api-gateway"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/health"
+  to = "/.netlify/functions/api-gateway"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/info"
+  to = "/.netlify/functions/api-gateway"
+  status = 200
+  force = true
+
 # SPA redirect for client-side routing
 [[redirects]]
   from = "/*"

@@ -19,14 +19,62 @@ import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import oauthRoutes from './routes/oauth.routes.js'
 import webRoutes from './routes/web.routes.js'
+import syncRoutes from './routes/sync.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
 
 const app = express()
 
+// Health endpoint with permissive CORS (must be before global CORS middleware)
+app.options("/health", (_req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  res.status(204).end();
+});
+
+app.get("/health", async (_req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  const { checkDatabaseHealth } = await import("../db/client.js");
+  const { checkRedisHealth } = await import("./services/cache.service.js");
+  const { getOutboxStats } = await import("./services/event.service.js");
+  const dbStatus = await checkDatabaseHealth();
+  const redisStatus = await checkRedisHealth();
+  const outboxStatus = await getOutboxStats();
+  const overallStatus = dbStatus.healthy ? (redisStatus.healthy ? "ok" : "degraded") : "unhealthy";
+  res.json({
+    status: overallStatus,
+    service: "auth-gateway",
+    database: dbStatus,
+    cache: redisStatus,
+    outbox: outboxStatus,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Security middleware
-app.use(helmet())
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://auth.lanonasis.com", "https://dashboard.lanonasis.com"],
+      fontSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],
+      formAction: ["'self'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+    },
+  },
+}))
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -40,7 +88,13 @@ app.use(
     origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-project-scope'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'x-project-scope',
+      'X-Project-Scope', // Support both cases
+      'X-Requested-With'
+    ],
   })
 )
 
@@ -53,24 +107,7 @@ app.use(
 // Session cookie validation middleware (applies to all routes)
 app.use(validateSessionCookie)
 
-// Health check endpoint
-app.get('/health', async (_req: express.Request, res: express.Response) => {
-  const dbStatus = await checkDatabaseHealth()
-  const redisStatus = await checkRedisHealth()
 
-  // Overall status: ok if both healthy, degraded if Redis down but DB up, unhealthy if DB down
-  const overallStatus = dbStatus.healthy
-    ? (redisStatus.healthy ? 'ok' : 'degraded')
-    : 'unhealthy'
-
-  res.json({
-    status: overallStatus,
-    service: 'auth-gateway',
-    database: dbStatus,
-    cache: redisStatus,
-    timestamp: new Date().toISOString(),
-  })
-})
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
@@ -81,6 +118,14 @@ app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
+app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallback)
+
+// Map /auth/login to /web/login for backward compatibility and CLI
+app.get('/auth/login', (req, res) => {
+  // Forward query params to web login
+  const query = new URLSearchParams(req.query as Record<string, string>).toString()
+  res.redirect(`/web/login${query ? `?${query}` : ''}`)
+})
 
 // Backward compatibility: Mount OAuth routes under /api/v1/oauth as well
 // This ensures CLI tools using the old path still work

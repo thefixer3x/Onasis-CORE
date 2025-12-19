@@ -545,12 +545,13 @@ export async function login(req: Request, res: Response) {
     if (platform === 'web') {
       const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
       const isProduction = process.env.NODE_ENV === 'production'
+      const sameSiteSetting = isProduction ? 'none' : 'lax'
 
       res.cookie('lanonasis_session', tokens.access_token, {
         domain: cookieDomain,
         httpOnly: true,
-        secure: isProduction,
-        sameSite: 'lax',
+        secure: isProduction ? true : false,
+        sameSite: sameSiteSetting,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       })
@@ -563,8 +564,8 @@ export async function login(req: Request, res: Response) {
       }), {
         domain: cookieDomain,
         httpOnly: false, // Readable by JavaScript
-        secure: isProduction,
-        sameSite: 'lax',
+        secure: isProduction ? true : false,
+        sameSite: sameSiteSetting,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/',
       })
@@ -806,7 +807,7 @@ export async function listSessions(req: Request, res: Response) {
  */
 export async function verifyAPIKey(req: Request, res: Response) {
   const apiKey = req.headers['x-api-key'] as string
-  
+
   if (!apiKey) {
     return res.status(400).json({
       error: 'API key required',
@@ -814,10 +815,10 @@ export async function verifyAPIKey(req: Request, res: Response) {
       message: 'Please provide an API key in the X-API-Key header'
     })
   }
-  
+
   try {
     const validation = await apiKeyService.validateAPIKey(apiKey)
-    
+
     if (!validation.valid) {
       return res.status(401).json({
         valid: false,
@@ -827,7 +828,7 @@ export async function verifyAPIKey(req: Request, res: Response) {
         message: 'The provided API key is not valid'
       })
     }
-    
+
     return res.json({
       valid: true,
       userId: validation.userId,
@@ -861,7 +862,7 @@ export async function createApiKey(req: Request, res: Response) {
     }
 
     const apiKey = await apiKeyService.createApiKey(req.user.sub, req.body)
-    
+
     return res.json({
       success: true,
       data: {
@@ -896,7 +897,7 @@ export async function listApiKeys(req: Request, res: Response) {
     }
 
     const apiKeys = await apiKeyService.listApiKeys(req.user.sub, req.query)
-    
+
     return res.json({
       success: true,
       data: apiKeys
@@ -925,7 +926,7 @@ export async function getApiKey(req: Request, res: Response) {
     }
 
     const apiKey = await apiKeyService.getApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success: true,
       data: apiKey
@@ -954,7 +955,7 @@ export async function rotateApiKey(req: Request, res: Response) {
     }
 
     const apiKey = await apiKeyService.rotateApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success: true,
       message: 'API key rotated successfully',
@@ -984,7 +985,7 @@ export async function revokeApiKey(req: Request, res: Response) {
     }
 
     const success = await apiKeyService.revokeApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success,
       message: 'API key revoked successfully'
@@ -1013,7 +1014,7 @@ export async function deleteApiKey(req: Request, res: Response) {
     }
 
     const success = await apiKeyService.deleteApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success,
       message: 'API key deleted successfully'

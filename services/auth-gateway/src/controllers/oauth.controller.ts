@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express'
 import { z } from 'zod'
+import { logger } from '../utils/logger.js'
 import {
     OAuthServiceError,
     createAuthorizationCode,
@@ -97,8 +98,11 @@ export async function authorize(req: Request, res: Response) {
 
     if (!userId) {
         // Redirect to login page with return URL
+        // Use CLI login form for CLI clients, web login for others
         const returnUrl = req.originalUrl
-        return res.redirect(`/web/login?return_to=${encodeURIComponent(returnUrl)}`)
+        const isCLIClient = payload.client_id === 'lanonasis-cli' || payload.client_id?.includes('cli')
+        const loginPath = isCLIClient ? '/auth/cli-login' : '/web/login'
+        return res.redirect(`${loginPath}?return_to=${encodeURIComponent(returnUrl)}`)
     }
 
     try {
@@ -146,6 +150,14 @@ export async function authorize(req: Request, res: Response) {
         if (payload.state) {
             redirectUrl.searchParams.set('state', payload.state)
         }
+
+        logger.info('OAuth authorize success, redirecting to callback', {
+            client_id: client.client_id,
+            redirect_uri: redirectUrl.toString(),
+            has_code: !!result.authorizationCode,
+            has_state: !!payload.state,
+            user_id: userId
+        })
 
         return res.redirect(302, redirectUrl.toString())
     } catch (error) {
