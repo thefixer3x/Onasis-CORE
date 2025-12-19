@@ -334,6 +334,134 @@ export async function oauthCallback(req: Request, res: Response) {
 }
 
 /**
+ * POST /v1/auth/token/exchange
+ * Exchange Supabase JWT for auth-gateway tokens
+ * This bridges Dashboard's Supabase auth with the unified token system
+ */
+export async function exchangeSupabaseToken(req: Request, res: Response) {
+  const supabaseAccessToken = req.headers.authorization?.replace('Bearer ', '')
+  const projectScope = req.body.project_scope || req.headers['x-project-scope'] as string | undefined
+  const platform = (req.body.platform as Platform) || 'web'
+
+  if (!supabaseAccessToken) {
+    return res.status(401).json({
+      error: 'Supabase access token required in Authorization header',
+      code: 'TOKEN_MISSING',
+    })
+  }
+
+  try {
+    // Verify Supabase token and get user
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(supabaseAccessToken)
+
+    if (error || !user) {
+      logger.warn('Invalid Supabase token presented for exchange', {
+        error: error?.message,
+        ip: req.ip,
+      })
+      return res.status(401).json({
+        error: 'Invalid or expired Supabase token',
+        code: 'TOKEN_INVALID',
+      })
+    }
+
+    // Sync user to Neon database
+    await upsertUserAccount({
+      user_id: user.id,
+      email: user.email!,
+      role: user.role || 'authenticated',
+      provider: user.app_metadata?.provider || 'supabase-direct',
+      raw_metadata: user.user_metadata || {},
+      last_sign_in_at: user.last_sign_in_at || null,
+    })
+
+    // Generate auth-gateway tokens (SHA-256 hashed opaque tokens)
+    const tokens = generateTokenPair({
+      sub: user.id,
+      email: user.email!,
+      role: user.role || 'authenticated',
+      project_scope: projectScope || user.user_metadata?.project_scope || 'lanonasis-maas',
+      platform,
+    })
+
+    // Create session in Neon
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+    await createSession({
+      user_id: user.id,
+      platform,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      scope: projectScope ? [projectScope] : user.user_metadata?.project_scope ? [user.user_metadata.project_scope] : undefined,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      expires_at: expiresAt,
+      metadata: {
+        provider: 'supabase-exchange',
+        original_provider: user.app_metadata?.provider,
+        exchanged_at: new Date().toISOString(),
+      },
+    })
+
+    // Log the token exchange event
+    await logAuthEvent({
+      event_type: 'token_exchange',
+      user_id: user.id,
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+      metadata: {
+        source: 'supabase',
+        original_provider: user.app_metadata?.provider,
+        project_scope: projectScope,
+      },
+    })
+
+    logger.info('Token exchange successful', {
+      user_id: user.id,
+      email: user.email,
+      platform,
+      project_scope: projectScope,
+    })
+
+    // Return auth-gateway tokens (these work with all your services)
+    return res.json({
+      token_type: 'Bearer',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_in: tokens.expires_in,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        project_scope: projectScope || user.user_metadata?.project_scope,
+      },
+    })
+  } catch (error) {
+    logger.error('Token exchange failed', {
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+      ip: req.ip,
+    })
+
+    await logAuthEvent({
+      event_type: 'token_exchange',
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: false,
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+    })
+
+    return res.status(500).json({
+      error: 'Token exchange failed',
+      code: 'EXCHANGE_ERROR',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    })
+  }
+}
+
+/**
  * POST /v1/auth/login
  * Password-based login
  */
@@ -417,12 +545,13 @@ export async function login(req: Request, res: Response) {
     if (platform === 'web') {
       const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
       const isProduction = process.env.NODE_ENV === 'production'
+      const sameSiteSetting = isProduction ? 'none' : 'lax'
 
       res.cookie('lanonasis_session', tokens.access_token, {
         domain: cookieDomain,
         httpOnly: true,
-        secure: isProduction,
-        sameSite: 'lax',
+        secure: isProduction ? true : false,
+        sameSite: sameSiteSetting,
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
         path: '/',
       })
@@ -435,8 +564,8 @@ export async function login(req: Request, res: Response) {
       }), {
         domain: cookieDomain,
         httpOnly: false, // Readable by JavaScript
-        secure: isProduction,
-        sameSite: 'lax',
+        secure: isProduction ? true : false,
+        sameSite: sameSiteSetting,
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: '/',
       })
@@ -678,7 +807,7 @@ export async function listSessions(req: Request, res: Response) {
  */
 export async function verifyAPIKey(req: Request, res: Response) {
   const apiKey = req.headers['x-api-key'] as string
-  
+
   if (!apiKey) {
     return res.status(400).json({
       error: 'API key required',
@@ -686,10 +815,10 @@ export async function verifyAPIKey(req: Request, res: Response) {
       message: 'Please provide an API key in the X-API-Key header'
     })
   }
-  
+
   try {
     const validation = await apiKeyService.validateAPIKey(apiKey)
-    
+
     if (!validation.valid) {
       return res.status(401).json({
         valid: false,
@@ -699,7 +828,7 @@ export async function verifyAPIKey(req: Request, res: Response) {
         message: 'The provided API key is not valid'
       })
     }
-    
+
     return res.json({
       valid: true,
       userId: validation.userId,
@@ -733,7 +862,7 @@ export async function createApiKey(req: Request, res: Response) {
     }
 
     const apiKey = await apiKeyService.createApiKey(req.user.sub, req.body)
-    
+
     return res.json({
       success: true,
       data: {
@@ -768,7 +897,7 @@ export async function listApiKeys(req: Request, res: Response) {
     }
 
     const apiKeys = await apiKeyService.listApiKeys(req.user.sub, req.query)
-    
+
     return res.json({
       success: true,
       data: apiKeys
@@ -797,7 +926,7 @@ export async function getApiKey(req: Request, res: Response) {
     }
 
     const apiKey = await apiKeyService.getApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success: true,
       data: apiKey
@@ -826,7 +955,7 @@ export async function rotateApiKey(req: Request, res: Response) {
     }
 
     const apiKey = await apiKeyService.rotateApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success: true,
       message: 'API key rotated successfully',
@@ -856,7 +985,7 @@ export async function revokeApiKey(req: Request, res: Response) {
     }
 
     const success = await apiKeyService.revokeApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success,
       message: 'API key revoked successfully'
@@ -885,7 +1014,7 @@ export async function deleteApiKey(req: Request, res: Response) {
     }
 
     const success = await apiKeyService.deleteApiKey(req.params.keyId, req.user.sub)
-    
+
     return res.json({
       success,
       message: 'API key deleted successfully'

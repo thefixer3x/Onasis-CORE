@@ -1,4 +1,5 @@
 import { dbPool } from '../../db/client.js'
+import { appendEventWithOutbox } from './event.service.js'
 
 export interface UpsertUserAccountParams {
   user_id: string
@@ -23,24 +24,26 @@ export interface UserAccount {
 export async function upsertUserAccount(params: UpsertUserAccountParams): Promise<UserAccount> {
   const client = await dbPool.connect()
   try {
+    await client.query('BEGIN')
+
     const result = await client.query(
       `
-      INSERT INTO auth_gateway.user_accounts (
-        user_id,
-        email,
-        role,
-        provider,
-        raw_metadata,
-        last_sign_in_at
-      ) VALUES ($1, LOWER($2), $3, $4, $5, $6::timestamptz)
-      ON CONFLICT (user_id) DO UPDATE SET
-        email = EXCLUDED.email,
-        role = EXCLUDED.role,
-        provider = EXCLUDED.provider,
-        raw_metadata = EXCLUDED.raw_metadata,
-        last_sign_in_at = COALESCE(EXCLUDED.last_sign_in_at, auth_gateway.user_accounts.last_sign_in_at),
-        updated_at = NOW()
-      RETURNING *
+        INSERT INTO auth_gateway.user_accounts (
+          user_id,
+          email,
+          role,
+          provider,
+          raw_metadata,
+          last_sign_in_at
+        ) VALUES ($1, LOWER($2), $3, $4, $5, $6::timestamptz)
+        ON CONFLICT (user_id) DO UPDATE SET
+          email = EXCLUDED.email,
+          role = EXCLUDED.role,
+          provider = EXCLUDED.provider,
+          raw_metadata = EXCLUDED.raw_metadata,
+          last_sign_in_at = COALESCE(EXCLUDED.last_sign_in_at, auth_gateway.user_accounts.last_sign_in_at),
+          updated_at = NOW()
+        RETURNING *
       `,
       [
         params.user_id,
@@ -52,7 +55,31 @@ export async function upsertUserAccount(params: UpsertUserAccountParams): Promis
       ]
     )
 
-    return result.rows[0] as UserAccount
+    const user = result.rows[0] as UserAccount
+
+    await appendEventWithOutbox(
+      {
+        aggregate_type: 'user',
+        aggregate_id: user.user_id,
+        event_type: 'UserUpserted',
+        payload: {
+          email: user.email,
+          role: user.role,
+          provider: user.provider,
+          last_sign_in_at: user.last_sign_in_at,
+        },
+        metadata: {
+          source: 'auth-gateway',
+        },
+      },
+      client
+    )
+
+    await client.query('COMMIT')
+    return user
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
   } finally {
     client.release()
   }
