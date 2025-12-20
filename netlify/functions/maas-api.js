@@ -252,9 +252,13 @@ const verifyJwtToken = async (req, res, next) => {
       // Check raw master key match
       if (token === masterApiKey) {
         console.log("[maas-api] Master API key authenticated (raw)");
+        // Use admin UUID from env or Supabase default
+        const adminUserId = process.env.ADMIN_USER_ID || "b990c45e-8bf0-44d2-aeb6-6503ee08d152";
+        const defaultOrgId = process.env.DEFAULT_ORG_ID || "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
         req.user = {
-          id: "00000000-0000-0000-0000-000000000001",
-          user_id: "00000000-0000-0000-0000-000000000001",
+          id: adminUserId,
+          user_id: adminUserId,
+          organization_id: defaultOrgId,
           is_master: true,
           project_scope: "lanonasis-maas",
         };
@@ -268,9 +272,13 @@ const verifyJwtToken = async (req, res, next) => {
         token.toLowerCase() === hashedMasterKey.toLowerCase()
       ) {
         console.log("[maas-api] Master API key authenticated (hashed)");
+        // Use admin UUID from env or Supabase default
+        const adminUserId = process.env.ADMIN_USER_ID || "b990c45e-8bf0-44d2-aeb6-6503ee08d152";
+        const defaultOrgId = process.env.DEFAULT_ORG_ID || "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
         req.user = {
-          id: "00000000-0000-0000-0000-000000000001",
-          user_id: "00000000-0000-0000-0000-000000000001",
+          id: adminUserId,
+          user_id: adminUserId,
+          organization_id: defaultOrgId,
           is_master: true,
           project_scope: "lanonasis-maas",
         };

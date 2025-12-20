@@ -60,9 +60,9 @@ async function createMemory(params, context) {
   
   const embedding = embeddingResponse.data.data[0].embedding;
   
-  // Insert into maas.memory_entries
+  // Insert into public.memory_entries (fixed: was maas.memory_entries - empty table)
   const { data, error } = await supabase
-    .from('maas.memory_entries')
+    .from('memory_entries')
     .insert({
       organization_id: context.organizationId,
       user_id: context.userId || null,
@@ -125,7 +125,7 @@ async function listMemory(params, context) {
   const { limit = 20, offset = 0, type, tags } = params;
   
   let query = supabase
-    .from('maas.memory_entries')
+    .from('memory_entries')
     .select('*', { count: 'exact' })
     .eq('organization_id', context.organizationId)
     .order('created_at', { ascending: false })
