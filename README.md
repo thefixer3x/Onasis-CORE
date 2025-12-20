@@ -6,14 +6,6 @@ Onasis-CORE is a comprehensive privacy-protecting infrastructure platform that p
 
 ---
 
-## 🔴 SECURITY NOTICE
-
-**⚠️ URGENT: Credential Leak Requires Immediate Action**
-
-Test Supabase credentials were accidentally committed to Git history. **Repository owner must take immediate action.**
-
----
-
 ## 🏗️ **Architecture Overview**
 
 ```
@@ -25,32 +17,42 @@ Privacy Protection         Identity Masking
 ## 🔒 **Core Services**
 
 ### **API Gateway** (`/api-gateway`)
+
 Privacy-protecting API proxy for sub-selling vendor services
+
 - Vendor identity masking
 - Client anonymization  
 - Request/response sanitization
 - Anonymous billing tracking
 
-### **Data Masking** (`/data-masking`) 
+### **Data Masking** (`/data-masking`)
+
 Personal data anonymization and protection services
+
 - PII detection and removal
 - Data tokenization
 - Secure data vaults
 
 ### **Email Proxy** (`/email-proxy`)
+
 Anonymous email routing and filtering
+
 - Email identity masking
 - Spam/threat filtering
 - Secure message delivery
 
 ### **Billing Service** (`/billing-service`)
+
 Anonymous transaction processing and tracking
+
 - Usage-based billing
 - Anonymous payment processing
 - Revenue sharing automation
 
 ### **Webhook Proxy** (`/webhook-proxy`)
+
 Secure webhook routing with privacy protection
+
 - Webhook anonymization
 - Payload filtering
 - Delivery verification
@@ -58,11 +60,13 @@ Secure webhook routing with privacy protection
 ## 🌐 **Connection Points**
 
 **Client-Facing Domains:**
+
 - `api.vortexai.io` - Main branded API endpoint
 - `secure.onasis.io` - Privacy-focused branding
 - `gateway.apiendpoint.net` - Neutral connection point
 
 **Internal/Vendor Routing:**
+
 - `proxy.connectionpoint.io` - Vendor API masking
 - `bridge.onasis.io` - Internal service communication
 - `webhook.vortexai.io` - Callback routing
@@ -84,6 +88,7 @@ git clone https://github.com/yourusername/Onasis-CORE.git
 ## 📡 **Supabase Integration**
 
 Connected to **The Fixer Initiative** Supabase project for:
+
 - User authentication and management
 - Usage analytics and billing data
 - Service configuration and monitoring
@@ -101,6 +106,7 @@ Connected to **The Fixer Initiative** Supabase project for:
 ## 🏢 **Business Model**
 
 **Sub-Selling as a Service:**
+
 1. **API Gateway** - Charge markup on vendor API calls
 2. **Data Protection** - Privacy compliance as a service
 3. **White Label** - Branded privacy infrastructure for enterprises
@@ -119,12 +125,14 @@ Connected to **The Fixer Initiative** Supabase project for:
 ## 🔧 **Infrastructure**
 
 **VPS Configuration:**
+
 - **Primary VPS:** Hostinger (168.231.74.29)
 - **Load Balancer:** Nginx with privacy headers
 - **SSL:** Let's Encrypt with automated renewal
 - **Monitoring:** Custom privacy-aware logging
 
 **Tech Stack:**
+
 - **Backend:** Node.js with Express
 - **Database:** Supabase (The Fixer Initiative)
 - **Proxy:** Nginx with custom privacy modules
@@ -153,9 +161,9 @@ Proprietary - All rights reserved. Contact for licensing opportunities.
 
 ## 📞 **Contact**
 
-- **Business Inquiries:** business@onasis.io
-- **Technical Support:** support@onasis.io
-- **Privacy Officer:** privacy@onasis.io
+- **Business Inquiries:** <business@onasis.io>
+- **Technical Support:** <support@onasis.io>
+- **Privacy Officer:** <privacy@onasis.io>
 
 ---
 
