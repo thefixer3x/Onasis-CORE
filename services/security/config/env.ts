@@ -1,5 +1,5 @@
 import 'dotenv/config'
-import { z } from 'zod'
+import z from 'zod'
 
 const schema = z.object({
   DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
