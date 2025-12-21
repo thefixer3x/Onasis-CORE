@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { z } from 'zod';
+import z from 'zod';
 import { env } from '../config/env.js';
 
 // Environment configuration
