@@ -28,11 +28,12 @@
     "scripts/**/*",
     "examples/**/*",
     "config/**/*",
-    "utils/**/*"
+    "utils/**/*",
+    "tests/**/*",
+    "index.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "tests"
+    "dist"
   ]
 }
