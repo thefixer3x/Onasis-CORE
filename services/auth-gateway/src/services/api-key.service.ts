@@ -28,6 +28,28 @@ interface ApiKeyRecord {
   is_active: boolean
 }
 
+// Valid scopes for API keys
+export const VALID_SCOPES = new Set([
+  // Memory scopes
+  'memories.read', 'memories.write', 'memories.*',
+  // Secret vault scopes
+  'secrets.read', 'secrets.write', 'secrets.*',
+  // MCP scopes
+  'mcp.read', 'mcp.write', 'mcp.*',
+  // Profile scopes
+  'profile.read', 'profile.write', 'profile.*',
+  // Project scopes
+  'projects.read', 'projects.write', 'projects.*',
+  // Analytics scopes
+  'analytics.read', 'analytics.*',
+  // Admin scopes
+  'admin.*',
+  // Legacy full access (for backward compatibility)
+  'legacy.full_access',
+  // Wildcard (all permissions)
+  '*'
+])
+
 /**
  * Generate a secure API key with lano_ prefix
  * Aligned with dashboard implementation
@@ -56,7 +78,39 @@ export async function verifyApiKeyHash(apiKey: string, hash: string): Promise<bo
 }
 
 /**
+ * Validate and normalize scopes
+ * Returns a clean array of valid scopes
+ */
+export function normalizeScopes(scopes?: string[]): string[] {
+  if (!scopes || !Array.isArray(scopes) || scopes.length === 0) {
+    return ['legacy.full_access']
+  }
+
+  // Filter valid scopes (either in VALID_SCOPES set or matches pattern like "resource.action")
+  const validPattern = /^[a-z_]+\.(read|write|\*)$/
+  const normalizedScopes = scopes.filter(scope => {
+    if (typeof scope !== 'string') return false
+    const s = scope.trim().toLowerCase()
+    return VALID_SCOPES.has(s) || validPattern.test(s)
+  })
+
+  // Warn about invalid scopes
+  const invalidScopes = scopes.filter(s => {
+    if (typeof s !== 'string') return true
+    const scope = s.trim().toLowerCase()
+    return !VALID_SCOPES.has(scope) && !validPattern.test(scope)
+  })
+  if (invalidScopes.length > 0) {
+    console.warn(`[api-key.service] Ignoring invalid scopes: ${invalidScopes.join(', ')}`)
+  }
+
+  // Ensure at least one valid scope
+  return normalizedScopes.length > 0 ? normalizedScopes : ['legacy.full_access']
+}
+
+/**
  * Create a new API key for a user
+ * Supports scoped permissions via the scopes parameter
  */
 export async function createApiKey(
   user_id: string,
@@ -64,6 +118,7 @@ export async function createApiKey(
     name: string
     access_level?: string
     expires_in_days?: number
+    scopes?: string[]  // Scoped permissions for the API key
   }
 ): Promise<ApiKey> {
   try {
@@ -77,6 +132,9 @@ export async function createApiKey(
     if (params.access_level && !allowedAccess.has(params.access_level)) {
       throw new Error('Invalid access_level. Allowed: public, authenticated, team, admin, enterprise')
     }
+
+    // Validate and normalize scopes
+    const permissions = normalizeScopes(params.scopes)
 
     // Validate and normalize expires_in_days
     let expiresDays: number | undefined = undefined
@@ -121,6 +179,7 @@ export async function createApiKey(
       key_hash: keyHash,
       user_id,
       access_level: params.access_level || 'authenticated',
+      permissions,  // Store scopes in permissions column
       expires_at: expiresAt,
       created_at: new Date().toISOString(),
       is_active: true,
@@ -143,6 +202,7 @@ export async function createApiKey(
       payload: {
         user_id,
         access_level: data.access_level,
+        permissions: data.permissions || permissions,
         expires_at: data.expires_at,
         name: data.name,
         created_at: data.created_at,
@@ -158,7 +218,7 @@ export async function createApiKey(
       key: apiKey, // Only returned on creation
       user_id: data.user_id,
       access_level: data.access_level,
-      permissions: [],
+      permissions: data.permissions || permissions,
       expires_at: data.expires_at,
       created_at: data.created_at,
       is_active: data.is_active,
@@ -231,6 +291,69 @@ export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey
     }
   } catch (error) {
     throw new Error(`Get API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
+ * Update scopes for an existing API key
+ */
+export async function updateApiKeyScopes(key_id: string, user_id: string, scopes: string[]): Promise<ApiKey> {
+  try {
+    // Validate key exists
+    const { data: existingKey, error: fetchError } = await supabaseAdmin
+      .from('api_keys')
+      .select('*')
+      .eq('id', key_id)
+      .eq('user_id', user_id)
+      .single()
+
+    if (fetchError || !existingKey) {
+      throw new Error('API key not found')
+    }
+
+    // Normalize scopes
+    const permissions = normalizeScopes(scopes)
+
+    // Update permissions
+    const { data: updatedKey, error: updateError } = await supabaseAdmin
+      .from('api_keys')
+      .update({ permissions })
+      .eq('id', key_id)
+      .eq('user_id', user_id)
+      .select()
+      .single()
+
+    if (updateError || !updatedKey) {
+      throw new Error('Failed to update API key scopes')
+    }
+
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: updatedKey.id,
+      event_type: 'ApiKeyScopesUpdated',
+      payload: {
+        user_id: updatedKey.user_id,
+        old_permissions: existingKey.permissions || [],
+        new_permissions: permissions,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
+    return {
+      id: updatedKey.id,
+      name: updatedKey.name,
+      user_id: updatedKey.user_id,
+      access_level: updatedKey.access_level,
+      permissions: updatedKey.permissions || permissions,
+      expires_at: updatedKey.expires_at,
+      last_used_at: updatedKey.last_used_at,
+      created_at: updatedKey.created_at,
+      is_active: updatedKey.is_active,
+    }
+  } catch (error) {
+    throw new Error(`Update API key scopes failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
@@ -402,18 +525,18 @@ export async function validateAPIKey(apiKey: string): Promise<{
       // Only check prefixes for raw API keys, not hashes
       if (apiKey.startsWith('vx_')) {
         console.warn(
-          `⚠️  DEPRECATED: API key with "vx_" prefix used (${apiKey.substring(0, 8)}...). ` +
+          `[api-key.service] DEPRECATED: API key with "vx_" prefix used (${apiKey.substring(0, 8)}...). ` +
           'Support for "vx_" keys will be removed soon. Please regenerate with "lano_" prefix.'
         )
       } else if (apiKey.startsWith('lns_')) {
         console.warn(
-          `⚠️  DEPRECATED: API key with "lns_" prefix used (${apiKey.substring(0, 8)}...). ` +
+          `[api-key.service] DEPRECATED: API key with "lns_" prefix used (${apiKey.substring(0, 8)}...). ` +
           'This prefix has been replaced with "lano_". Please regenerate your API key.'
         )
       } else if (!apiKey.startsWith('lano_')) {
         // During migration, we're lenient but still validate the key
         console.warn(
-          `⚠️  WARNING: API key with unknown prefix detected (${apiKey.substring(0, 8)}...). ` +
+          `[api-key.service] WARNING: API key with unknown prefix detected (${apiKey.substring(0, 8)}...). ` +
           'Expected "lano_" prefix. Key will still be validated against database.'
         )
       }
@@ -546,6 +669,9 @@ export async function validateAPIKey(apiKey: string): Promise<{
           await updateApiKeyUsage(keyRecord.id)
         }
 
+        // Return permissions (scopes) from the key record
+        const permissions = keyRecord.permissions || keyRecord.scopes || ['legacy.full_access']
+
         return {
           valid: true,
           userId: keyRecord.user_id || keyRecord.owner_id || keyRecord.created_by,
@@ -554,7 +680,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
             keyRecord.access_level ||
             keyRecord.project_id ||
             keyRecord.organization_id,
-          permissions: keyRecord.permissions || keyRecord.scopes || [],
+          permissions,
         }
       }
     }
