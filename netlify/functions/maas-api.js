@@ -252,9 +252,15 @@ const verifyJwtToken = async (req, res, next) => {
       // Check raw master key match
       if (token === masterApiKey) {
         console.log("[maas-api] Master API key authenticated (raw)");
-        // Use admin UUID from env or Supabase default
-        const adminUserId = process.env.ADMIN_USER_ID || "b990c45e-8bf0-44d2-aeb6-6503ee08d152";
-        const defaultOrgId = process.env.DEFAULT_ORG_ID || "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+        // Require admin user and org IDs from environment - no hardcoded fallbacks
+        const adminUserId = process.env.ADMIN_USER_ID;
+        const defaultOrgId = process.env.DEFAULT_ORG_ID;
+
+        if (!adminUserId || !defaultOrgId) {
+          console.error("[maas-api] Master key auth failed: ADMIN_USER_ID or DEFAULT_ORG_ID not configured");
+          return res.status(500).json({ error: "Server misconfiguration: Master key tenant not configured" });
+        }
+
         req.user = {
           id: adminUserId,
           user_id: adminUserId,
@@ -272,9 +278,15 @@ const verifyJwtToken = async (req, res, next) => {
         token.toLowerCase() === hashedMasterKey.toLowerCase()
       ) {
         console.log("[maas-api] Master API key authenticated (hashed)");
-        // Use admin UUID from env or Supabase default
-        const adminUserId = process.env.ADMIN_USER_ID || "b990c45e-8bf0-44d2-aeb6-6503ee08d152";
-        const defaultOrgId = process.env.DEFAULT_ORG_ID || "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+        // Require admin user and org IDs from environment - no hardcoded fallbacks
+        const adminUserId = process.env.ADMIN_USER_ID;
+        const defaultOrgId = process.env.DEFAULT_ORG_ID;
+
+        if (!adminUserId || !defaultOrgId) {
+          console.error("[maas-api] Master key auth failed: ADMIN_USER_ID or DEFAULT_ORG_ID not configured");
+          return res.status(500).json({ error: "Server misconfiguration: Master key tenant not configured" });
+        }
+
         req.user = {
           id: adminUserId,
           user_id: adminUserId,
@@ -434,17 +446,22 @@ const verifyJwtToken = async (req, res, next) => {
           }
         }
 
-        // Use default organization if none found (Lanonasis org)
-        const DEFAULT_ORGANIZATION_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+        // Require organization_id - fail if not found (no hardcoded fallbacks)
         if (!organizationId) {
-          console.log(
-            "[maas-api] No organization_id found for user, using default Lanonasis org"
-          );
-          organizationId = DEFAULT_ORGANIZATION_ID;
+          // Try DEFAULT_ORG_ID from env as last resort
+          organizationId = process.env.DEFAULT_ORG_ID;
+          if (!organizationId) {
+            console.error("[maas-api] Organization resolution failed for API key:", {
+              user_id: apiKeyRecord.user_id,
+              api_key_id: apiKeyRecord.id
+            });
+            return res.status(403).json({
+              error: "User organization not configured",
+              details: "API key user has no organization_id and DEFAULT_ORG_ID is not set"
+            });
+          }
+          console.warn("[maas-api] Using DEFAULT_ORG_ID from env for user without organization");
         }
-
-        // DO NOT use user.id as organization_id - it violates foreign key constraint
-        // If we still don't have organization_id, we'll need to handle it in the endpoint
 
         // Set user context with organization_id
         req.user = {
@@ -880,17 +897,15 @@ app.post("/api/v1/memory", async (req, res) => {
 
     const userId = req.user?.user_id || req.user?.id;
 
-    // Use default organization if none found (Lanonasis org)
-    const DEFAULT_ORG_ID = "ba2c1b22-3c4d-4a5b-aca3-881995d863d5";
+    // Require organization_id - use env fallback, no hardcoded IDs
     if (!organizationId) {
-      console.log(
-        "[maas-api] No organization_id found, using default Lanonasis org"
-      );
-      organizationId = DEFAULT_ORG_ID;
+      organizationId = process.env.DEFAULT_ORG_ID;
+      if (organizationId) {
+        console.warn("[maas-api] Using DEFAULT_ORG_ID from env for memory creation");
+      }
     }
 
-    // DO NOT use user.id as organization_id - it violates foreign key constraint
-    // organization_id must exist in the organizations table
+    // Fail if organization_id still not resolved
     if (!organizationId) {
       console.error("[maas-api] Organization ID resolution failed:", {
         hasUser: !!req.user,
