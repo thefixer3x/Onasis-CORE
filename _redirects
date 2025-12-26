@@ -47,6 +47,21 @@
 /v1/keys/*        /.netlify/functions/key-manager/:splat        200
 /api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
 
+# ============================================================================
+# INTELLIGENCE API ROUTES - PROXY TO SUPABASE EDGE FUNCTIONS
+# ============================================================================
+# All intelligence endpoints proxy to Supabase Edge Functions
+# Project: mxtsdgkwzjzlttpotole (the-fixer-initiative)
+# Deployed: 2025-12-27
+# ============================================================================
+
+/api/v1/intelligence/health-check       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-health-check       200!
+/api/v1/intelligence/suggest-tags       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-suggest-tags       200!
+/api/v1/intelligence/find-related       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-find-related       200!
+/api/v1/intelligence/detect-duplicates  https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-detect-duplicates  200!
+/api/v1/intelligence/extract-insights   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-extract-insights   200!
+/api/v1/intelligence/analyze-patterns   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-analyze-patterns   200!
+
 # Health check endpoints
 /health           /.netlify/functions/health                    200
 /auth/health      /.netlify/functions/auth-health               200
