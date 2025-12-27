@@ -246,59 +246,10 @@ const verifyJwtToken = async (req, res, next) => {
       });
     }
 
-    // First: Check for master API key (system key from environment)
-    const masterApiKey = process.env.MASTER_API_KEY;
-    if (masterApiKey) {
-      // Check raw master key match
-      if (token === masterApiKey) {
-        console.log("[maas-api] Master API key authenticated (raw)");
-        // Require admin user and org IDs from environment - no hardcoded fallbacks
-        const adminUserId = process.env.ADMIN_USER_ID;
-        const defaultOrgId = process.env.DEFAULT_ORG_ID;
-
-        if (!adminUserId || !defaultOrgId) {
-          console.error("[maas-api] Master key auth failed: ADMIN_USER_ID or DEFAULT_ORG_ID not configured");
-          return res.status(500).json({ error: "Server misconfiguration: Master key tenant not configured" });
-        }
-
-        req.user = {
-          id: adminUserId,
-          user_id: adminUserId,
-          organization_id: defaultOrgId,
-          is_master: true,
-          project_scope: "lanonasis-maas",
-        };
-        return next();
-      }
-
-      // Check hashed master key match (for client-side hashed keys)
-      const hashedMasterKey = hashSecret(masterApiKey);
-      if (
-        token === hashedMasterKey ||
-        token.toLowerCase() === hashedMasterKey.toLowerCase()
-      ) {
-        console.log("[maas-api] Master API key authenticated (hashed)");
-        // Require admin user and org IDs from environment - no hardcoded fallbacks
-        const adminUserId = process.env.ADMIN_USER_ID;
-        const defaultOrgId = process.env.DEFAULT_ORG_ID;
-
-        if (!adminUserId || !defaultOrgId) {
-          console.error("[maas-api] Master key auth failed: ADMIN_USER_ID or DEFAULT_ORG_ID not configured");
-          return res.status(500).json({ error: "Server misconfiguration: Master key tenant not configured" });
-        }
-
-        req.user = {
-          id: adminUserId,
-          user_id: adminUserId,
-          organization_id: defaultOrgId,
-          is_master: true,
-          project_scope: "lanonasis-maas",
-        };
-        return next();
-      }
-    }
-
-    // Check for user API keys in database (any format: lano_*, vibe_*, etc.)
+    // All API keys (including master/admin keys) are looked up in the database
+    // This ensures proper tenant isolation - no hardcoded fallback IDs
+    // Master keys should be stored in api_keys table linked to admin@lanonasis.com
+    // Check for API keys in database (any format: lano_*, vibe_*, master_*, etc.)
     if (supabase) {
       // Hash the key and look it up in api_keys table
       const keyHash = hashSecret(token);
@@ -314,7 +265,7 @@ const verifyJwtToken = async (req, res, next) => {
       // Method 1: Check key_hash column (SHA-256 hash)
       const { data: hashMatch, error: hashError } = await supabase
         .from("api_keys")
-        .select("id, user_id, name, service, expires_at, is_active, created_at")
+        .select("id, user_id, name, service, expires_at, is_active, created_at, access_level")
         .eq("key_hash", keyHash)
         .eq("is_active", true)
         .maybeSingle();
@@ -330,7 +281,7 @@ const verifyJwtToken = async (req, res, next) => {
         const { data: keyMatch, error: keyMatchError } = await supabase
           .from("api_keys")
           .select(
-            "id, user_id, name, service, expires_at, is_active, created_at"
+            "id, user_id, name, service, expires_at, is_active, created_at, access_level"
           )
           .eq("key", token)
           .eq("is_active", true)
@@ -447,21 +398,24 @@ const verifyJwtToken = async (req, res, next) => {
         }
 
         // Require organization_id - fail if not found (no hardcoded fallbacks)
+        // This ensures proper tenant isolation - each user must have an organization
         if (!organizationId) {
-          // Try DEFAULT_ORG_ID from env as last resort
-          organizationId = process.env.DEFAULT_ORG_ID;
-          if (!organizationId) {
-            console.error("[maas-api] Organization resolution failed for API key:", {
-              user_id: apiKeyRecord.user_id,
-              api_key_id: apiKeyRecord.id
-            });
-            return res.status(403).json({
-              error: "User organization not configured",
-              details: "API key user has no organization_id and DEFAULT_ORG_ID is not set"
-            });
-          }
-          console.warn("[maas-api] Using DEFAULT_ORG_ID from env for user without organization");
+          console.error("[maas-api] Organization resolution failed for API key:", {
+            user_id: apiKeyRecord.user_id,
+            api_key_id: apiKeyRecord.id
+          });
+          return res.status(403).json({
+            error: "User organization not configured",
+            code: "ORG_REQUIRED",
+            details: "API key user has no organization_id. Each user must belong to an organization."
+          });
         }
+
+        // Determine if this is a master/admin key based on access_level
+        const isMasterKey = apiKeyRecord.access_level === 'admin' ||
+                           apiKeyRecord.access_level === 'enterprise' ||
+                           apiKeyRecord.name?.toLowerCase().includes('master') ||
+                           apiKeyRecord.name?.toLowerCase().includes('admin');
 
         // Set user context with organization_id
         req.user = {
@@ -473,12 +427,15 @@ const verifyJwtToken = async (req, res, next) => {
           api_key_name: apiKeyRecord.name,
           service: apiKeyRecord.service || "all",
           project_scope: "lanonasis-maas",
+          is_master: isMasterKey,
+          access_level: apiKeyRecord.access_level || "authenticated",
         };
 
         console.log("[maas-api] Set req.user:", {
           id: req.user.id,
           organization_id: req.user.organization_id,
-          vendor_org_id: req.user.vendor_org_id,
+          is_master: req.user.is_master,
+          access_level: req.user.access_level,
         });
 
         return next();
