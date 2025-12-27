@@ -152,18 +152,28 @@ serve(async (req: Request) => {
     // Normalize scopes
     const permissions = normalizeScopes(body.scopes);
 
-    // Insert API key
-    const apiKeyRecord = {
-      id: `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    // Insert API key - let Supabase auto-generate UUID for id
+    // Note: The `key` column is NOT NULL in the schema (legacy requirement)
+    // We store the key for backward compatibility, but authentication uses key_hash
+    const apiKeyRecord: Record<string, unknown> = {
       name: body.name.trim(),
-      key_hash: keyHash,
+      key: apiKey,           // Required: plaintext key (legacy column, NOT NULL)
+      key_hash: keyHash,     // For secure hash-based auth
       user_id: auth.user_id,
       access_level: body.access_level || 'authenticated',
       permissions,
-      expires_at: expiresAt,
-      created_at: new Date().toISOString(),
       is_active: true,
     };
+
+    // Only add expires_at if specified
+    if (expiresAt) {
+      apiKeyRecord.expires_at = expiresAt;
+    }
+
+    // Add optional fields
+    if (body.description) {
+      apiKeyRecord.description = body.description;
+    }
 
     const { data: newKey, error } = await supabase
       .from('api_keys')

@@ -8,7 +8,12 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test": "vitest"
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:supabase": "vitest run --dir tests/supabase",
+    "test:netlify": "vitest run --dir tests/netlify",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest --watch"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
