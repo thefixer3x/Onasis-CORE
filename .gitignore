@@ -123,6 +123,8 @@ docker-compose.override.yml
 
 # API Keys and tokens (extra safety)
 *api-key*
+!supabase/functions/api-key-*/
+!supabase/functions/api-key-*/**
 *secret*
 *token*
 *credential*
