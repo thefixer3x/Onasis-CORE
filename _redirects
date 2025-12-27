@@ -100,14 +100,10 @@
 # Set Config - POST /api/v1/config/set
 /api/v1/config/set          https://lanonasis.supabase.co/functions/v1/config-set           200!
 
-# MCP Authentication routes  
-# MCP WebSocket routing - proxy to VPS MCP server (port 3001)
+# MCP Protocol Routes
+# WebSocket routing - proxy to VPS MCP server (port 3002)
 /ws               https://168.231.74.29:3002               200!
-/api/v1/ws        https://168.231.74.29:3002/api/v1/ws        200!
-
-# MCP WebSocket routing - proxy to VPS MCP server
-/ws               https://168.231.74.29:3002               200!
-/api/v1/ws        https://168.231.74.29:3002/api/v1/ws        200!
+/api/v1/ws        https://168.231.74.29:3002/api/v1/ws     200!
 
 /sse              /.netlify/functions/mcp-sse                   200
 /api/v1/events    https://168.231.74.29:3003/api/v1/events        200!
@@ -139,8 +135,11 @@
 /auth/dashboard/callback  /.netlify/functions/dashboard-callback    200
 /dashboard/auth/callback  /.netlify/functions/dashboard-callback    200
 
-# Key management routes (legacy - now handled by Supabase Edge Functions above)
-# /v1/keys/*        /.netlify/functions/key-manager/:splat        200
+# Vendor API Key Management (third-party keys like OpenAI, etc.)
+# Different from user API keys at /api/v1/keys/* which use Supabase Edge Functions
+/v1/keys/*        /.netlify/functions/key-manager/:splat        200
+
+# Legacy MaaS API fallback
 /api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
 
 # ============================================================================
