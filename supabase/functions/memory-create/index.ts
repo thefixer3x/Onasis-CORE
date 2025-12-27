@@ -186,9 +186,10 @@ serve(async (req: Request) => {
       })
       .then(() => {});
 
-    // Return success response
+    // Return success response (exclude embedding from response for cleaner output)
+    const { embedding: _embedding, ...memoryWithoutEmbedding } = memory;
     const responseBody = {
-      data: memory,
+      data: memoryWithoutEmbedding,
       message: 'Memory created successfully',
       has_embedding: !!embedding,
     };

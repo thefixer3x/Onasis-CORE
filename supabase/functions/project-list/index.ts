@@ -71,10 +71,10 @@ serve(async (req: Request) => {
       .select('*', { count: 'exact', head: true })
       .eq('organization_id', targetOrgId);
 
-    // Get projects
+    // Get projects - using actual table columns
     const { data: projects, error } = await supabase
       .from('projects')
-      .select('id, name, slug, description, organization_id, created_by, settings, created_at, updated_at')
+      .select('id, name, description, organization_id, metadata, is_active, created_at, updated_at')
       .eq('organization_id', targetOrgId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
