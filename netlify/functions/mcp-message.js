@@ -48,18 +48,21 @@ async function handleToolCall(tool, params, context) {
 
 /**
  * Create memory with vector embedding
+ * Backward compatible: accepts both 'type' and 'memory_type', normalizes to memory_type
  */
 async function createMemory(params, context) {
-  const { title, content, type = 'context', tags = [] } = params;
-  
+  const { title, content, tags = [] } = params;
+  // Backward compatibility: accept both 'type' and 'memory_type', prefer memory_type
+  const memory_type = params.memory_type || params.type || 'context';
+
   // Generate embedding
   const embeddingResponse = await openai.createEmbedding({
     model: 'text-embedding-ada-002',
     input: `${title} ${content}`
   });
-  
+
   const embedding = embeddingResponse.data.data[0].embedding;
-  
+
   // Insert into public.memory_entries (fixed: was maas.memory_entries - empty table)
   const { data, error } = await supabase
     .from('memory_entries')
@@ -68,20 +71,22 @@ async function createMemory(params, context) {
       user_id: context.userId || null,
       title,
       content,
-      type,
+      memory_type,  // Use normalized field
+      type: memory_type,  // Also set legacy field for compatibility
       tags,
       embedding
     })
     .select()
     .single();
-  
+
   if (error) throw error;
-  
+
   return {
     id: data.id,
     title: data.title,
     content: data.content,
-    type: data.type,
+    memory_type: data.memory_type,  // Return canonical field
+    type: data.memory_type,  // Also return legacy field for backward compatibility
     tags: data.tags,
     created_at: data.created_at
   };
@@ -89,9 +94,12 @@ async function createMemory(params, context) {
 
 /**
  * Search memories using vector similarity
+ * Backward compatible: accepts both 'type' and 'memory_type'
  */
 async function searchMemory(params, context) {
-  const { query, limit = 10, threshold = 0.7, type, tags } = params;
+  const { query, limit = 10, threshold = 0.7, tags } = params;
+  // Backward compatibility: accept both 'type' and 'memory_type'
+  const memory_type = params.memory_type || params.type;
   
   // Generate query embedding
   const embeddingResponse = await openai.createEmbedding({
@@ -120,19 +128,22 @@ async function searchMemory(params, context) {
 
 /**
  * List memories with pagination
+ * Backward compatible: accepts both 'type' and 'memory_type'
  */
 async function listMemory(params, context) {
-  const { limit = 20, offset = 0, type, tags } = params;
-  
+  const { limit = 20, offset = 0, tags } = params;
+  // Backward compatibility: accept both 'type' and 'memory_type'
+  const memory_type = params.memory_type || params.type;
+
   let query = supabase
     .from('memory_entries')
     .select('*', { count: 'exact' })
     .eq('organization_id', context.organizationId)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
-  
-  if (type) {
-    query = query.eq('type', type);
+
+  if (memory_type) {
+    query = query.eq('memory_type', memory_type);
   }
   
   if (tags && tags.length > 0) {
