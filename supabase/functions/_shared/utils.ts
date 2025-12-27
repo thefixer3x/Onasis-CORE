@@ -60,21 +60,34 @@ export async function authenticateRequest(
 
   const supabase = getSupabaseClient();
 
+  // Helper to check if token is an API key format
+  // Supports: lano_* (primary), lms_* (mcp-core), pk_* (enterprise)
+  const isApiKeyFormat = (token: string): boolean => {
+    return /^(lano_|lms_|pk_)/.test(token);
+  };
+
+  // Helper to authenticate API key via database lookup
+  const authenticateApiKey = async (key: string): Promise<{ userId: string } | null> => {
+    const { data: keyData } = await supabase
+      .from("api_keys")
+      .select("user_id, is_active")
+      .eq("key", key)
+      .maybeSingle();
+
+    if (keyData?.is_active) {
+      return { userId: keyData.user_id };
+    }
+    return null;
+  };
+
   // Try Bearer token first (Supabase auth)
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "");
 
-    // Check if it's an API key
-    if (token.startsWith("lano_")) {
-      const { data: keyData } = await supabase
-        .from("api_keys")
-        .select("user_id, is_active")
-        .eq("key", token)
-        .single();
-
-      if (keyData?.is_active) {
-        return { userId: keyData.user_id };
-      }
+    // Check if it's an API key format
+    if (isApiKeyFormat(token)) {
+      const result = await authenticateApiKey(token);
+      if (result) return result;
     }
 
     // Try as JWT
@@ -87,16 +100,9 @@ export async function authenticateRequest(
   }
 
   // Try X-API-Key header
-  if (apiKey?.startsWith("lano_")) {
-    const { data: keyData } = await supabase
-      .from("api_keys")
-      .select("user_id, is_active")
-      .eq("key", apiKey)
-      .single();
-
-    if (keyData?.is_active) {
-      return { userId: keyData.user_id };
-    }
+  if (apiKey && isApiKeyFormat(apiKey)) {
+    const result = await authenticateApiKey(apiKey);
+    if (result) return result;
   }
 
   return { error: "Unauthorized", status: 401 };
