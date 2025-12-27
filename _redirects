@@ -1,8 +1,48 @@
-# Memory service routing - support both singular and plural
-/api/v1/memories/*  /.netlify/functions/maas-api/:splat  200
-/api/v1/memories    /.netlify/functions/maas-api         200
-/api/v1/memory/*    /.netlify/functions/maas-api/:splat  200
-/api/v1/memory      /.netlify/functions/maas-api         200
+# ============================================================================
+# MEMORY API ROUTES - SUPABASE EDGE FUNCTIONS (FULL MIGRATION)
+# ============================================================================
+# All memory operations now route to Supabase Edge Functions
+# Updated: 2025-12-27
+# Vanity Domain: lanonasis.supabase.co
+# Total Edge Functions: 9 (memory operations)
+# ============================================================================
+
+# Memory Search - Semantic vector search with embeddings
+/api/v1/memory/search       https://lanonasis.supabase.co/functions/v1/memory-search       200!
+/api/v1/memories/search     https://lanonasis.supabase.co/functions/v1/memory-search       200!
+
+# Memory Stats - Statistics and analytics
+/api/v1/memory/stats        https://lanonasis.supabase.co/functions/v1/memory-stats        200!
+/api/v1/memories/stats      https://lanonasis.supabase.co/functions/v1/memory-stats        200!
+
+# Memory Bulk Operations
+/api/v1/memory/bulk/delete  https://lanonasis.supabase.co/functions/v1/memory-bulk-delete  200!
+/api/v1/memories/bulk/delete https://lanonasis.supabase.co/functions/v1/memory-bulk-delete 200!
+
+# Memory Health Check
+/api/v1/memory/health       https://lanonasis.supabase.co/functions/v1/system-health       200!
+
+# Memory List - Paginated list with filtering
+/api/v1/memory/list         https://lanonasis.supabase.co/functions/v1/memory-list         200!
+/api/v1/memories/list       https://lanonasis.supabase.co/functions/v1/memory-list         200!
+
+# Memory CRUD by ID (order matters: specific before wildcard)
+# GET/DELETE /api/v1/memory/:id
+/api/v1/memory/:id          https://lanonasis.supabase.co/functions/v1/memory-get          200!
+
+# Memory Create - POST /api/v1/memory (with auto-embedding)
+/api/v1/memory              https://lanonasis.supabase.co/functions/v1/memory-create       200!
+/api/v1/memories            https://lanonasis.supabase.co/functions/v1/memory-create       200!
+
+# Memory Update - PUT/PATCH (requires body with id)
+/api/v1/memory/update       https://lanonasis.supabase.co/functions/v1/memory-update       200!
+
+# Memory Delete single - DELETE (requires body with id or query param)
+/api/v1/memory/delete       https://lanonasis.supabase.co/functions/v1/memory-delete       200!
+
+# Fallback to Netlify for any unmatched memory routes (legacy support)
+/api/v1/memories/*          /.netlify/functions/maas-api/:splat  200
+/api/v1/memory/*            /.netlify/functions/maas-api/:splat  200
 
 # MCP Authentication routes  
 # MCP WebSocket routing - proxy to VPS MCP server (port 3001)
