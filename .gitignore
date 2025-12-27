@@ -138,6 +138,9 @@ JWT_SECRET*
 SUPABASE_JWT_SECRET*
 *jwt*secret*
 
+# Exception: Allow Supabase API design docs
+!docs/supabase-api/SUPABASE_*
+
 # OpenAI and other API keys
 OPENAI_API_KEY*
 ANTHROPIC_API_KEY*
