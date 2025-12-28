@@ -9,6 +9,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const winston = require('winston');
@@ -46,13 +47,42 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 const ENCRYPTION_KEY = process.env.KEY_ENCRYPTION_SECRET || crypto.randomBytes(32);
 const ALGORITHM = 'aes-256-gcm';
 
+// Rate limiting - Protect sensitive key operations
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // 50 requests per window (stricter for key management)
+  message: { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter: '15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/v1/keys/health' // Skip health checks
+});
+
+// Very strict limiter for key creation/rotation (prevent abuse)
+const keyOperationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Only 10 key operations per hour
+  message: { error: 'Too many key operations', code: 'KEY_OP_RATE_LIMITED', retryAfter: '1 hour' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Middleware
 app.use(helmet());
+app.use(generalLimiter);
 app.use(cors({
   origin: ['https://api.lanonasis.com', 'http://localhost:3000'],
   credentials: true
 }));
 app.use(express.json());
+
+// Apply strict limiter to sensitive key operations
+app.use('/v1/keys/vendors', (req, res, next) => {
+  if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+    return keyOperationLimiter(req, res, next);
+  }
+  next();
+});
+app.use('/v1/keys/vendors/:id/rotate', keyOperationLimiter);
 
 // Encryption utilities
 const encrypt = (text) => {

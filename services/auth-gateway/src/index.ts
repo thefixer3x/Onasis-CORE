@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
 // Removed vulnerable csurf package - using custom CSRF middleware instead
 import { xssSanitizer } from './middleware/xss-sanitizer.js'
@@ -75,6 +76,35 @@ app.use(helmet({
     },
   },
 }))
+
+// Rate limiting - General API protection
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // 100 requests per window
+  message: { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter: '15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health' // Skip health checks
+})
+
+// Strict rate limiting for authentication endpoints (brute-force protection)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Only 5 login attempts per 15 minutes
+  message: { error: 'Too many login attempts', code: 'AUTH_RATE_LIMITED', retryAfter: '15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+// Apply general rate limiter globally
+app.use(generalLimiter)
+
+// Apply strict limiter to auth routes
+app.use('/v1/auth/login', authLimiter)
+app.use('/v1/auth/register', authLimiter)
+app.use('/admin/bypass-login', authLimiter)
+app.use('/oauth/token', authLimiter)
+
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
