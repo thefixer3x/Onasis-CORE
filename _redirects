@@ -1,17 +1,109 @@
-# Memory service routing - support both singular and plural
-/api/v1/memories/*  /.netlify/functions/maas-api/:splat  200
-/api/v1/memories    /.netlify/functions/maas-api         200
-/api/v1/memory/*    /.netlify/functions/maas-api/:splat  200
-/api/v1/memory      /.netlify/functions/maas-api         200
+# ============================================================================
+# MAAS API ROUTES - SUPABASE EDGE FUNCTIONS (COMPLETE MIGRATION)
+# ============================================================================
+# All MaaS operations now route to Supabase Edge Functions
+# Updated: 2025-12-27
+# Vanity Domain: lanonasis.supabase.co
+# Total Edge Functions: 20 (memory: 9, api-keys: 5, system: 4, config: 2)
+# ============================================================================
 
-# MCP Authentication routes  
-# MCP WebSocket routing - proxy to VPS MCP server (port 3001)
-/ws               https://168.231.74.29:3002               200!
-/api/v1/ws        https://168.231.74.29:3002/api/v1/ws        200!
+# Memory Search - Semantic vector search with embeddings
+/api/v1/memory/search       https://lanonasis.supabase.co/functions/v1/memory-search       200!
+/api/v1/memories/search     https://lanonasis.supabase.co/functions/v1/memory-search       200!
 
-# MCP WebSocket routing - proxy to VPS MCP server
+# Memory Stats - Statistics and analytics
+/api/v1/memory/stats        https://lanonasis.supabase.co/functions/v1/memory-stats        200!
+/api/v1/memories/stats      https://lanonasis.supabase.co/functions/v1/memory-stats        200!
+
+# Memory Bulk Operations
+/api/v1/memory/bulk/delete  https://lanonasis.supabase.co/functions/v1/memory-bulk-delete  200!
+/api/v1/memories/bulk/delete https://lanonasis.supabase.co/functions/v1/memory-bulk-delete 200!
+
+# Memory Health Check
+/api/v1/memory/health       https://lanonasis.supabase.co/functions/v1/system-health       200!
+
+# Memory List - Paginated list with filtering
+/api/v1/memory/list         https://lanonasis.supabase.co/functions/v1/memory-list         200!
+/api/v1/memories/list       https://lanonasis.supabase.co/functions/v1/memory-list         200!
+
+# Memory CRUD by ID (order matters: specific before wildcard)
+# GET/DELETE /api/v1/memory/:id
+/api/v1/memory/:id          https://lanonasis.supabase.co/functions/v1/memory-get          200!
+
+# Memory Create - POST /api/v1/memory (with auto-embedding)
+/api/v1/memory              https://lanonasis.supabase.co/functions/v1/memory-create       200!
+/api/v1/memories            https://lanonasis.supabase.co/functions/v1/memory-create       200!
+
+# Memory Update - PUT/PATCH (requires body with id)
+/api/v1/memory/update       https://lanonasis.supabase.co/functions/v1/memory-update       200!
+
+# Memory Delete single - DELETE (requires body with id or query param)
+/api/v1/memory/delete       https://lanonasis.supabase.co/functions/v1/memory-delete       200!
+
+# Fallback to Netlify for any unmatched memory routes (legacy support)
+/api/v1/memories/*          /.netlify/functions/maas-api/:splat  200
+/api/v1/memory/*            /.netlify/functions/maas-api/:splat  200
+
+# ============================================================================
+# API KEY MANAGEMENT - SUPABASE EDGE FUNCTIONS
+# ============================================================================
+# API key CRUD operations - mirrors MCP tools exactly
+# ============================================================================
+
+# Create API Key - POST /api/v1/keys
+/api/v1/keys                https://lanonasis.supabase.co/functions/v1/api-key-create       200!
+/api/v1/keys/create         https://lanonasis.supabase.co/functions/v1/api-key-create       200!
+
+# List API Keys - GET /api/v1/keys/list
+/api/v1/keys/list           https://lanonasis.supabase.co/functions/v1/api-key-list         200!
+
+# Rotate API Key - POST /api/v1/keys/rotate
+/api/v1/keys/rotate         https://lanonasis.supabase.co/functions/v1/api-key-rotate       200!
+
+# Revoke API Key - POST /api/v1/keys/revoke
+/api/v1/keys/revoke         https://lanonasis.supabase.co/functions/v1/api-key-revoke       200!
+
+# Delete API Key - DELETE /api/v1/keys/delete
+/api/v1/keys/delete         https://lanonasis.supabase.co/functions/v1/api-key-delete       200!
+
+# ============================================================================
+# SYSTEM & AUTH STATUS - SUPABASE EDGE FUNCTIONS
+# ============================================================================
+
+# Auth Status - Returns current authentication state
+/api/v1/auth/status         https://lanonasis.supabase.co/functions/v1/auth-status          200!
+
+# Organization Info - Returns org details, plan, limits
+/api/v1/organization        https://lanonasis.supabase.co/functions/v1/organization-info    200!
+/api/v1/org                 https://lanonasis.supabase.co/functions/v1/organization-info    200!
+/api/v1/org/info            https://lanonasis.supabase.co/functions/v1/organization-info    200!
+
+# ============================================================================
+# PROJECT MANAGEMENT - SUPABASE EDGE FUNCTIONS
+# ============================================================================
+
+# Create Project - POST /api/v1/projects
+/api/v1/projects            https://lanonasis.supabase.co/functions/v1/project-create       200!
+/api/v1/projects/create     https://lanonasis.supabase.co/functions/v1/project-create       200!
+
+# List Projects - GET /api/v1/projects/list
+/api/v1/projects/list       https://lanonasis.supabase.co/functions/v1/project-list         200!
+
+# ============================================================================
+# CONFIGURATION - SUPABASE EDGE FUNCTIONS
+# ============================================================================
+
+# Get Config - GET /api/v1/config
+/api/v1/config              https://lanonasis.supabase.co/functions/v1/config-get           200!
+/api/v1/config/get          https://lanonasis.supabase.co/functions/v1/config-get           200!
+
+# Set Config - POST /api/v1/config/set
+/api/v1/config/set          https://lanonasis.supabase.co/functions/v1/config-set           200!
+
+# MCP Protocol Routes
+# WebSocket routing - proxy to VPS MCP server (port 3002)
 /ws               https://168.231.74.29:3002               200!
-/api/v1/ws        https://168.231.74.29:3002/api/v1/ws        200!
+/api/v1/ws        https://168.231.74.29:3002/api/v1/ws     200!
 
 /sse              /.netlify/functions/mcp-sse                   200
 /api/v1/events    https://168.231.74.29:3003/api/v1/events        200!
@@ -43,9 +135,27 @@
 /auth/dashboard/callback  /.netlify/functions/dashboard-callback    200
 /dashboard/auth/callback  /.netlify/functions/dashboard-callback    200
 
-# Key management routes
+# Vendor API Key Management (third-party keys like OpenAI, etc.)
+# Different from user API keys at /api/v1/keys/* which use Supabase Edge Functions
 /v1/keys/*        /.netlify/functions/key-manager/:splat        200
+
+# Legacy MaaS API fallback
 /api/v1/maas/*    /.netlify/functions/maas-api/:splat           200
+
+# ============================================================================
+# INTELLIGENCE API ROUTES - PROXY TO SUPABASE EDGE FUNCTIONS
+# ============================================================================
+# All intelligence endpoints proxy to Supabase Edge Functions
+# Project: mxtsdgkwzjzlttpotole (the-fixer-initiative)
+# Deployed: 2025-12-27
+# ============================================================================
+
+/api/v1/intelligence/health-check       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-health-check       200!
+/api/v1/intelligence/suggest-tags       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-suggest-tags       200!
+/api/v1/intelligence/find-related       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-find-related       200!
+/api/v1/intelligence/detect-duplicates  https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-detect-duplicates  200!
+/api/v1/intelligence/extract-insights   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-extract-insights   200!
+/api/v1/intelligence/analyze-patterns   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-analyze-patterns   200!
 
 # Health check endpoints
 /health           /.netlify/functions/health                    200

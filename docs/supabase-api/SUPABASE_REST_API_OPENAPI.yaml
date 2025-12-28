@@ -1,0 +1,1201 @@
+openapi: 3.1.0
+info:
+  title: Lanonasis MCP REST API
+  version: 1.0.0
+  description: |
+    Complete REST API for Lanonasis Memory as a Service (MaaS) platform.
+    Provides access to 19 MCP tools through a consistent `/api/v1/**` interface.
+
+    ## Authentication
+
+    This API supports three authentication methods:
+
+    1. **OAuth2 PKCE** (Primary)
+       - Authorization URL: `https://auth.lanonasis.com/oauth/authorize`
+       - Token URL: `https://auth.lanonasis.com/oauth/token`
+       - Scopes: `mcp:full`, `memories:read`, `memories:write`, `profile`
+
+    2. **API Key** (Fallback)
+       - Header: `X-API-Key: lms_live_*`
+
+    3. **JWT Token** (Legacy)
+       - Header: `Authorization: Bearer <jwt_token>`
+
+  contact:
+    name: Lanonasis Support
+    email: support@lanonasis.com
+    url: https://docs.lanonasis.com
+
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.lanonasis.com/api/v1
+    description: Production server
+  - url: https://staging-api.lanonasis.com/api/v1
+    description: Staging server
+  - url: http://localhost:54321/functions/v1
+    description: Local development (Supabase)
+
+tags:
+  - name: Memories
+    description: Memory management operations (7 tools)
+  - name: API Keys
+    description: API key management (5 tools)
+  - name: Projects
+    description: Project management (2 tools)
+  - name: Organizations
+    description: Organization management (1 tool)
+  - name: System
+    description: System health and configuration (4 tools)
+
+security:
+  - OAuth2PKCE:
+      - mcp:full
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
+paths:
+  # ============================================================================
+  # MEMORY MANAGEMENT
+  # ============================================================================
+
+  /memories:
+    get:
+      tags:
+        - Memories
+      summary: List Memories
+      description: List memories with pagination and filters (MCP tool `list_memories`)
+      operationId: listMemories
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemoryType'
+        - name: tags
+          in: query
+          description: Comma-separated list of tags
+          schema:
+            type: string
+            example: "architecture,design"
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [created_at, updated_at, title]
+            default: updated_at
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+    post:
+      tags:
+        - Memories
+      summary: Create Memory
+      description: Create a new memory with vector embedding (MCP tool `create_memory`)
+      operationId: createMemory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMemoryRequest'
+      responses:
+        '201':
+          description: Memory created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /memories/{id}:
+    get:
+      tags:
+        - Memories
+      summary: Get Memory
+      description: Get a specific memory by ID (MCP tool `get_memory`)
+      operationId: getMemory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    put:
+      tags:
+        - Memories
+      summary: Update Memory
+      description: Update an existing memory (MCP tool `update_memory`)
+      operationId: updateMemory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMemoryRequest'
+      responses:
+        '200':
+          description: Memory updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    delete:
+      tags:
+        - Memories
+      summary: Delete Memory
+      description: Delete a memory by ID (MCP tool `delete_memory`)
+      operationId: deleteMemory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Memory deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /memories/search:
+    post:
+      tags:
+        - Memories
+      summary: Search Memories
+      description: Search memories using semantic vector search (MCP tool `search_memories`)
+      operationId: searchMemories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchMemoriesRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchMemoriesResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /docs/search:
+    post:
+      tags:
+        - Memories
+      summary: Search Documentation
+      description: Search Lanonasis documentation (MCP tool `search_lanonasis_docs`)
+      operationId: searchDocs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: Search query
+                section:
+                  type: string
+                  enum: [all, api, guides, sdks]
+                  default: all
+                limit:
+                  type: integer
+                  default: 10
+                  minimum: 1
+                  maximum: 50
+      responses:
+        '200':
+          description: Documentation search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocsSearchResponse'
+
+  # ============================================================================
+  # API KEY MANAGEMENT
+  # ============================================================================
+
+  /auth/api-keys:
+    get:
+      tags:
+        - API Keys
+      summary: List API Keys
+      description: List API keys for the authenticated user (MCP tool `list_api_keys`)
+      operationId: listApiKeys
+      parameters:
+        - name: active_only
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: project_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - API Keys
+      summary: Create API Key
+      description: Create a new API key (MCP tool `create_api_key`)
+      operationId: createApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApiKeyRequest'
+      responses:
+        '201':
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/api-keys/{keyId}:
+    delete:
+      tags:
+        - API Keys
+      summary: Delete API Key
+      description: Delete an API key permanently (MCP tool `delete_api_key`)
+      operationId: deleteApiKey
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/api-keys/{keyId}/rotate:
+    post:
+      tags:
+        - API Keys
+      summary: Rotate API Key
+      description: Rotate an API key (MCP tool `rotate_api_key`)
+      operationId: rotateApiKey
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key rotated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyRotateResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/api-keys/{keyId}/revoke:
+    post:
+      tags:
+        - API Keys
+      summary: Revoke API Key
+      description: Revoke (deactivate) an API key (MCP tool `revoke_api_key`)
+      operationId: revokeApiKey
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyRevokeResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ============================================================================
+  # PROJECTS
+  # ============================================================================
+
+  /projects:
+    get:
+      tags:
+        - Projects
+      summary: List Projects
+      description: List projects for an organization (MCP tool `list_projects`)
+      operationId: listProjects
+      parameters:
+        - name: organization_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectListResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    post:
+      tags:
+        - Projects
+      summary: Create Project
+      description: Create a new project (MCP tool `create_project`)
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ============================================================================
+  # ORGANIZATIONS
+  # ============================================================================
+
+  /organizations/{orgId}:
+    get:
+      tags:
+        - Organizations
+      summary: Get Organization Info
+      description: Get organization information (MCP tool `get_organization_info`)
+      operationId: getOrganizationInfo
+      parameters:
+        - name: orgId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Organization information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganizationResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ============================================================================
+  # SYSTEM & CONFIGURATION
+  # ============================================================================
+
+  /health:
+    get:
+      tags:
+        - System
+      summary: Get Health Status
+      description: Get system health status (MCP tool `get_health_status`)
+      operationId: getHealthStatus
+      security: []  # Public endpoint
+      responses:
+        '200':
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /auth/status:
+    get:
+      tags:
+        - System
+      summary: Get Auth Status
+      description: Get authentication status for current session (MCP tool `get_auth_status`)
+      operationId: getAuthStatus
+      responses:
+        '200':
+          description: Authentication status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /config:
+    get:
+      tags:
+        - System
+      summary: Get Configuration
+      description: Get configuration setting (MCP tool `get_config`)
+      operationId: getConfig
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Configuration value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+    put:
+      tags:
+        - System
+      summary: Set Configuration
+      description: Set configuration setting (MCP tool `set_config`)
+      operationId: setConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - key
+                - value
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+# ============================================================================
+# COMPONENTS
+# ============================================================================
+
+components:
+  securitySchemes:
+    OAuth2PKCE:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://auth.lanonasis.com/oauth/authorize
+          tokenUrl: https://auth.lanonasis.com/oauth/token
+          refreshUrl: https://auth.lanonasis.com/oauth/token
+          scopes:
+            mcp:full: Full access to MCP server
+            memories:read: Read access to memories
+            memories:write: Write access to memories
+            profile: Access to user profile
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # Memory Schemas
+    MemoryType:
+      type: string
+      enum: [context, project, knowledge, reference, personal, workflow]
+
+    Memory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        type:
+          $ref: '#/components/schemas/MemoryType'
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateMemoryRequest:
+      type: object
+      required:
+        - title
+        - content
+        - type
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        type:
+          $ref: '#/components/schemas/MemoryType'
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    UpdateMemoryRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        type:
+          $ref: '#/components/schemas/MemoryType'
+        tags:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties: true
+
+    SearchMemoriesRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+        type:
+          $ref: '#/components/schemas/MemoryType'
+        threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.8
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+
+    MemoryResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Memory'
+
+    MemoryListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Memory'
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            limit:
+              type: integer
+            hasMore:
+              type: boolean
+
+    SearchMemoriesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Memory'
+                  - type: object
+                    properties:
+                      similarity_score:
+                        type: number
+            total:
+              type: integer
+            query:
+              type: string
+            threshold:
+              type: number
+
+    DocsSearchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            results:
+              type: array
+              items:
+                type: object
+                properties:
+                  title:
+                    type: string
+                  section:
+                    type: string
+                  path:
+                    type: string
+                  excerpt:
+                    type: string
+                  relevance_score:
+                    type: number
+            total:
+              type: integer
+            query:
+              type: string
+
+    # API Key Schemas
+    CreateApiKeyRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        access_level:
+          type: string
+          enum: [public, authenticated, team, admin, enterprise]
+          default: authenticated
+        expires_in_days:
+          type: integer
+          default: 365
+        project_id:
+          type: string
+          format: uuid
+
+    ApiKeyResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            key:
+              type: string
+              description: Full API key (only shown on creation)
+            access_level:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            expires_at:
+              type: string
+              format: date-time
+            warning:
+              type: string
+
+    ApiKeyListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              key_prefix:
+                type: string
+              access_level:
+                type: string
+              is_active:
+                type: boolean
+              last_used_at:
+                type: string
+                format: date-time
+              created_at:
+                type: string
+                format: date-time
+              expires_at:
+                type: string
+                format: date-time
+        total:
+          type: integer
+
+    ApiKeyRotateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            key:
+              type: string
+              description: New API key
+            old_key_expires_at:
+              type: string
+              format: date-time
+            rotated_at:
+              type: string
+              format: date-time
+            warning:
+              type: string
+
+    ApiKeyRevokeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            is_active:
+              type: boolean
+            revoked_at:
+              type: string
+              format: date-time
+
+    # Project Schemas
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        organization_id:
+          type: string
+          format: uuid
+
+    ProjectResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            description:
+              type: string
+            organization_id:
+              type: string
+              format: uuid
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    ProjectListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              name:
+                type: string
+              description:
+                type: string
+              organization_id:
+                type: string
+                format: uuid
+              created_at:
+                type: string
+                format: date-time
+        total:
+          type: integer
+
+    # Organization Schemas
+    OrganizationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            plan:
+              type: string
+              enum: [free, authenticated, team, enterprise]
+            settings:
+              type: object
+              properties:
+                max_users:
+                  type: integer
+                features:
+                  type: array
+                  items:
+                    type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    # System Schemas
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+              enum: [healthy, degraded, unhealthy]
+            services:
+              type: object
+              properties:
+                database:
+                  type: string
+                cache:
+                  type: string
+                mcp:
+                  type: string
+            uptime:
+              type: string
+            version:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+            memory_usage:
+              type: object
+              properties:
+                used:
+                  type: integer
+                total:
+                  type: integer
+                percentage:
+                  type: integer
+
+    AuthStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            authenticated:
+              type: boolean
+            user_id:
+              type: string
+              format: uuid
+            organization_id:
+              type: string
+              format: uuid
+            access_level:
+              type: string
+            token_expires_at:
+              type: string
+              format: date-time
+            scopes:
+              type: array
+              items:
+                type: string
+            session_info:
+              type: object
+              properties:
+                created_at:
+                  type: string
+                  format: date-time
+                last_activity:
+                  type: string
+                  format: date-time
+
+    ConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            key:
+              type: string
+            value:
+              type: string
+            type:
+              type: string
+            description:
+              type: string
+            previous_value:
+              type: string
+            updated_at:
+              type: string
+              format: date-time
+
+    # Common Schemas
+    DeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            deleted_at:
+              type: string
+              format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+            request_id:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    RateLimitError:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
