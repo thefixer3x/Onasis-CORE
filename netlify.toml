@@ -9,7 +9,16 @@
   SECRETS_SCAN_ENABLED = "false"
   NPM_FLAGS = "--version"
 
-# Auth endpoints - highest priority
+# ============================================================================
+# NETLIFY.TOML - Secondary routing (fallback only)
+# ============================================================================
+# IMPORTANT: _redirects file takes priority over netlify.toml
+# Most API routes are defined in _redirects and route to Supabase Edge Functions
+# These rules only apply when _redirects doesn't match first
+# Updated: 2025-12-27
+# ============================================================================
+
+# Auth endpoints - specific routes not covered by _redirects
 [[redirects]]
   from = "/auth/cli-login"
   to = "/.netlify/functions/cli-auth"
@@ -22,32 +31,10 @@
   status = 200
   force = true
 
-# API Gateway routes - must come before SPA catch-all
-[[redirects]]
-  from = "/v1/*"
-  to = "/.netlify/functions/api-gateway"
-  status = 200
-  force = true
+# NOTE: /api/v1/* routes are handled by _redirects -> Supabase Edge Functions
+# The api-gateway fallback is in _redirects as the catch-all (lowest priority)
 
-[[redirects]]
-  from = "/api/v1/*"
-  to = "/.netlify/functions/api-gateway"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/health"
-  to = "/.netlify/functions/api-gateway"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/info"
-  to = "/.netlify/functions/api-gateway"
-  status = 200
-  force = true
-
-# SPA redirect for client-side routing
+# SPA redirect for client-side routing (lowest priority)
 [[redirects]]
   from = "/*"
   to = "/index.html"
