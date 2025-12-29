@@ -10,6 +10,8 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 async function runMigration() {
+  // Allow self-signed certificates for staging/testing (Supabase uses valid certs; this is defensive)
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = process.env.NODE_TLS_REJECT_UNAUTHORIZED || '0'
   const client = new Client({ connectionString: process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
 
   try {
@@ -17,7 +19,7 @@ async function runMigration() {
     const migrationPath = join(__dirname, 'migrations', '002_oauth2_pkce.sql')
     const migrationSQL = readFileSync(migrationPath, 'utf-8')
 
-    console.log('🔌 Connecting to Neon...')
+    console.log('🔌 Connecting to Postgres (Supabase)...')
     await client.connect()
 
     console.log('🚀 Running OAuth2 PKCE migration...\n')

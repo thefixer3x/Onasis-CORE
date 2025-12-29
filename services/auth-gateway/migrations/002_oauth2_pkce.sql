@@ -5,6 +5,10 @@
 -- Purpose: Add OAuth2 Authorization Code with PKCE support for VSCode extensions
 --
 
+-- Ensure auth_gateway schema exists and place all OAuth tables there
+CREATE SCHEMA IF NOT EXISTS auth_gateway;
+SET search_path TO auth_gateway, public;
+
 -- =====================================================
 -- 1. OAuth Clients Table
 -- =====================================================
@@ -307,3 +311,5 @@ COMMENT ON COLUMN oauth_tokens.parent_token_id IS 'Tracks refresh token rotation
 -- Verified clients seeded: cursor-extension, onasis-cli
 -- Helper functions and triggers installed
 -- Ready for auth-gateway OAuth endpoint implementation
+
+RESET search_path;

@@ -120,10 +120,23 @@ export function oauthSecurityHeaders(req: Request, res: Response, next: NextFunc
         return next() // Skip CSP for web routes
     }
 
+    const supabaseOrigin = env.SUPABASE_URL=https://<project-ref>.supabase.co
+    const connectSrc = ["'self'"]
+    if (supabaseOrigin) {
+        connectSrc.push(supabaseOrigin)
+    }
+
     // Strict CSP for OAuth endpoints only
     res.setHeader(
         'Content-Security-Policy',
-        "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'"
+        [
+            "default-src 'none'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            `connect-src ${connectSrc.join(' ')}`,
+            "form-action 'self'"
+        ].join('; ')
     )
 
     // Prevent clickjacking

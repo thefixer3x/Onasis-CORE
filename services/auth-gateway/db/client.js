@@ -1,8 +1,6 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import ws from 'ws';
+import { Pool } from 'pg';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '../config/env.js';
-neonConfig.webSocketConstructor = ws;
 export const dbPool = new Pool({
     connectionString: env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
     ssl: { rejectUnauthorized: false },

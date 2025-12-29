@@ -12,7 +12,6 @@ import { redisClient, checkRedisHealth, closeRedis } from './services/cache.serv
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
-import apiKeysRoutes from './routes/api-keys.routes.js'
 import projectsRoutes from './routes/projects.routes.js'
 import mcpRoutes from './routes/mcp.routes.js'
 import cliRoutes from './routes/cli.routes.js'
@@ -111,7 +110,6 @@ app.use(validateSessionCookie)
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
-app.use('/api/v1/auth/api-keys', apiKeysRoutes)
 app.use('/api/v1/projects', projectsRoutes)
 app.use('/web', webRoutes)
 app.use('/mcp', mcpRoutes)

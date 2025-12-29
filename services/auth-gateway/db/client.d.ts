@@ -1,4 +1,4 @@
-import { Pool, PoolClient } from '@neondatabase/serverless';
+import { Pool, PoolClient } from 'pg';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 export const dbPool: Pool;
