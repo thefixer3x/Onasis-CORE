@@ -5,6 +5,10 @@
 **Status:** ✅ IMPLEMENTATION COMPLETE (Phases 1-4)
 **Approach:** PostgREST + Edge Functions with Phased Rollout
 
+> **📌 NOTE:** This document covers **API migration** (Netlify Functions → Supabase Edge Functions).
+> For **DATABASE schema reorganization** (public schema → multi-schema architecture), see:
+> **[DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)**
+
 ---
 
 ## ✅ Implementation Summary (Completed 2025-12-27)
@@ -94,7 +98,8 @@ Client -> Netlify CDN/_redirects -> Auth Gateway (VPS) -> Netlify Functions
 
 | Issue | Impact | Resolution |
 |-------|--------|------------|
-| **Dual Database** | API keys in Neon OR Supabase, not synced | Consolidate to Supabase |
+| **Dual Database** | API keys in Neon OR Supabase, not synced | **See [DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)** for full solution |
+| **Schema Pollution** | 95+ tables in `public` schema, mixed concerns | **See [DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)** for multi-schema architecture |
 | **Auth Gateway Dependency** | Separate Node.js service on VPS | Keep running, redirect DB calls |
 | **Hardcoded Paths** | Client code references `/.netlify/functions/*` | Environment-based routing |
 | **Route Ordering Bug** | `/count` and `/stats` fail (matched as `:id`) | Fix in Edge Functions |
