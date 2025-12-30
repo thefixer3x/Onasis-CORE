@@ -1,6 +1,10 @@
-import { Pool, PoolClient } from '@neondatabase/serverless';
+import { Pool, PoolClient } from 'pg';
 import { SupabaseClient } from '@supabase/supabase-js';
 
+/**
+ * PostgreSQL Connection Pool
+ * Configured for Supabase Pooler (pgbouncer mode)
+ */
 export const dbPool: Pool;
 
 /**
@@ -9,6 +13,10 @@ export const dbPool: Pool;
  */
 export function getClientWithSchema(): Promise<PoolClient>;
 
+/**
+ * Supabase Admin Client
+ * Initialized with service_role key for admin operations
+ */
 export const supabaseAdmin: SupabaseClient;
 
 export function checkDatabaseHealth(): Promise<{

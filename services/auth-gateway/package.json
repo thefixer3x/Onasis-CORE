@@ -1,7 +1,7 @@
 {
   "name": "auth-gateway",
-  "version": "0.1.0",
-  "description": "Neon-integrated authentication gateway template",
+  "version": "0.2.0",
+  "description": "Supabase-integrated authentication gateway for Lan-Onasis platform",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -20,7 +20,6 @@
     "bootstrap:supabase": "tsx scripts/bootstrap-from-supabase.ts"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.0.2",
     "@supabase/supabase-js": "^2.89.0",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",

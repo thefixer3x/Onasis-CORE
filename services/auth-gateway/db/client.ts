@@ -1,10 +1,17 @@
-import { Pool, neonConfig } from '@neondatabase/serverless'
-import ws from 'ws'
+import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import { env } from '../config/env.js'
 
-neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket
+const { Pool } = pg
 
+/**
+ * PostgreSQL Connection Pool
+ * Configured for Supabase Pooler (pgbouncer mode)
+ *
+ * Important: When using Supabase Transaction Pooler (port 6543):
+ * - Prepared statements are disabled (pgbouncer compatibility)
+ * - Connection pooling is handled by Supabase
+ */
 export const dbPool = new Pool({
   connectionString: env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
   ssl: { rejectUnauthorized: false },
