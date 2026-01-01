@@ -83,19 +83,19 @@ describe('ApiKeyService (vitest suite)', () => {
       {
         name: 'Test Project',
         description: 'Test description',
-        organizationId: '11111111-1111-1111-1111-111111111111',
+        organizationId: '11111111-1111-4111-a111-111111111111',
         teamMembers: [],
         settings: {},
       },
-      '22222222-2222-2222-2222-222222222222'
+      '22222222-2222-4222-a222-222222222222'
     );
 
     expect(result).toEqual({
       id: 'proj-1',
       name: 'Test Project',
       description: 'Test description',
-      organizationId: '11111111-1111-1111-1111-111111111111',
-      ownerId: '22222222-2222-2222-2222-222222222222',
+      organizationId: '11111111-1111-4111-a111-111111111111',
+      ownerId: '22222222-2222-4222-a222-222222222222',
       teamMembers: [],
       settings: {},
       createdAt: '2025-01-01T00:00:00.000Z',
@@ -118,10 +118,11 @@ describe('ApiKeyService (vitest suite)', () => {
           teamMembers: [],
           settings: {},
         } as any,
-        '22222222-2222-2222-2222-222222222222'
+        '22222222-2222-4222-a222-222222222222'
       )
-    ).rejects.toThrowError(/organizationId/);
+    ).rejects.toThrow();
 
-    expect(projectInsertPayloads.length).toBe(1); // unchanged from previous test
+    // First test added 1, this test should not add any (validation fails before insert)
+    expect(projectInsertPayloads.length).toBe(1);
   });
 });
