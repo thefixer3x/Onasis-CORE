@@ -27,6 +27,10 @@ import { validateSessionCookie } from './middleware/session.js'
 
 const app = express()
 
+// Trust proxy - required when behind nginx/load balancer
+// Fixes: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', true)
+
 // Health endpoint with permissive CORS (must be before global CORS middleware)
 app.options("/health", (_req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");

@@ -348,16 +348,16 @@ router.get("/cli-login", (req, res) => {
 
           <!-- Mode Toggle -->
           <div class="mode-toggle">
-            <button class="mode-btn active" id="login-btn" onclick="setMode('login')">
+            <button class="mode-btn active" id="login-btn" type="button">
               SIGN IN
             </button>
-            <button class="mode-btn" id="signup-btn" onclick="setMode('signup')">
+            <button class="mode-btn" id="signup-btn" type="button">
               SIGN UP
             </button>
           </div>
 
           <!-- Auth Form -->
-          <form id="auth-form" onsubmit="handleSubmit(event)">
+          <form id="auth-form">
             <!-- Name Field (Sign Up Only) -->
             <div class="form-group hidden" id="name-group">
               <label class="form-label">FULL NAME:</label>
@@ -478,7 +478,24 @@ router.get("/cli-login", (req, res) => {
         document.addEventListener('DOMContentLoaded', function() {
           document.getElementById('email').focus();
           initializeOAuthButtons();
+          initializeModeButtons();
+          initializeForm();
         });
+
+        function initializeModeButtons() {
+          document.getElementById('login-btn').addEventListener('click', function() {
+            setMode('login');
+          });
+          document.getElementById('signup-btn').addEventListener('click', function() {
+            setMode('signup');
+          });
+        }
+
+        function initializeForm() {
+          document.getElementById('auth-form').addEventListener('submit', function(event) {
+            handleSubmit(event);
+          });
+        }
 
         function setMode(mode) {
           currentMode = mode;
@@ -586,15 +603,28 @@ router.get("/cli-login", (req, res) => {
               // CLI token flow: Display token for copying
               if (data.access_token || data.api_key) {
                 const token = data.api_key || data.access_token;
-                
+
+                // Store token for copy button
+                window.currentToken = token;
+
                 showMessage(
                   '<strong>✅ Authentication Successful!</strong><br><br>' +
                   '<div class="token-display">' + token + '</div>' +
-                  '<button class="copy-btn btn" onclick="copyToClipboard(\\'' + token + '\\')">📋 COPY TOKEN</button>' +
+                  '<button type="button" class="copy-btn btn" id="copy-token-btn">📋 COPY TOKEN</button>' +
                   '<br><br>' +
                   '<small>Copy this token and paste it into your CLI when prompted.</small>',
                   'success'
                 );
+
+                // Add event listener after the button is created
+                setTimeout(function() {
+                  const copyBtn = document.getElementById('copy-token-btn');
+                  if (copyBtn) {
+                    copyBtn.addEventListener('click', function() {
+                      copyToClipboard(window.currentToken);
+                    });
+                  }
+                }, 0);
 
                 // Clear password fields
                 document.getElementById('password').value = '';
