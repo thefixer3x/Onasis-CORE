@@ -1,4 +1,9 @@
 # ============================================================================
+# SERVICE DISCOVERY - CLI and SDK endpoint discovery
+# ============================================================================
+/.well-known/onasis.json    /public/.well-known/onasis.json    200
+
+# ============================================================================
 # MAAS API ROUTES - SUPABASE EDGE FUNCTIONS (COMPLETE MIGRATION)
 # ============================================================================
 # All MaaS operations now route to Supabase Edge Functions

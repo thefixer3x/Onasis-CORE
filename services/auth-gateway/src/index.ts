@@ -28,8 +28,9 @@ import { validateSessionCookie } from './middleware/session.js'
 const app = express()
 
 // Trust proxy - required when behind nginx/load balancer
-// Fixes: ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
-app.set('trust proxy', true)
+// Set to 1 (single proxy hop) instead of true to satisfy express-rate-limit security check
+// See: https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/
+app.set('trust proxy', 1)
 
 // Health endpoint with permissive CORS (must be before global CORS middleware)
 app.options("/health", (_req, res) => {
