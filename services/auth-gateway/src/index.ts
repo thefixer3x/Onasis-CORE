@@ -227,9 +227,31 @@ app.post('/register', express.json(), async (req, res) => {
       uri.startsWith('http://[::1]')
     )
 
-    // Store the client registration (in production, persist to database)
-    // For now, MCP clients are dynamically approved for localhost redirects
-    console.log(`MCP Client registered: ${client_name || 'Anonymous'} (${clientId})`)
+    // Persist the client to database for OAuth flow
+    const { dbPool } = await import('../db/client.js')
+    await dbPool.query(`
+      INSERT INTO auth_gateway.oauth_clients (
+        client_id, client_name, client_type, require_pkce,
+        allowed_code_challenge_methods, allowed_redirect_uris,
+        allowed_scopes, default_scopes, status, description
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ON CONFLICT (client_id) DO UPDATE SET
+        allowed_redirect_uris = EXCLUDED.allowed_redirect_uris,
+        updated_at = NOW()
+    `, [
+      clientId,
+      client_name || 'MCP Client',
+      'public', // MCP clients are public (no client_secret for token requests)
+      true, // require PKCE
+      ['S256', 'plain'],
+      JSON.stringify(redirect_uris),
+      scope.split(' '),
+      ['memories:read', 'mcp:connect'],
+      'active',
+      `Dynamic MCP client registered via RFC 7591 (localhost: ${isLocalhost})`
+    ])
+
+    console.log(`MCP Client registered and persisted: ${client_name || 'Anonymous'} (${clientId})`)
 
     res.status(201).json({
       client_id: clientId,
