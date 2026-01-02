@@ -39,6 +39,8 @@ INSERT INTO auth_gateway.oauth_clients (
         'mcp:tools',
         'mcp:resources',
         'mcp:prompts',
+        'mcp:connect',
+        'api:access',
         'memories:read',
         'memories:write',
         'memories:delete',
@@ -46,7 +48,7 @@ INSERT INTO auth_gateway.oauth_clients (
         'api-keys:write',
         'profile'
     ]::TEXT[],
-    ARRAY['mcp:full', 'memories:read', 'memories:write']::TEXT[],
+    ARRAY['mcp:full', 'mcp:connect', 'memories:read', 'memories:write']::TEXT[],
     'active',
     'Official Claude Desktop MCP client with OAuth2 authentication'
 ) ON CONFLICT (client_id) DO UPDATE SET
@@ -84,13 +86,15 @@ INSERT INTO auth_gateway.oauth_clients (
         'mcp:tools',
         'mcp:resources',
         'mcp:prompts',
+        'mcp:connect',
+        'api:access',
         'memories:read',
         'memories:write',
         'memories:delete',
         'api-keys:read',
         'profile'
     ]::TEXT[],
-    ARRAY['mcp:full', 'memories:read']::TEXT[],
+    ARRAY['mcp:full', 'mcp:connect', 'memories:read']::TEXT[],
     'active',
     'Official Claude Web MCP client with OAuth2 authentication'
 ) ON CONFLICT (client_id) DO UPDATE SET
@@ -129,16 +133,20 @@ INSERT INTO auth_gateway.oauth_clients (
         'mcp:tools',
         'mcp:resources',
         'mcp:prompts',
+        'mcp:connect',
+        'api:access',
         'memories:read',
         'memories:write',
         'profile'
     ]::TEXT[],
-    ARRAY['mcp:full', 'memories:read']::TEXT[],
+    ARRAY['mcp:full', 'mcp:connect', 'memories:read']::TEXT[],
     'active',
     'Generic MCP client for third-party implementations'
 ) ON CONFLICT (client_id) DO UPDATE SET
     client_name = EXCLUDED.client_name,
     allowed_redirect_uris = EXCLUDED.allowed_redirect_uris,
+    allowed_scopes = EXCLUDED.allowed_scopes,
+    default_scopes = EXCLUDED.default_scopes,
     updated_at = NOW();
 
 -- =====================================================
