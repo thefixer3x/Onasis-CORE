@@ -156,6 +156,21 @@ export async function getClient(clientId: string): Promise<OAuthClient | null> {
     return client
 }
 
+// Standard MCP scopes that are auto-allowed for public MCP clients
+// This enables plug-and-play experience without requiring database updates
+const MCP_AUTO_ALLOWED_SCOPES = [
+    'mcp:full',
+    'mcp:tools',
+    'mcp:resources',
+    'mcp:prompts',
+    'mcp:connect',
+    'api:access',
+    'memories:read',
+    'memories:write',
+    'memories:delete',
+    'profile'
+]
+
 export function resolveScopes(client: OAuthClient, requested?: string[]): string[] {
     const normalizedRequested = requested?.filter(Boolean) ?? []
     const allowed = client.allowed_scopes ?? []
@@ -169,7 +184,18 @@ export function resolveScopes(client: OAuthClient, requested?: string[]): string
         throw new OAuthServiceError('Client has no allowed scopes configured', 'invalid_scope', 400)
     }
 
-    const unauthorized = normalizedRequested.filter((scope) => !allowed.includes(scope))
+    // For public MCP clients, auto-allow standard MCP scopes for plug-and-play experience
+    const isPublicMcpClient = client.client_type === 'public' && (
+        client.application_type === 'mcp' ||
+        client.description?.includes('MCP') ||
+        client.client_name?.includes('MCP')
+    )
+
+    const effectiveAllowed = isPublicMcpClient
+        ? [...new Set([...allowed, ...MCP_AUTO_ALLOWED_SCOPES])]
+        : allowed
+
+    const unauthorized = normalizedRequested.filter((scope) => !effectiveAllowed.includes(scope))
     if (unauthorized.length > 0) {
         throw new OAuthServiceError(
             `Requested scope not allowed: ${unauthorized.join(', ')}`,
