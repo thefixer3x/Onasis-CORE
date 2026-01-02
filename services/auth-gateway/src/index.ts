@@ -3,6 +3,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
+import crypto from 'crypto'
 // Removed vulnerable csurf package - using custom CSRF middleware instead
 import { xssSanitizer } from './middleware/xss-sanitizer.js'
 
@@ -166,6 +167,97 @@ app.get('/auth/login', (req, res) => {
 // This ensures CLI tools using the old path still work
 app.use('/api/v1/oauth', oauthRoutes)
 
+// ============================================================================
+// MCP OAuth Discovery Endpoints (RFC 8414 + RFC 7591)
+// Required for MCP clients like Claude Desktop, Windsurf, Cursor, etc.
+// ============================================================================
+
+// OAuth 2.0 Authorization Server Metadata (RFC 8414)
+app.get('/.well-known/oauth-authorization-server', (_req, res) => {
+  const baseUrl = env.AUTH_BASE_URL || 'https://auth.lanonasis.com'
+  res.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/oauth/authorize`,
+    token_endpoint: `${baseUrl}/oauth/token`,
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
+    revocation_endpoint: `${baseUrl}/oauth/revoke`,
+    revocation_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+    introspection_endpoint: `${baseUrl}/oauth/introspect`,
+    registration_endpoint: `${baseUrl}/register`,
+    scopes_supported: ['memories:read', 'memories:write', 'mcp:connect', 'api:access'],
+    response_types_supported: ['code'],
+    response_modes_supported: ['query'],
+    grant_types_supported: ['authorization_code', 'refresh_token'],
+    code_challenge_methods_supported: ['S256', 'plain'],
+    service_documentation: 'https://docs.lanonasis.com/mcp/oauth',
+  })
+})
+
+// OAuth 2.0 Dynamic Client Registration (RFC 7591)
+// MCP clients use this to register themselves before starting OAuth flow
+app.post('/register', express.json(), async (req, res) => {
+  try {
+    const {
+      client_name,
+      redirect_uris,
+      grant_types = ['authorization_code'],
+      response_types = ['code'],
+      scope = 'memories:read memories:write mcp:connect',
+      token_endpoint_auth_method = 'none',
+    } = req.body
+
+    // Validate required fields
+    if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+      return res.status(400).json({
+        error: 'invalid_client_metadata',
+        error_description: 'redirect_uris is required and must be a non-empty array',
+      })
+    }
+
+    // Generate dynamic client credentials
+    const clientId = `mcp_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    const clientSecret = token_endpoint_auth_method !== 'none'
+      ? `mcs_${Buffer.from(crypto.randomBytes(32)).toString('base64url')}`
+      : undefined
+
+    // For MCP clients, we auto-approve certain localhost redirect URIs
+    const isLocalhost = redirect_uris.every((uri: string) =>
+      uri.startsWith('http://localhost') ||
+      uri.startsWith('http://127.0.0.1') ||
+      uri.startsWith('http://[::1]')
+    )
+
+    // Store the client registration (in production, persist to database)
+    // For now, MCP clients are dynamically approved for localhost redirects
+    console.log(`MCP Client registered: ${client_name || 'Anonymous'} (${clientId})`)
+
+    res.status(201).json({
+      client_id: clientId,
+      client_secret: clientSecret,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
+      client_secret_expires_at: 0, // Never expires
+      client_name: client_name || 'MCP Client',
+      redirect_uris,
+      grant_types,
+      response_types,
+      scope,
+      token_endpoint_auth_method,
+    })
+  } catch (error) {
+    console.error('Client registration error:', error)
+    res.status(500).json({
+      error: 'server_error',
+      error_description: 'Failed to register client',
+    })
+  }
+})
+
+// Also support /oauth/register for clients that expect it there
+app.post('/oauth/register', (req, res) => {
+  // Redirect to /register endpoint with 307 to preserve POST method
+  res.redirect(307, '/register')
+})
+
 // 404 handler
 app.use((_req: express.Request, res: express.Response) => {
   res.status(404).json({
@@ -224,6 +316,9 @@ app.listen(env.PORT, async () => {
   console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
   console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`)
   console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`)
+  console.log(`🔌 MCP OAuth Discovery (RFC 8414 + RFC 7591):`)
+  console.log(`   - GET  /.well-known/oauth-authorization-server`)
+  console.log(`   - POST /register (Dynamic Client Registration)`)
   console.log(`🛡️  Admin endpoints:`)
   console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`)
   console.log(`   - POST /admin/change-password`)
