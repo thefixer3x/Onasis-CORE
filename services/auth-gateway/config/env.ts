@@ -33,6 +33,7 @@ const envSchema = z.object({
   COOKIE_DOMAIN: z.string().default('.lanonasis.com'),
   DASHBOARD_URL: z.string().url().default('https://dashboard.lanonasis.com'),
   AUTH_GATEWAY_URL: z.string().url().optional(),
+  AUTH_BASE_URL: z.string().url().default('https://auth.lanonasis.com'),
 
   // Additional organizational subdomains (comma-separated)
   ADDITIONAL_SUBDOMAINS: z.string().optional(),
