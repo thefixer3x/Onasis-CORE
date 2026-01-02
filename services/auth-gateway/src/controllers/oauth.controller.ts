@@ -106,9 +106,66 @@ export async function authorize(req: Request, res: Response) {
     }
 
     try {
-        const client = await getClient(payload.client_id)
+        let client = await getClient(payload.client_id)
+
+        // Auto-register unknown MCP clients with localhost redirects for seamless plug-and-play
+        if (!client && payload.redirect_uri) {
+            const isLocalhost = payload.redirect_uri.startsWith('http://localhost') ||
+                payload.redirect_uri.startsWith('http://127.0.0.1') ||
+                payload.redirect_uri.startsWith('http://[::1]')
+
+            if (isLocalhost) {
+                const { dbPool } = await import('../../db/client.js')
+                await dbPool.query(`
+                    INSERT INTO auth_gateway.oauth_clients (
+                        client_id, client_name, client_type, require_pkce,
+                        allowed_code_challenge_methods, allowed_redirect_uris,
+                        allowed_scopes, default_scopes, status, description
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ON CONFLICT (client_id) DO NOTHING
+                `, [
+                    payload.client_id,
+                    'MCP Client (auto-registered)',
+                    'public',
+                    true,
+                    ['S256', 'plain'],
+                    JSON.stringify([payload.redirect_uri]),
+                    ['memories:read', 'memories:write', 'mcp:connect', 'mcp:full', 'api:access'],
+                    ['memories:read', 'mcp:connect'],
+                    'active',
+                    'Auto-registered MCP client at /oauth/authorize (localhost redirect)'
+                ])
+                logger.info(`Auto-registered MCP client: ${payload.client_id}`)
+                client = await getClient(payload.client_id)
+            }
+        }
+
         if (!client) {
             throw new OAuthServiceError('Unknown client_id', 'invalid_client', 400)
+        }
+
+        // For auto-registered clients, also check if their redirect URI needs updating
+        if (!isRedirectUriAllowed(client, payload.redirect_uri)) {
+            // If localhost redirect, auto-add it to allowed URIs
+            const isLocalhost = payload.redirect_uri.startsWith('http://localhost') ||
+                payload.redirect_uri.startsWith('http://127.0.0.1') ||
+                payload.redirect_uri.startsWith('http://[::1]')
+
+            if (isLocalhost) {
+                const { dbPool } = await import('../../db/client.js')
+                const currentUris = Array.isArray(client.allowed_redirect_uris)
+                    ? client.allowed_redirect_uris
+                    : JSON.parse(client.allowed_redirect_uris as string || '[]')
+                currentUris.push(payload.redirect_uri)
+                await dbPool.query(`
+                    UPDATE auth_gateway.oauth_clients
+                    SET allowed_redirect_uris = $1, updated_at = NOW()
+                    WHERE client_id = $2
+                `, [JSON.stringify([...new Set(currentUris)]), payload.client_id])
+                logger.info(`Added redirect URI to MCP client: ${payload.client_id} -> ${payload.redirect_uri}`)
+                // Refresh client
+                client = await getClient(payload.client_id)
+            }
         }
 
         if (!isRedirectUriAllowed(client, payload.redirect_uri)) {
