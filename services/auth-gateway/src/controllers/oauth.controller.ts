@@ -147,15 +147,15 @@ export async function authorize(req: Request, res: Response) {
         // For auto-registered clients, also check if their redirect URI needs updating
         if (!isRedirectUriAllowed(client, payload.redirect_uri)) {
             // If localhost redirect, auto-add it to allowed URIs
-            const isLocalhost = payload.redirect_uri.startsWith('http://localhost') ||
+            const isLocalhostRedirect = payload.redirect_uri.startsWith('http://localhost') ||
                 payload.redirect_uri.startsWith('http://127.0.0.1') ||
                 payload.redirect_uri.startsWith('http://[::1]')
 
-            if (isLocalhost) {
+            if (isLocalhostRedirect) {
                 const { dbPool } = await import('../../db/client.js')
-                const currentUris = Array.isArray(client.allowed_redirect_uris)
-                    ? client.allowed_redirect_uris
-                    : JSON.parse(client.allowed_redirect_uris as string || '[]')
+                const currentUris: string[] = Array.isArray(client.allowed_redirect_uris)
+                    ? (client.allowed_redirect_uris as string[])
+                    : JSON.parse(String(client.allowed_redirect_uris || '[]'))
                 currentUris.push(payload.redirect_uri)
                 await dbPool.query(`
                     UPDATE auth_gateway.oauth_clients
@@ -163,8 +163,11 @@ export async function authorize(req: Request, res: Response) {
                     WHERE client_id = $2
                 `, [JSON.stringify([...new Set(currentUris)]), payload.client_id])
                 logger.info(`Added redirect URI to MCP client: ${payload.client_id} -> ${payload.redirect_uri}`)
-                // Refresh client
-                client = await getClient(payload.client_id)
+                // Refresh client - keep existing if refresh fails
+                const refreshedClient = await getClient(payload.client_id)
+                if (refreshedClient) {
+                    client = refreshedClient
+                }
             }
         }
 
