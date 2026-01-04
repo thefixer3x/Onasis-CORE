@@ -20,6 +20,7 @@ import mcpRoutes from './routes/mcp.routes.js'
 import cliRoutes from './routes/cli.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import oauthRoutes from './routes/oauth.routes.js'
+import oauthConsentRoutes from './routes/oauth-consent.routes.js'
 import webRoutes from './routes/web.routes.js'
 import syncRoutes from './routes/sync.routes.js'
 
@@ -154,6 +155,7 @@ app.use('/mcp', mcpRoutes)
 app.use('/auth', cliRoutes)
 app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
+app.use('/oauth', oauthConsentRoutes)  // Supabase OAuth 2.1 Provider consent page
 app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallback)
 
 // Map /auth/login to /web/login for backward compatibility and CLI
