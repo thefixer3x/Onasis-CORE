@@ -30,7 +30,8 @@ function getTerminalLoginHTML(returnTo: string, error?: string): string {
 '        display: flex;' +
 '        align-items: center;' +
 '        justify-content: center;' +
-'        overflow: hidden;' +
+'        overflow-y: auto;' +
+'        padding: 20px 0;' +
 '      }' +
 '      .terminal {' +
 '        background: #1a1a1a;' +
@@ -39,7 +40,7 @@ function getTerminalLoginHTML(returnTo: string, error?: string): string {
 '        padding: 20px;' +
 '        max-width: 500px;' +
 '        width: 90%;' +
-'        box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);' +
+'        box-shadow: 0 0 10px rgba(0, 255, 0, 0.15);' +
 '        position: relative;' +
 '      }' +
 '      .terminal-header {' +
@@ -78,7 +79,7 @@ function getTerminalLoginHTML(returnTo: string, error?: string): string {
 '        outline: none;' +
 '        transition: border-color 0.3s;' +
 '      }' +
-'      .form-input:focus { border-color: #00ff00; box-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }' +
+'      .form-input:focus { border-color: #00ff00; box-shadow: 0 0 3px rgba(0, 255, 0, 0.2); }' +
 '      .form-input::placeholder { color: #555; }' +
 '      .btn {' +
 '        background: #333;' +
@@ -93,16 +94,16 @@ function getTerminalLoginHTML(returnTo: string, error?: string): string {
 '        width: 100%;' +
 '        margin-top: 15px;' +
 '      }' +
-'      .btn:hover { background: #555; border-color: #00ff00; box-shadow: 0 0 10px rgba(0, 255, 0, 0.2); }' +
+'      .btn:hover { background: #444; border-color: #00ff00; }' +
 '      .btn:disabled { opacity: 0.5; cursor: not-allowed; }' +
 '      .mode-toggle { display: flex; background: #0a0a0a; border-radius: 4px; border: 1px solid #333; margin-bottom: 20px; }' +
 '      .mode-btn { flex: 1; background: transparent; border: none; color: #888; cursor: pointer; font-family: inherit; font-size: 12px; padding: 8px; transition: all 0.3s; }' +
 '      .mode-btn.active { background: #333; color: #00ff00; }' +
 '      .hidden { display: none; }' +
-'      .blink { animation: blink 1s infinite; }' +
-'      @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }' +
-'      .loading { animation: pulse 1.5s infinite; }' +
-'      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }' +
+'      .blink { animation: blink 1.2s ease-in-out infinite; }' +
+'      @keyframes blink { 0%, 45% { opacity: 1; } 50%, 95% { opacity: 0.3; } 100% { opacity: 1; } }' +
+'      .loading { animation: pulse 2s ease-in-out infinite; }' +
+'      @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }' +
 '      a { color: #00ffff; text-decoration: none; }' +
 '      a:hover { text-decoration: underline; }' +
 '      .oauth-divider { display: flex; align-items: center; gap: 10px; margin: 20px 0 15px 0; }' +
@@ -124,7 +125,7 @@ function getTerminalLoginHTML(returnTo: string, error?: string): string {
 '        justify-content: center;' +
 '        gap: 6px;' +
 '      }' +
-'      .oauth-btn:hover { background: #1a1a1a; border-color: #00ff00; color: #00ff00; box-shadow: 0 0 10px rgba(0, 255, 0, 0.2); }' +
+'      .oauth-btn:hover { background: #1a1a1a; border-color: #00ff00; color: #00ff00; }' +
 '      .oauth-btn:disabled { opacity: 0.5; cursor: not-allowed; }' +
 '      .oauth-icon { width: 16px; height: 16px; fill: currentColor; }' +
 '      .oauth-text { font-size: 10px; letter-spacing: 0.5px; }' +
