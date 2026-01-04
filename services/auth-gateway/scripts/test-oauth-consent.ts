@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 /**
- * Test script for Supabase OAuth 2.1 Provider consent flow
+ * Test script for Auth Gateway OAuth 2.1 consent flow
  *
- * This simulates an MCP client initiating OAuth to test your consent page.
+ * This simulates an MCP client initiating OAuth to test the consent page.
  *
  * Usage:
  *   bun run scripts/test-oauth-consent.ts
@@ -10,7 +10,7 @@
  * What it does:
  *   1. Generates PKCE code_verifier and code_challenge
  *   2. Starts a local callback server on port 8888
- *   3. Opens browser to Supabase OAuth authorize endpoint
+ *   3. Opens browser to Auth Gateway OAuth authorize endpoint
  *   4. Waits for callback with authorization code
  *   5. Exchanges code for tokens
  */
@@ -21,8 +21,8 @@ import { exec } from 'child_process'
 
 // Configuration
 const CONFIG = {
-  // Your Supabase project (auth gateway - ptnrwrgzrsbocgxlpvhd)
-  supabaseUrl: 'https://ptnrwrgzrsbocgxlpvhd.supabase.co',
+  // Auth Gateway URL (the actual OAuth server)
+  authGatewayUrl: 'https://auth.lanonasis.com',
 
   // Use existing cursor client (already registered)
   clientId: 'cursor',
@@ -31,8 +31,8 @@ const CONFIG = {
   callbackPort: 8888,
   redirectUri: 'http://localhost:8888/callback',
 
-  // Scopes to request
-  scopes: ['memories:read', 'memories:write', 'mcp:connect', 'offline_access'],
+  // Scopes to request (supported: memories:read, memories:write, mcp:connect, api:access)
+  scopes: ['memories:read', 'memories:write', 'mcp:connect'],
 }
 
 // PKCE helpers
@@ -59,7 +59,7 @@ function generateState(): string {
 
 // Main test
 async function main() {
-  console.log('\n🔐 Supabase OAuth 2.1 Provider Test\n')
+  console.log('\n🔐 Auth Gateway OAuth 2.1 Provider Test\n')
   console.log('━'.repeat(50))
 
   // Generate PKCE values
@@ -72,8 +72,8 @@ async function main() {
   console.log(`   code_challenge: ${codeChallenge.substring(0, 20)}...`)
   console.log(`   state:          ${state}`)
 
-  // Build authorize URL
-  const authorizeUrl = new URL('/oauth/authorize', CONFIG.supabaseUrl)
+  // Build authorize URL (Auth Gateway OAuth endpoint)
+  const authorizeUrl = new URL('/oauth/authorize', CONFIG.authGatewayUrl)
   authorizeUrl.searchParams.set('client_id', CONFIG.clientId)
   authorizeUrl.searchParams.set('redirect_uri', CONFIG.redirectUri)
   authorizeUrl.searchParams.set('response_type', 'code')
@@ -140,7 +140,7 @@ async function main() {
       console.log('\n🔄 Exchanging code for tokens...')
 
       try {
-        const tokenResponse = await fetch(`${CONFIG.supabaseUrl}/oauth/token`, {
+        const tokenResponse = await fetch(`${CONFIG.authGatewayUrl}/oauth/token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
