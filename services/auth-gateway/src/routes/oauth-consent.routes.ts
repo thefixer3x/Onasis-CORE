@@ -90,7 +90,7 @@ function renderConsentPage(authorizationId: string, nonce: string): string {
       padding: 20px;
       max-width: 560px;
       width: 100%;
-      box-shadow: 0 0 30px rgba(0, 255, 0, 0.2);
+      box-shadow: 0 0 10px rgba(0, 255, 0, 0.15);
       position: relative;
     }
 
@@ -200,7 +200,7 @@ function renderConsentPage(authorizationId: string, nonce: string): string {
 
     .form-input:focus {
       border-color: #00ff00;
-      box-shadow: 0 0 8px rgba(0, 255, 0, 0.2);
+      box-shadow: 0 0 3px rgba(0, 255, 0, 0.15);
     }
 
     .form-input::placeholder {
@@ -225,7 +225,7 @@ function renderConsentPage(authorizationId: string, nonce: string): string {
     .btn:hover:not(:disabled) {
       background: #333;
       border-color: #00ff00;
-      box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+      box-shadow: none;
     }
 
     .btn:disabled {
@@ -359,12 +359,13 @@ function renderConsentPage(authorizationId: string, nonce: string): string {
     .hidden { display: none; }
 
     .blink {
-      animation: blink 1s infinite;
+      animation: blink 1.2s ease-in-out infinite;
     }
 
     @keyframes blink {
-      0%, 50% { opacity: 1; }
-      51%, 100% { opacity: 0; }
+      0%, 45% { opacity: 1; }
+      50%, 95% { opacity: 0.3; }
+      100% { opacity: 1; }
     }
 
     .spinner {
@@ -852,7 +853,7 @@ function renderErrorPage(message: string): string {
       padding: 20px;
       max-width: 500px;
       width: 90%;
-      box-shadow: 0 0 20px rgba(255, 95, 86, 0.3);
+      box-shadow: 0 0 10px rgba(255, 95, 86, 0.15);
     }
     .terminal-header {
       border-bottom: 1px solid #333;

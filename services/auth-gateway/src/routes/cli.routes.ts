@@ -39,7 +39,8 @@ router.get("/cli-login", (req, res) => {
           display: flex;
           align-items: center;
           justify-content: center;
-          overflow: hidden;
+          overflow-y: auto;
+          padding: 20px 0;
         }
 
         .terminal {
@@ -49,7 +50,7 @@ router.get("/cli-login", (req, res) => {
           padding: 20px;
           max-width: 500px;
           width: 90%;
-          box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+          box-shadow: 0 0 10px rgba(0, 255, 0, 0.15);
           position: relative;
         }
 
@@ -142,7 +143,7 @@ router.get("/cli-login", (req, res) => {
 
         .form-input:focus {
           border-color: #00ff00;
-          box-shadow: 0 0 5px rgba(0, 255, 0, 0.3);
+          box-shadow: 0 0 3px rgba(0, 255, 0, 0.2);
         }
 
         .form-input::placeholder {
@@ -164,9 +165,8 @@ router.get("/cli-login", (req, res) => {
         }
 
         .btn:hover {
-          background: #555;
+          background: #444;
           border-color: #00ff00;
-          box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
         }
 
         .btn:disabled {
@@ -204,21 +204,22 @@ router.get("/cli-login", (req, res) => {
         }
 
         .blink {
-          animation: blink 1s infinite;
+          animation: blink 1.2s ease-in-out infinite;
         }
 
         @keyframes blink {
-          0%, 50% { opacity: 1; }
-          51%, 100% { opacity: 0; }
+          0%, 45% { opacity: 1; }
+          50%, 95% { opacity: 0.3; }
+          100% { opacity: 1; }
         }
 
         .loading {
-          animation: pulse 1.5s infinite;
+          animation: pulse 2s ease-in-out infinite;
         }
 
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
+          50% { opacity: 0.6; }
         }
 
         a {
@@ -278,7 +279,6 @@ router.get("/cli-login", (req, res) => {
           background: #1a1a1a;
           border-color: #00ff00;
           color: #00ff00;
-          box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
         }
 
         .oauth-btn:disabled {
