@@ -14,6 +14,8 @@ type Platform = 'mcp' | 'cli' | 'web' | 'api'
 const SUPPORTED_PLATFORMS: Platform[] = ['cli', 'mcp', 'web', 'api']
 const OAUTH_STATE_PREFIX = 'oauth_state:'
 const OAUTH_STATE_TTL_SECONDS = 600
+const MAGIC_LINK_STATE_PREFIX = 'magic_link_state:'
+const MAGIC_LINK_STATE_TTL_SECONDS = 900
 
 const OAUTH_PROVIDERS: Record<string, { supabaseProvider: string; scopes: string }> = {
   google: { supabaseProvider: 'google', scopes: 'email profile' },
@@ -25,6 +27,13 @@ const OAUTH_PROVIDERS: Record<string, { supabaseProvider: string; scopes: string
 
 interface OAuthStateData {
   provider: string
+  redirect_uri: string
+  project_scope?: string
+  platform: Platform
+}
+
+interface MagicLinkStateData {
+  email: string
   redirect_uri: string
   project_scope?: string
   platform: Platform
@@ -70,6 +79,130 @@ function appendTokensToRedirect(
   } catch {
     return redirectUri
   }
+}
+
+function buildMagicLinkCallbackUrl(req: Request, state: string): string {
+  const base = (process.env.AUTH_GATEWAY_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '')
+  return `${base}/v1/auth/magic-link/callback?state=${state}`
+}
+
+function getMagicLinkCallbackHTML(state: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Completing Sign-In</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: "Inter", "Segoe UI", sans-serif;
+        background: #0b0b0b;
+        color: #e5e7eb;
+      }
+      .panel {
+        width: 90%;
+        max-width: 420px;
+        padding: 24px;
+        border-radius: 10px;
+        border: 1px solid #2b2b2b;
+        background: #111111;
+        text-align: center;
+      }
+      .status {
+        font-size: 16px;
+        letter-spacing: 0.2px;
+      }
+      .error {
+        margin-top: 12px;
+        color: #f87171;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <div class="status" id="status">Completing sign-in...</div>
+      <div class="error" id="error"></div>
+    </div>
+    <script>
+      (function () {
+        var state = "${state}";
+        var statusEl = document.getElementById("status");
+        var errorEl = document.getElementById("error");
+        function setError(message) {
+          if (statusEl) {
+            statusEl.textContent = "Sign-in failed.";
+          }
+          if (errorEl) {
+            errorEl.textContent = message || "Unable to complete sign-in.";
+            errorEl.style.display = "block";
+          }
+        }
+
+        var hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+        var queryParams = new URLSearchParams(window.location.search.replace(/^\\?/, ""));
+        var accessToken = hashParams.get("access_token") || queryParams.get("access_token");
+        var error =
+          hashParams.get("error_description") ||
+          queryParams.get("error_description") ||
+          queryParams.get("error");
+
+        if (window.location.hash) {
+          var cleaned = window.location.pathname + "?state=" + encodeURIComponent(state);
+          window.history.replaceState({}, document.title, cleaned);
+        }
+
+        if (!state) {
+          setError("Missing magic link state.");
+          return;
+        }
+
+        if (error) {
+          setError(decodeURIComponent(error));
+          return;
+        }
+
+        if (!accessToken) {
+          setError("Missing access token from magic link.");
+          return;
+        }
+
+        fetch("/v1/auth/magic-link/exchange", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + accessToken
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ state: state })
+        })
+          .then(function (response) {
+            return response.json().then(function (body) {
+              return { ok: response.ok, body: body };
+            });
+          })
+          .then(function (result) {
+            if (!result.ok || !result.body || !result.body.redirect_to) {
+              var errorMessage = (result.body && (result.body.error || result.body.message)) ||
+                "Unable to complete sign-in.";
+              setError(errorMessage);
+              return;
+            }
+            window.location.assign(result.body.redirect_to);
+          })
+          .catch(function () {
+            setError("Unable to complete sign-in.");
+          });
+      })();
+    </script>
+  </body>
+</html>`
 }
 
 /**
@@ -330,6 +463,351 @@ export async function oauthCallback(req: Request, res: Response) {
     return res.redirect(
       `/web/login?error=${encodeURIComponent('OAuth authentication failed')}`
     )
+  }
+}
+
+/**
+ * POST /v1/auth/magic-link
+ * Send a magic link email for passwordless sign-in
+ */
+export async function requestMagicLink(req: Request, res: Response) {
+  const emailInput = req.body.email as string | undefined
+  const redirectInput = (req.body.redirect_uri || req.body.return_to) as string | undefined
+  const projectScope = req.body.project_scope as string | undefined
+  const platformInput = (req.body.platform as string | undefined)?.toLowerCase()
+  const platform: Platform = isSupportedPlatform(platformInput) ? (platformInput as Platform) : 'web'
+
+  if (!emailInput) {
+    return res.status(400).json({
+      error: 'Email is required',
+      code: 'MISSING_EMAIL',
+    })
+  }
+
+  const email = emailInput.trim().toLowerCase()
+  const redirectUri =
+    redirectInput ||
+    process.env.DASHBOARD_URL ||
+    'https://dashboard.lanonasis.com'
+
+  if (!isValidRedirectUri(redirectUri)) {
+    return res.status(400).json({
+      error: 'Valid redirect_uri is required',
+      code: 'INVALID_REDIRECT_URI',
+    })
+  }
+
+  const state = crypto.randomBytes(16).toString('hex')
+  const stateData: MagicLinkStateData = {
+    email,
+    redirect_uri: redirectUri,
+    project_scope: projectScope,
+    platform,
+  }
+
+  try {
+    await redisClient.setex(
+      `${MAGIC_LINK_STATE_PREFIX}${state}`,
+      MAGIC_LINK_STATE_TTL_SECONDS,
+      JSON.stringify(stateData)
+    )
+  } catch (error) {
+    logger.error('Failed to persist magic link state', { error })
+    return res.status(500).json({
+      error: 'Unable to initiate magic link flow',
+      code: 'MAGIC_LINK_STATE_ERROR',
+    })
+  }
+
+  const callbackUrl = buildMagicLinkCallbackUrl(req, state)
+  const shouldCreateUser = req.body.create_user === true
+
+  const { error } = await supabaseAdmin.auth.signInWithOtp({
+    email,
+    options: {
+      emailRedirectTo: callbackUrl,
+      shouldCreateUser,
+    },
+  })
+
+  if (error) {
+    await logAuthEvent({
+      event_type: 'magic_link_request_failed',
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: false,
+      error_message: error.message,
+      metadata: {
+        email,
+        project_scope: projectScope,
+      },
+    })
+
+    return res.status(400).json({
+      error: error.message || 'Magic link request failed',
+      code: 'MAGIC_LINK_REQUEST_FAILED',
+    })
+  }
+
+  await logAuthEvent({
+    event_type: 'magic_link_requested',
+    platform,
+    ip_address: req.ip,
+    user_agent: req.headers['user-agent'],
+    success: true,
+    metadata: {
+      email,
+      project_scope: projectScope,
+      redirect_uri: redirectUri,
+    },
+  })
+
+  return res.json({
+    success: true,
+    message: 'Magic link sent',
+  })
+}
+
+/**
+ * GET /v1/auth/magic-link/callback
+ * Handle magic link redirect and exchange for auth-gateway tokens
+ */
+export async function magicLinkCallback(req: Request, res: Response) {
+  const state = req.query.state as string | undefined
+  if (!state) {
+    return res.status(400).send(getMagicLinkCallbackHTML(''))
+  }
+  return res.send(getMagicLinkCallbackHTML(state))
+}
+
+/**
+ * POST /v1/auth/magic-link/exchange
+ * Exchange Supabase access token for auth-gateway tokens
+ */
+export async function magicLinkExchange(req: Request, res: Response) {
+  const supabaseAccessToken = req.headers.authorization?.replace('Bearer ', '')
+  const state = req.body.state as string | undefined
+
+  if (!state) {
+    return res.status(400).json({
+      error: 'Magic link state is required',
+      code: 'MAGIC_LINK_STATE_MISSING',
+    })
+  }
+
+  if (!supabaseAccessToken) {
+    return res.status(401).json({
+      error: 'Supabase access token required in Authorization header',
+      code: 'TOKEN_MISSING',
+    })
+  }
+
+  let stateData: MagicLinkStateData | null = null
+  const stateKey = `${MAGIC_LINK_STATE_PREFIX}${state}`
+
+  try {
+    const stored = await redisClient.get(stateKey)
+    if (stored) {
+      stateData = JSON.parse(stored) as MagicLinkStateData
+    }
+    await redisClient.del(stateKey)
+  } catch (error) {
+    logger.error('Failed to read magic link state', { error, state })
+    return res.status(500).json({
+      error: 'Unable to validate magic link state',
+      code: 'MAGIC_LINK_STATE_ERROR',
+    })
+  }
+
+  if (!stateData) {
+    return res.status(400).json({
+      error: 'Invalid or expired magic link state',
+      code: 'MAGIC_LINK_STATE_INVALID',
+    })
+  }
+
+  const platform: Platform = isSupportedPlatform(stateData.platform)
+    ? stateData.platform
+    : 'web'
+  const redirectUri = isValidRedirectUri(stateData.redirect_uri)
+    ? stateData.redirect_uri
+    : process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com'
+
+  try {
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(supabaseAccessToken)
+
+    if (error || !user) {
+      await logAuthEvent({
+        event_type: 'magic_link_exchange_failed',
+        platform,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        success: false,
+        error_message: error?.message || 'Invalid token',
+        metadata: { email: stateData.email },
+      })
+
+      return res.status(401).json({
+        error: 'Invalid or expired Supabase token',
+        code: 'TOKEN_INVALID',
+      })
+    }
+
+    if (stateData.email && user.email && stateData.email !== user.email.toLowerCase()) {
+      await logAuthEvent({
+        event_type: 'magic_link_exchange_failed',
+        platform,
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        success: false,
+        error_message: 'Magic link email mismatch',
+        metadata: { email: stateData.email, user_email: user.email },
+      })
+
+      return res.status(401).json({
+        error: 'Magic link email mismatch',
+        code: 'MAGIC_LINK_EMAIL_MISMATCH',
+      })
+    }
+
+    await upsertUserAccount({
+      user_id: user.id,
+      email: user.email!,
+      role: user.role || 'authenticated',
+      provider: user.app_metadata?.provider || 'magic_link',
+      raw_metadata: user.user_metadata || {},
+      last_sign_in_at: user.last_sign_in_at || null,
+    })
+
+    if (stateData.project_scope) {
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(user.id, {
+          user_metadata: {
+            ...user.user_metadata,
+            project_scope: stateData.project_scope,
+          },
+        })
+      } catch (updateError) {
+        logger.warn('Failed to persist project scope to Supabase user', {
+          userId: user.id,
+          project_scope: stateData.project_scope,
+          error: updateError instanceof Error ? updateError.message : updateError,
+        })
+      }
+    }
+
+    const resolvedProjectScope =
+      stateData.project_scope || user.user_metadata?.project_scope || 'lanonasis-maas'
+
+    const tokens = generateTokenPair({
+      sub: user.id,
+      email: user.email!,
+      role: user.role || 'authenticated',
+      project_scope: resolvedProjectScope,
+      platform,
+    })
+
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+    await createSession({
+      user_id: user.id,
+      platform,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      expires_at: expiresAt,
+      metadata: { provider: 'magic_link' },
+    })
+
+    await logAuthEvent({
+      event_type: 'magic_link_login_success',
+      user_id: user.id,
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+      metadata: {
+        email: user.email,
+        project_scope: resolvedProjectScope,
+      },
+    })
+
+    if (platform === 'web') {
+      const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+      const isProduction = process.env.NODE_ENV === 'production'
+      const sameSiteSetting = isProduction ? 'none' : 'lax'
+
+      res.cookie('lanonasis_session', tokens.access_token, {
+        domain: cookieDomain,
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: sameSiteSetting,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        path: '/',
+      })
+
+      res.cookie(
+        'lanonasis_user',
+        JSON.stringify({
+          id: user.id,
+          email: user.email,
+          role: user.role,
+        }),
+        {
+          domain: cookieDomain,
+          httpOnly: false,
+          secure: isProduction,
+          sameSite: sameSiteSetting,
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+          path: '/',
+        }
+      )
+    }
+
+    const redirectTarget =
+      platform === 'web'
+        ? redirectUri
+        : appendTokensToRedirect(
+            redirectUri,
+            tokens,
+            resolvedProjectScope,
+            'magic_link'
+          )
+
+    return res.json({
+      success: true,
+      redirect_to: redirectTarget,
+      token_type: 'Bearer',
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_in: tokens.expires_in,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        project_scope: resolvedProjectScope,
+      },
+    })
+  } catch (error) {
+    logger.error('Magic link exchange failed', { error, state })
+
+    await logAuthEvent({
+      event_type: 'magic_link_login_failed',
+      platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: false,
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      metadata: { email: stateData.email },
+    })
+
+    return res.status(500).json({
+      error: 'Magic link exchange failed',
+      code: 'MAGIC_LINK_EXCHANGE_ERROR',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    })
   }
 }
 

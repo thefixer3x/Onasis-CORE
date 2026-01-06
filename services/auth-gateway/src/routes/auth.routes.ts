@@ -8,6 +8,9 @@ const router = express.Router()
 router.get('/oauth', authController.oauthProvider)
 router.get('/oauth/callback', authController.oauthCallback)
 router.post('/login', authController.login)
+router.post('/magic-link', authController.requestMagicLink)
+router.get('/magic-link/callback', authController.magicLinkCallback)
+router.post('/magic-link/exchange', authController.magicLinkExchange)
 
 // Token exchange endpoint - bridges Supabase auth to auth-gateway tokens
 router.post('/token/exchange', authController.exchangeSupabaseToken)
