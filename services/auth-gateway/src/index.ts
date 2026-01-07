@@ -78,7 +78,7 @@ app.use(helmet({
       fontSrc: ["'self'"],
       objectSrc: ["'none'"],
       frameAncestors: ["'self'"],
-      formAction: ["'self'"],
+      formAction: ["'self'", "https://auth.lanonasis.com"],
       scriptSrcAttr: ["'unsafe-inline'"],
     },
   },
