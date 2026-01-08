@@ -76,6 +76,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
   }
 
+  if (req.user) {
+    req.scopes = req.scopes ?? ['*']
+    return next()
+  }
+
   // No valid authentication found
   return res.status(401).json({
     error: 'No token provided',
