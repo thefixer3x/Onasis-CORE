@@ -1,0 +1,189 @@
+import crypto from 'node:crypto';
+import { dbPool } from '../../db/client.js';
+const DEFAULT_EVENT_VERSION = 1;
+const DEFAULT_OUTBOX_DESTINATION = 'supabase';
+/**
+ * Internal helper to run a query and cleanly manage BEGIN/COMMIT/ROLLBACK
+ * when a pooled client is not supplied by the caller.
+ */
+async function withClient(client, fn) {
+    const ownsClient = !client;
+    const cx = client ?? (await dbPool.connect());
+    try {
+        if (ownsClient) {
+            await cx.query('BEGIN');
+        }
+        const result = await fn(cx);
+        if (ownsClient) {
+            await cx.query('COMMIT');
+        }
+        return result;
+    }
+    catch (error) {
+        if (ownsClient) {
+            await cx.query('ROLLBACK');
+        }
+        throw error;
+    }
+    finally {
+        if (ownsClient) {
+            cx.release();
+        }
+    }
+}
+/**
+ * Append an event to auth_gateway.events.
+ * Computes a per-aggregate version inside the transaction to preserve order.
+ */
+export async function appendEvent(params, client = null) {
+    return withClient(client, async (cx) => {
+        // Use advisory lock instead of FOR UPDATE with aggregate
+        // Generate a lock key from the aggregate type and ID
+        const lockKey = `${params.aggregate_type}:${params.aggregate_id}`;
+        const lockHash = crypto.createHash('sha256').update(lockKey).digest();
+        const lockId = lockHash.readBigInt64BE(0);
+        // Acquire advisory lock (automatically released at transaction end)
+        await cx.query('SELECT pg_advisory_xact_lock($1)', [lockId]);
+        const { rows } = await cx.query(`
+        SELECT COALESCE(MAX(version), 0) + 1 AS next_version
+        FROM auth_gateway.events
+        WHERE aggregate_type = $1 AND aggregate_id = $2
+      `, [params.aggregate_type, params.aggregate_id]);
+        const version = rows[0]?.next_version ?? 1;
+        const eventId = crypto.randomUUID();
+        await cx.query(`
+        INSERT INTO auth_gateway.events (
+          event_id, aggregate_type, aggregate_id, version,
+          event_type, event_type_version, payload, metadata
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+            eventId,
+            params.aggregate_type,
+            params.aggregate_id,
+            version,
+            params.event_type,
+            params.event_type_version ?? DEFAULT_EVENT_VERSION,
+            params.payload ?? {},
+            params.metadata ?? {},
+        ]);
+        return { eventId, version };
+    });
+}
+/**
+ * Enqueue the event for downstream delivery (Supabase projection, etc.).
+ */
+export async function enqueueOutbox(eventId, client = null, destination = DEFAULT_OUTBOX_DESTINATION) {
+    await withClient(client, async (cx) => {
+        await cx.query(`
+        INSERT INTO auth_gateway.outbox (
+          event_id, destination, status, attempts, next_attempt_at
+        ) VALUES ($1, $2, 'pending', 0, NOW())
+      `, [eventId, destination]);
+    });
+}
+/**
+ * Convenience: append an event and enqueue it in a single transaction.
+ */
+export async function appendEventWithOutbox(params, client = null) {
+    return withClient(client, async (cx) => {
+        const appended = await appendEvent(params, cx);
+        await enqueueOutbox(appended.eventId, cx);
+        return appended;
+    });
+}
+/**
+ * Fetch pending outbox rows (joined with events) ready for delivery.
+ */
+export async function fetchPendingOutbox(limit = 50) {
+    const client = await dbPool.connect();
+    try {
+        const { rows } = await client.query(`
+        SELECT
+          o.id AS outbox_id,
+          o.event_id,
+          o.destination,
+          o.attempts,
+          o.next_attempt_at,
+          e.aggregate_type,
+          e.aggregate_id,
+          e.version,
+          e.event_type,
+          e.event_type_version,
+          e.payload,
+          e.metadata,
+          e.occurred_at
+        FROM auth_gateway.outbox o
+        JOIN auth_gateway.events e ON e.event_id = o.event_id
+        WHERE o.status = 'pending'
+          AND o.next_attempt_at <= NOW()
+        ORDER BY o.id ASC
+        LIMIT $1
+      `, [limit]);
+        return rows;
+    }
+    finally {
+        client.release();
+    }
+}
+export async function markOutboxSent(outboxId) {
+    const client = await dbPool.connect();
+    try {
+        await client.query(`
+        UPDATE auth_gateway.outbox
+        SET status = 'sent', attempts = attempts + 1, error = NULL, updated_at = NOW()
+        WHERE id = $1
+      `, [outboxId]);
+    }
+    finally {
+        client.release();
+    }
+}
+export async function markOutboxFailed(outboxId, error, delaySeconds = 30) {
+    const client = await dbPool.connect();
+    try {
+        await client.query(`
+        UPDATE auth_gateway.outbox
+        SET
+          status = CASE WHEN attempts + 1 >= 5 THEN 'failed' ELSE 'pending' END,
+          attempts = attempts + 1,
+          error = $2,
+          next_attempt_at = NOW() + ($3 || ' seconds')::interval,
+          updated_at = NOW()
+        WHERE id = $1
+      `, [outboxId, error.slice(0, 500), delaySeconds]);
+    }
+    finally {
+        client.release();
+    }
+}
+/**
+ * Lightweight stats for health endpoint.
+ */
+export async function getOutboxStats() {
+    const client = await dbPool.connect();
+    try {
+        const { rows: counts } = await client.query(`
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+          COUNT(*) FILTER (WHERE status = 'failed') AS failed
+        FROM auth_gateway.outbox
+      `);
+        const { rows: oldestRows } = await client.query(`
+        SELECT EXTRACT(EPOCH FROM (NOW() - o.next_attempt_at)) AS age_seconds
+        FROM auth_gateway.outbox o
+        WHERE o.status = 'pending'
+        ORDER BY o.next_attempt_at ASC
+        LIMIT 1
+      `);
+        return {
+            pending: Number(counts[0]?.pending ?? 0),
+            failed: Number(counts[0]?.failed ?? 0),
+            oldest_pending_seconds: oldestRows[0]?.age_seconds
+                ? Number(oldestRows[0].age_seconds)
+                : undefined,
+        };
+    }
+    finally {
+        client.release();
+    }
+}
