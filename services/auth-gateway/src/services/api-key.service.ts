@@ -71,8 +71,17 @@ export async function hashApiKey(apiKey: string): Promise<string> {
 /**
  * Verify an API key against a SHA-256 hash
  * Aligned with platform-wide SHA-256 standard
+ *
+ * @param apiKey - The API key to verify (can be raw or pre-hashed)
+ * @param hash - The stored hash to compare against
+ * @param isPreHashed - If true, apiKey is already a SHA-256 hash (64 hex chars)
  */
-export async function verifyApiKeyHash(apiKey: string, hash: string): Promise<boolean> {
+export async function verifyApiKeyHash(apiKey: string, hash: string, isPreHashed: boolean = false): Promise<boolean> {
+  // If the key is already a hash, compare directly (case-insensitive for hex)
+  if (isPreHashed) {
+    return apiKey.toLowerCase() === hash.toLowerCase()
+  }
+  // Otherwise, hash the raw key and compare
   const computedHash = crypto.createHash('sha256').update(apiKey).digest('hex')
   return computedHash === hash
 }
@@ -652,7 +661,8 @@ export async function validateAPIKey(apiKey: string): Promise<{
         continue
       }
 
-      const isMatch = await verifyApiKeyHash(apiKey, hashValue)
+      // Pass isHash flag to prevent double-hashing when client sends pre-hashed key
+      const isMatch = await verifyApiKeyHash(apiKey, hashValue, isHash)
 
       if (isMatch) {
         // Check expiration

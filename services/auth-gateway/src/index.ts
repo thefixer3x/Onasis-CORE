@@ -66,23 +66,33 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "https://auth.lanonasis.com", "https://dashboard.lanonasis.com"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      frameAncestors: ["'self'"],
-      formAction: ["'self'", "https://auth.lanonasis.com"],
-      scriptSrcAttr: ["'unsafe-inline'"],
-    },
-  },
-}))
+// Security middleware - skip CSP for web routes (login forms need relaxed policy)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/web/')) {
+    // Use helmet without CSP for web routes
+    helmet({
+      contentSecurityPolicy: false,
+    })(req, res, next)
+  } else {
+    // Full CSP for API/OAuth routes
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-hashes'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "https:"],
+          connectSrc: ["'self'", "https://auth.lanonasis.com", "https://dashboard.lanonasis.com"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'"],
+          formAction: ["'self'", "https://auth.lanonasis.com"],
+          scriptSrcAttr: ["'unsafe-inline'"],
+        },
+      },
+    })(req, res, next)
+  }
+})
 
 // Rate limiting - General API protection
 const generalLimiter = rateLimit({

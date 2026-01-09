@@ -1176,6 +1176,7 @@ export async function verifyToken(req: Request, res: Response) {
  * POST /auth/verify (CLI-friendly)
  * Verify a token sent in request body
  * Used by CLI and other clients that can't set auth headers easily
+ * Supports: CLI tokens, JWT tokens, and OAuth opaque tokens
  */
 export async function verifyTokenBody(req: Request, res: Response) {
   const { token } = req.body
@@ -1221,26 +1222,68 @@ export async function verifyTokenBody(req: Request, res: Response) {
     })
   }
 
-  // Handle JWT tokens
-  try {
-    const { verifyToken: verify } = await import('../utils/jwt.js')
-    const payload = verify(token)
+  // Handle JWT tokens (contain dots separating header.payload.signature)
+  if (token.includes('.')) {
+    try {
+      const { verifyToken: verify } = await import('../utils/jwt.js')
+      const payload = verify(token)
 
-    return res.json({
-      valid: true,
-      type: 'jwt',
-      user: {
-        id: payload.sub,
-        email: payload.email,
-        role: payload.role,
-      },
-      expires_at: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
-    })
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Invalid token'
+      return res.json({
+        valid: true,
+        type: 'jwt',
+        user: {
+          id: payload.sub,
+          email: payload.email,
+          role: payload.role,
+        },
+        expires_at: payload.exp ? new Date(payload.exp * 1000).toISOString() : null,
+      })
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Invalid JWT token'
+      return res.json({
+        valid: false,
+        error: errorMessage,
+      })
+    }
+  }
+
+  // Handle OAuth opaque tokens (used by CLI OAuth2 flow)
+  // These are stored in auth_gateway.oauth_tokens table
+  try {
+    const { introspectToken } = await import('../services/oauth.service.js')
+    const introspection = await introspectToken(token)
+
+    if (introspection.active) {
+      return res.json({
+        valid: true,
+        type: 'oauth_access_token',
+        user: {
+          id: introspection.user_id,
+          email: null, // Not stored in oauth_tokens, could be fetched if needed
+          role: 'authenticated',
+        },
+        scope: introspection.scope,
+        client_id: introspection.client_id,
+        expires_at: introspection.exp ? new Date(introspection.exp * 1000).toISOString() : null,
+      })
+    }
+
+    // Token exists but is not active (expired or revoked)
     return res.json({
       valid: false,
-      error: errorMessage,
+      error: introspection.revoked ? 'Token has been revoked' : 'Token has expired',
+      type: 'oauth_access_token',
+    })
+  } catch (error: unknown) {
+    // If introspection fails, the token is not a valid OAuth token
+    logger.debug('Token verification failed for all token types', {
+      tokenPrefix: token.substring(0, 8),
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+
+    return res.json({
+      valid: false,
+      error: 'Invalid token - not a valid CLI, JWT, or OAuth token',
     })
   }
 }

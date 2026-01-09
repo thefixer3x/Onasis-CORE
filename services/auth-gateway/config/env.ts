@@ -9,6 +9,10 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
   SUPABASE_AUTH_URL: z.string().optional(),
+  // Main DB Supabase (for user authentication - users are stored in Main DB)
+  MAIN_SUPABASE_URL: z.string().url().optional(),
+  MAIN_SUPABASE_ANON_KEY: z.string().optional(),
+  MAIN_SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   PORT: z
     .string()
     .default('4000')

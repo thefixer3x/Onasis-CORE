@@ -1,0 +1,10 @@
+{
+    "name": "onasis-core-security",
+    "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+    "sourceRoot": "apps/onasis-core/services/security/src",
+    "projectType": "library",
+    "tags": [
+        "scope:security",
+        "type:service"
+    ]
+}
