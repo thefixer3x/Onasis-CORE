@@ -15,10 +15,6 @@ import { appendEventWithOutbox } from '../services/event.service.js'
 
 const router = Router()
 
-// Default organization ID for API keys without explicit org
-// This should match the default org in your system
-const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001'
-
 /**
  * Webhook endpoint for API key sync from Supabase
  * Called by sync-api-key edge function when api_keys are created/updated/revoked
