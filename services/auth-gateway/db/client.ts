@@ -20,6 +20,10 @@ export const dbPool = new Pool({
   connectionTimeoutMillis: 10_000,
 })
 
+/**
+ * Supabase Admin Client - connects to Auth-Gateway DB (ptnrwr...)
+ * Used for: API keys, sessions, events, outbox
+ */
 export const supabaseAdmin = createClient(
   env.SUPABASE_URL=https://<project-ref>.supabase.co
   env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
@@ -30,6 +34,22 @@ export const supabaseAdmin = createClient(
     },
     db: {
       schema: 'public',
+    },
+  }
+)
+
+/**
+ * Supabase Auth Client - connects to Main DB (mxtsd...)
+ * Used for: User authentication (signInWithPassword, signUp, etc.)
+ * This is needed because users are registered in Main DB, not Auth-Gateway DB
+ */
+export const supabaseAuth = createClient(
+  env.MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+  env.MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   }
 )

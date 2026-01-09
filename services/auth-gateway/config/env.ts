@@ -9,6 +9,10 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
   SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
   SUPABASE_AUTH_URL=https://<project-ref>.supabase.co/auth/v1
+  // Main DB Supabase (for user authentication - users are stored in Main DB)
+  MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+  MAIN_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+  MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
   PORT: z
     .string()
     .default('4000')
