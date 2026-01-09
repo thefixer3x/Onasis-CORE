@@ -14,7 +14,7 @@
 
 import express from 'express'
 import type { Request, Response } from 'express'
-import { supabaseAdmin } from '../../db/client.js'
+import { supabaseAuth } from '../../db/client.js'
 import { generateTokenPair } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
@@ -143,7 +143,7 @@ router.post('/send', async (req: Request, res: Response): Promise<void> => {
       supabaseOptions.emailRedirectTo = redirectUri
     }
 
-    const { error } = await supabaseAdmin.auth.signInWithOtp({
+    const { error } = await supabaseAuth.auth.signInWithOtp({
       email,
       options: supabaseOptions
     })
@@ -277,7 +277,7 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
 
   try {
     // Verify OTP with Supabase
-    const { data, error } = await supabaseAdmin.auth.verifyOtp({
+    const { data, error } = await supabaseAuth.auth.verifyOtp({
       email,
       token,
       type: verifyType
@@ -324,7 +324,7 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
     // Update user metadata with project scope if provided
     if (projectScope) {
       try {
-        await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+        await supabaseAuth.auth.admin.updateUserById(data.user.id, {
           user_metadata: {
             ...data.user.user_metadata,
             project_scope: projectScope
@@ -454,7 +454,7 @@ router.post('/resend', async (req: Request, res: Response): Promise<void> => {
       supabaseOptions.emailRedirectTo = redirectUri
     }
 
-    const { error } = await supabaseAdmin.auth.signInWithOtp({
+    const { error } = await supabaseAuth.auth.signInWithOtp({
       email,
       options: supabaseOptions
     })
