@@ -1,15 +1,9 @@
 /**
  * Sync Routes - Webhook endpoints for bidirectional Supabase ↔ Auth-Gateway sync
- * Sync Routes - Webhook endpoints for bidirectional Supabase ↔ Auth-Gateway sync
  *
  * These endpoints receive webhook calls from Supabase edge functions when entities
  * are created/updated, syncing hashed API keys to Auth-Gateway DB for validation.
- * These endpoints receive webhook calls from Supabase edge functions when entities
- * are created/updated, syncing hashed API keys to Auth-Gateway DB for validation.
  *
- * Architecture:
- * - Main DB (mxtsd***): Source of truth with raw + hashed keys
- * - Auth-Gateway DB (ptnrwr***): Only receives hashed keys for validation
  * Architecture:
  * - Main DB (mxtsd***): Source of truth with raw + hashed keys
  * - Auth-Gateway DB (ptnrwr***): Only receives hashed keys for validation
@@ -26,8 +20,6 @@ const router = Router()
 const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001'
 
 /**
- * Webhook endpoint for API key sync from Supabase
- * Called by sync-api-key edge function when api_keys are created/updated/revoked
  * Webhook endpoint for API key sync from Supabase
  * Called by sync-api-key edge function when api_keys are created/updated/revoked
  *
@@ -142,24 +134,19 @@ router.post('/api-key', async (req: Request, res: Response) => {
           aggregate_type: 'api_key',
           aggregate_id: id,
           event_type: eventType,
-          event_type: eventType,
           payload: {
             user_id,
             access_level: access_level || 'authenticated',
-            permissions: permissions || [],
             permissions: permissions || [],
             expires_at,
             name,
             created_at,
             is_active: is_active !== false,
             // Note: We don't store key_hash in events for security
-            is_active: is_active !== false,
-            // Note: We don't store key_hash in events for security
           },
           metadata: {
             source: 'supabase-webhook',
             triggered_at: new Date().toISOString(),
-            sync_type: event_type,
             sync_type: event_type,
           },
         },
@@ -170,10 +157,6 @@ router.post('/api-key', async (req: Request, res: Response) => {
 
       res.json({
         success: true,
-        message: `API key ${eventType.replace('ApiKey', '').toLowerCase()} and synced to Auth-Gateway DB`,
-        event_type: eventType,
-        api_key_id: id,
-        key_hash_stored: true,
         message: `API key ${eventType.replace('ApiKey', '').toLowerCase()} and synced to Auth-Gateway DB`,
         event_type: eventType,
         api_key_id: id,
@@ -291,11 +274,6 @@ router.get('/health', (_req: Request, res: Response) => {
     status: 'ok',
     service: 'sync-webhooks',
     endpoints: ['/v1/sync/api-key', '/v1/sync/user'],
-    features: {
-      api_key_hash_sync: true,  // Now syncs key_hash to security_service.api_keys
-      event_sourcing: true,
-      audit_trail: true,
-    },
     features: {
       api_key_hash_sync: true,  // Now syncs key_hash to security_service.api_keys
       event_sourcing: true,

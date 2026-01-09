@@ -14,6 +14,7 @@ import { redisClient, checkRedisHealth, closeRedis } from './services/cache.serv
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
+import otpRoutes from './routes/otp.routes.js'
 import apiKeysRoutes from './routes/api-keys.routes.js'
 import projectsRoutes from './routes/projects.routes.js'
 import mcpRoutes from './routes/mcp.routes.js'
@@ -119,6 +120,8 @@ app.use(generalLimiter)
 // Apply strict limiter to auth routes
 app.use('/v1/auth/login', authLimiter)
 app.use('/v1/auth/register', authLimiter)
+app.use('/v1/auth/otp/send', authLimiter)
+app.use('/v1/auth/otp/verify', authLimiter)
 app.use('/admin/bypass-login', authLimiter)
 app.use('/oauth/token', authLimiter)
 
@@ -158,6 +161,7 @@ app.use(validateSessionCookie)
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
+app.use('/v1/auth/otp', otpRoutes)  // OTP passwordless auth for CLI
 app.use('/api/v1/auth/api-keys', apiKeysRoutes)
 app.use('/api/v1/projects', projectsRoutes)
 app.use('/web', webRoutes)
@@ -345,6 +349,10 @@ app.listen(env.PORT, async () => {
   console.log(`   - GET  /mcp/health`)
   console.log(`💻 CLI endpoints:`)
   console.log(`   - POST /auth/cli-login`)
+  console.log(`📧 OTP (Passwordless) endpoints:`)
+  console.log(`   - POST /v1/auth/otp/send`)
+  console.log(`   - POST /v1/auth/otp/verify`)
+  console.log(`   - POST /v1/auth/otp/resend`)
   console.log(`🔑 OAuth endpoints:`)
   console.log(`   - GET  /oauth/authorize (also /api/v1/oauth/authorize)`)
   console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
