@@ -552,7 +552,7 @@ async function callback(event) {
       userId = user.user.id;
       // Get organization from user
       const { data: userOrg } = await supabase
-        .from('maas.users')
+        .from('profiles')
         .select('organization_id')
         .eq('user_id', userId)
         .single();

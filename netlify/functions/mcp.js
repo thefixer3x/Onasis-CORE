@@ -499,7 +499,7 @@ async function handleSignIn(email, password, clientId, source) {
 
   // Get user's organization
   const { data: userOrg } = await supabase
-    .from('maas.users')
+    .from('profiles')
     .select('organization_id')
     .eq('user_id', userId)
     .single();
@@ -562,7 +562,7 @@ async function handleSignUp(name, email, password, organizationName, clientId, s
   const orgName = organizationName || \`\${name}'s Organization\`;
   
   const { data: newOrg, error: orgError } = await supabase
-    .from('maas.organizations')
+    .from('organizations')
     .insert({
       name: orgName,
       slug: generateSlug(orgName),
@@ -577,7 +577,7 @@ async function handleSignUp(name, email, password, organizationName, clientId, s
 
   // Add user to organization
   const { error: userOrgError } = await supabase
-    .from('maas.users')
+    .from('profiles')
     .insert({
       user_id: userId,
       organization_id: newOrg.id,
