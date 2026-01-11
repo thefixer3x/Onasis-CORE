@@ -169,7 +169,7 @@ async function handleSignup(body, headers) {
 
     // Check if user already exists in MaaS schema
     const { data: existingUser } = await supabase
-      .from('maas.users')
+      .from('profiles')
       .select('id')
       .eq('email', email)
       .single();
@@ -184,7 +184,7 @@ async function handleSignup(body, headers) {
     // Get or create default organization for individual users
     let orgId;
     const { data: defaultOrg } = await supabase
-      .from('maas.organizations')
+      .from('organizations')
       .select('id')
       .eq('slug', 'individual-users')
       .single();
@@ -194,7 +194,7 @@ async function handleSignup(body, headers) {
     } else {
       // Create default organization for individual signups
       const { data: newOrg, error: orgError } = await supabase
-        .from('maas.organizations')
+        .from('organizations')
         .insert({
           name: 'Individual Users',
           slug: 'individual-users',
@@ -243,7 +243,7 @@ async function handleSignup(body, headers) {
 
     // Create MaaS user record
     const { data: newUser, error } = await supabase
-      .from('maas.users')
+      .from('profiles')
       .insert({
         user_id: authUser.user.id,
         organization_id: orgId,
@@ -336,7 +336,7 @@ async function handleLogin(body, headers) {
 
     // Find MaaS user record
     const { data: maasUser, error: maasError } = await supabase
-      .from('maas.users')
+      .from('profiles')
       .select('*, organization:maas.organizations(id, name, plan)')
       .eq('user_id', authData.user.id)
       .eq('status', 'active')
@@ -354,7 +354,7 @@ async function handleLogin(body, headers) {
 
     // Update last login
     await supabase
-      .from('maas.users')
+      .from('profiles')
       .update({ last_login_at: new Date().toISOString() })
       .eq('id', maasUser.id);
 
