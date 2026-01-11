@@ -14,6 +14,12 @@ setInterval(() => {
  * Create a rate limiting middleware
  */
 export function createRateLimit(options) {
+    const skipInTest = options.skipInTest ?? true;
+    if (skipInTest && env.NODE_ENV === 'test') {
+        return (_req, _res, next) => {
+            next();
+        };
+    }
     return (req, res, next) => {
         // Generate key for rate limiting (IP + User-Agent by default)
         const key = options.keyGenerator

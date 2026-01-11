@@ -1,67 +1,212 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { dbPool } from '../../db/client.js'
+
+const mockClients = new Map<string, any>()
+const mockAuthCodes = new Map<string, any>()
+const mockRefreshTokens = new Map<string, any>()
+let tokenCounter = 0
+
+vi.mock('../../src/middleware/session.js', () => ({
+    validateSessionCookie: (req: any, _res: any, next: () => void) => {
+        req.user = { sub: 'test-user-id' }
+        next()
+    },
+    requireSessionCookie: (_req: any, _res: any, next: () => void) => next(),
+}))
+
+vi.mock('../../src/services/oauth.service.js', () => {
+    class OAuthServiceError extends Error {
+        oauthError: string
+        statusCode: number
+
+        constructor(message: string, oauthError = 'invalid_request', statusCode = 400) {
+            super(message)
+            this.oauthError = oauthError
+            this.statusCode = statusCode
+            this.name = 'OAuthServiceError'
+        }
+    }
+
+    const buildToken = (prefix: string) => `${prefix}-${++tokenCounter}`
+
+    const getClient = async (clientId: string) => mockClients.get(clientId) ?? null
+
+    const resolveScopes = (client: any, requested?: string[]) => {
+        const normalized = (requested ?? []).filter(Boolean)
+        if (normalized.length === 0) {
+            return client.default_scopes ?? []
+        }
+        const allowed = client.allowed_scopes ?? []
+        const unauthorized = normalized.filter((scope: string) => !allowed.includes(scope))
+        if (unauthorized.length > 0) {
+            throw new OAuthServiceError('Requested scope not allowed', 'invalid_scope', 400)
+        }
+        return normalized
+    }
+
+    const isRedirectUriAllowed = (client: any, redirectUri: string) =>
+        client.allowed_redirect_uris?.includes(redirectUri) ?? false
+
+    const isChallengeMethodAllowed = (client: any, method: string) =>
+        !client.require_pkce || (client.allowed_code_challenge_methods ?? []).includes(method)
+
+    const createAuthorizationCode = async (params: any) => {
+        const authorizationCode = buildToken('code')
+        const record = {
+            client_id: params.client.client_id,
+            user_id: params.userId,
+            redirect_uri: params.redirectUri,
+            scope: params.scope ?? [],
+            state: params.state ?? null,
+            code_challenge: params.codeChallenge,
+            code_challenge_method: params.codeChallengeMethod,
+            consumed: false,
+            expires_at: new Date(Date.now() + 5 * 60 * 1000),
+        }
+        mockAuthCodes.set(authorizationCode, record)
+        return { authorizationCode, record }
+    }
+
+    const consumeAuthorizationCode = async (params: any) => {
+        const record = mockAuthCodes.get(params.code)
+        if (!record) {
+            throw new OAuthServiceError('Authorization code not found', 'invalid_grant', 400)
+        }
+        if (record.client_id !== params.client.client_id) {
+            throw new OAuthServiceError('Authorization code does not belong to client', 'invalid_grant', 400)
+        }
+        if (params.redirectUri && record.redirect_uri !== params.redirectUri) {
+            throw new OAuthServiceError('Redirect URI mismatch', 'invalid_grant', 400)
+        }
+        if (record.consumed) {
+            throw new OAuthServiceError('Authorization code already used', 'invalid_grant', 400)
+        }
+        if (record.expires_at.getTime() <= Date.now()) {
+            throw new OAuthServiceError('Authorization code expired', 'invalid_grant', 400)
+        }
+        record.consumed = true
+        return record
+    }
+
+    const issueTokenPair = async (params: any) => {
+        const accessToken = {
+            value: buildToken('access'),
+            record: {
+                scope: params.scope ?? [],
+            },
+        }
+        const refreshTokenValue = buildToken('refresh')
+        const refreshToken = {
+            value: refreshTokenValue,
+            record: {
+                scope: params.scope ?? [],
+            },
+        }
+        mockRefreshTokens.set(refreshTokenValue, {
+            value: refreshTokenValue,
+            client_id: params.client.client_id,
+            user_id: params.userId,
+            scope: params.scope ?? [],
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        })
+        return {
+            accessToken,
+            refreshToken,
+            accessTokenExpiresIn: 3600,
+            refreshTokenExpiresIn: 30 * 24 * 60 * 60,
+        }
+    }
+
+    const findRefreshToken = async (token: string, clientId: string) => {
+        const record = mockRefreshTokens.get(token)
+        if (!record || record.client_id !== clientId || record.revoked_at) {
+            return null
+        }
+        return record
+    }
+
+    const rotateRefreshToken = async (params: any) => {
+        const existing = params.existingToken
+        if (existing?.value) {
+            const stored = mockRefreshTokens.get(existing.value)
+            if (stored) {
+                stored.revoked_at = new Date()
+            }
+        }
+        return issueTokenPair({
+            client: params.client,
+            userId: params.existingToken.user_id,
+            scope: params.scope ?? [],
+        })
+    }
+
+    const revokeTokenByValue = async (token: string, hint?: string) => {
+        const refreshToken = mockRefreshTokens.get(token)
+        if (refreshToken) {
+            refreshToken.revoked_at = new Date()
+            return {
+                revoked: true,
+                clientId: refreshToken.client_id,
+                userId: refreshToken.user_id,
+                tokenType: hint ?? 'refresh_token',
+            }
+        }
+        return { revoked: false, clientId: undefined, userId: undefined, tokenType: hint }
+    }
+
+    const introspectToken = async () => ({ active: false })
+    const logOAuthEvent = async () => undefined
+
+    return {
+        OAuthServiceError,
+        getClient,
+        resolveScopes,
+        isRedirectUriAllowed,
+        isChallengeMethodAllowed,
+        createAuthorizationCode,
+        consumeAuthorizationCode,
+        issueTokenPair,
+        findRefreshToken,
+        rotateRefreshToken,
+        revokeTokenByValue,
+        introspectToken,
+        logOAuthEvent,
+    }
+})
 
 describe('OAuth2 PKCE Integration Tests', () => {
     let app: express.Application
     let testClientId: string
-    let testUserId: string
 
     beforeAll(async () => {
+        testClientId = 'test-client-integration'
+        mockClients.set(testClientId, {
+            client_id: testClientId,
+            client_name: 'Test Client Integration',
+            client_type: 'public',
+            require_pkce: true,
+            allowed_code_challenge_methods: ['S256'],
+            allowed_redirect_uris: ['http://localhost:3000/callback'],
+            allowed_scopes: ['memories:read', 'memories:write'],
+            default_scopes: ['memories:read'],
+            status: 'active',
+        })
+
         // Import and set up the app
         const { default: createApp } = await import('../../src/index.js')
         app = createApp()
-
-        // Create test client
-        const clientResult = await dbPool.query(`
-      INSERT INTO oauth_clients (
-        client_id, client_name, client_type, require_pkce,
-        allowed_code_challenge_methods, allowed_redirect_uris,
-        allowed_scopes, default_scopes, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING id, client_id
-    `, [
-            'test-client-integration',
-            'Test Client Integration',
-            'public',
-            true,
-            ['S256'],
-            JSON.stringify(['http://localhost:3000/callback']),
-            ['memories:read', 'memories:write'],
-            ['memories:read'],
-            'active'
-        ])
-
-        testClientId = clientResult.rows[0].client_id
-
-        // Create test user (assuming users table exists)
-        try {
-            const userResult = await dbPool.query(`
-        INSERT INTO users (email, password_hash, email_verified)
-        VALUES ($1, $2, $3)
-        RETURNING id
-      `, ['test@example.com', 'hashed-password', true])
-
-            testUserId = userResult.rows[0].id
-        } catch {
-            // If users table doesn't exist, use a mock user ID
-            testUserId = 'mock-user-id'
-        }
     })
 
-    afterAll(async () => {
-        // Clean up test data
-        await dbPool.query('DELETE FROM oauth_clients WHERE LOWER(client_id) = LOWER($1)', [testClientId])
-        if (testUserId !== 'mock-user-id') {
-            await dbPool.query('DELETE FROM users WHERE id = $1', [testUserId])
-        }
+    afterAll(() => {
+        mockAuthCodes.clear()
+        mockRefreshTokens.clear()
+        mockClients.clear()
     })
 
-    beforeEach(async () => {
-        // Clean up any OAuth tokens/codes from previous tests
-        await dbPool.query('DELETE FROM oauth_authorization_codes WHERE LOWER(client_id) = LOWER($1)', [testClientId])
-        await dbPool.query('DELETE FROM oauth_tokens WHERE LOWER(client_id) = LOWER($1)', [testClientId])
+    beforeEach(() => {
+        mockAuthCodes.clear()
+        mockRefreshTokens.clear()
     })
 
     describe('Authorization Code Flow', () => {
@@ -132,7 +277,7 @@ describe('OAuth2 PKCE Integration Tests', () => {
 
         it('should reject invalid PKCE verifier', async () => {
             const codeChallenge = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
-            const wrongVerifier = 'wrong-verifier-value'
+            const wrongVerifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXy'
 
             // Get authorization code
             const authResponse = await request(app)

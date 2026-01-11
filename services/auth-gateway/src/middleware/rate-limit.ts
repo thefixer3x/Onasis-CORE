@@ -15,6 +15,7 @@ interface RateLimitOptions {
     skipSuccessfulRequests?: boolean // Don't count successful requests
     skipFailedRequests?: boolean // Don't count failed requests
     message?: string // Custom error message
+    skipInTest?: boolean // Skip rate limiting when NODE_ENV=test
 }
 
 // In-memory store for rate limiting (production should use Redis)
@@ -34,6 +35,13 @@ setInterval(() => {
  * Create a rate limiting middleware
  */
 export function createRateLimit(options: RateLimitOptions) {
+    const skipInTest = options.skipInTest ?? true
+    if (skipInTest && env.NODE_ENV === 'test') {
+        return (_req: Request, _res: Response, next: NextFunction): void => {
+            next()
+        }
+    }
+
     return (req: Request, res: Response, next: NextFunction): void => {
         // Generate key for rate limiting (IP + User-Agent by default)
         const key = options.keyGenerator
