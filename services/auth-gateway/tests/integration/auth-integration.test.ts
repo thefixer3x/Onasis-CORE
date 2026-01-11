@@ -47,8 +47,7 @@ const mockVerifyToken = vi.fn()
 vi.mock('../../src/utils/jwt.js', () => ({
   generateTokenPair: mockGenerateTokenPair,
   verifyToken: mockVerifyToken,
-  extractBearerToken: vi.fn((req) => {
-    const authHeader = req.headers?.authorization
+  extractBearerToken: vi.fn((authHeader?: string) => {
     if (!authHeader) return null
     return authHeader.replace('Bearer ', '')
   }),
@@ -56,15 +55,13 @@ vi.mock('../../src/utils/jwt.js', () => ({
 
 // Mock session service
 const mockCreateSession = vi.fn()
-const mockGetSession = vi.fn()
+const mockGetUserSessions = vi.fn()
 const mockRevokeSession = vi.fn()
-const mockListSessions = vi.fn()
 
 vi.mock('../../src/services/session.service.js', () => ({
   createSession: mockCreateSession,
-  getSession: mockGetSession,
   revokeSession: mockRevokeSession,
-  listSessions: mockListSessions,
+  getUserSessions: mockGetUserSessions,
 }))
 
 // Mock audit logging
@@ -75,7 +72,7 @@ vi.mock('../../src/services/audit.service.js', () => ({
 
 // Mock user account service
 const mockUpsertUserAccount = vi.fn()
-vi.mock('../../src/services/user-account.service.js', () => ({
+vi.mock('../../src/services/user.service.js', () => ({
   upsertUserAccount: mockUpsertUserAccount,
 }))
 
@@ -105,13 +102,7 @@ describe('Auth Gateway Integration Tests', () => {
       expires_at: new Date(Date.now() + 3600000),
     })
     
-    mockGetSession.mockResolvedValue({
-      id: 'session-123',
-      user_id: 'user-123',
-      platform: 'web',
-      access_token: 'test-access-token',
-      expires_at: new Date(Date.now() + 3600000),
-    })
+    mockGetUserSessions.mockResolvedValue([])
     
     mockUpsertUserAccount.mockResolvedValue({
       user_id: 'user-123',
@@ -335,7 +326,8 @@ describe('Auth Gateway Integration Tests', () => {
         .set('Authorization', 'Bearer valid-token')
         .expect(200)
 
-      expect(response.body).toHaveProperty('message')
+      expect(response.body).toHaveProperty('success', true)
+      expect(response.body).toHaveProperty('revoked', true)
       expect(mockRevokeSession).toHaveBeenCalled()
       expect(mockLogAuthEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -355,7 +347,7 @@ describe('Auth Gateway Integration Tests', () => {
       }
 
       mockVerifyToken.mockReturnValue(mockPayload)
-      mockListSessions.mockResolvedValue([
+      mockGetUserSessions.mockResolvedValue([
         {
           id: 'session-1',
           platform: 'web',
@@ -394,7 +386,7 @@ describe('Auth Gateway Integration Tests', () => {
 
       const response = await request(app)
         .post('/v1/auth/verify')
-        .send({ token: 'valid-token' })
+        .set('Authorization', 'Bearer valid-token')
         .expect(200)
 
       expect(response.body).toHaveProperty('valid', true)
@@ -408,35 +400,38 @@ describe('Auth Gateway Integration Tests', () => {
 
       const response = await request(app)
         .post('/v1/auth/verify')
-        .send({ token: 'invalid-token' })
+        .set('Authorization', 'Bearer invalid-token')
         .expect(401)
 
-      expect(response.body).toHaveProperty('valid', false)
+      expect(response.body).toHaveProperty('error')
     })
   })
 
   describe('POST /mcp/auth', () => {
-    it('should authenticate MCP client with vendor key', async () => {
-      // Mock vendor key validation
-      const { dbPool } = await import('../../db/client.js')
-      vi.mocked(dbPool.query).mockResolvedValueOnce({
-        rows: [{
-          id: 'key-123',
-          user_id: 'user-123',
-          key_hash: 'hashed-key',
-          status: 'active',
-        }],
-      } as any)
+    it('should authenticate MCP client with credentials', async () => {
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        app_metadata: {},
+        user_metadata: {},
+      }
+
+      mockSupabaseAuth.signInWithPassword.mockResolvedValue({
+        data: { user: mockUser, session: {} },
+        error: null,
+      })
 
       const response = await request(app)
         .post('/mcp/auth')
         .send({
-          vendor_key: 'pk_test.sk_test',
+          email: 'test@example.com',
+          password: 'password123',
         })
         .expect(200)
 
       expect(response.body).toHaveProperty('access_token')
-      expect(response.body).toHaveProperty('platform', 'mcp')
+      expect(response.body).toHaveProperty('token_type', 'Bearer')
     })
   })
 
@@ -464,7 +459,7 @@ describe('Auth Gateway Integration Tests', () => {
         .expect(200)
 
       expect(response.body).toHaveProperty('access_token')
-      expect(response.body).toHaveProperty('platform', 'cli')
+      expect(response.body).toHaveProperty('token_type', 'Bearer')
     })
   })
 

@@ -9,7 +9,8 @@ function createTestApp(maxRequests = 3, windowMs = 1000) {
     const rateLimiter = createRateLimit({
         windowMs,
         maxRequests,
-        message: 'Rate limit exceeded'
+        message: 'Rate limit exceeded',
+        skipInTest: false
     })
     app.get('/test', rateLimiter, (req, res) => {
         res.json({ success: true })

@@ -23,6 +23,7 @@ import syncRoutes from './routes/sync.routes.js';
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js';
 const app = express();
+const isTestEnv = process.env.NODE_ENV === 'test';
 // Trust proxy - required when behind nginx/load balancer
 // Set to 1 (single proxy hop) instead of true to satisfy express-rate-limit security check
 // See: https://express-rate-limit.github.io/ERR_ERL_PERMISSIVE_TRUST_PROXY/
@@ -81,7 +82,7 @@ const generalLimiter = rateLimit({
     message: { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter: '15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.path === '/health' // Skip health checks
+    skip: (req) => isTestEnv || req.path === '/health' // Skip health checks and tests
 });
 // Strict rate limiting for authentication endpoints (brute-force protection)
 const authLimiter = rateLimit({
@@ -90,14 +91,17 @@ const authLimiter = rateLimit({
     message: { error: 'Too many login attempts', code: 'AUTH_RATE_LIMITED', retryAfter: '15 minutes' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => isTestEnv,
 });
-// Apply general rate limiter globally
-app.use(generalLimiter);
-// Apply strict limiter to auth routes
-app.use('/v1/auth/login', authLimiter);
-app.use('/v1/auth/register', authLimiter);
-app.use('/admin/bypass-login', authLimiter);
-app.use('/oauth/token', authLimiter);
+if (!isTestEnv) {
+    // Apply general rate limiter globally
+    app.use(generalLimiter);
+    // Apply strict limiter to auth routes
+    app.use('/v1/auth/login', authLimiter);
+    app.use('/v1/auth/register', authLimiter);
+    app.use('/admin/bypass-login', authLimiter);
+    app.use('/oauth/token', authLimiter);
+}
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -253,64 +257,68 @@ app.use((err, _req, res, _next) => {
         code: 'INTERNAL_ERROR',
     });
 });
-// Start server with validation
-app.listen(env.PORT, async () => {
-    // Initialize Redis connection
-    try {
-        await redisClient.connect();
-        console.log('✅ Redis connected successfully');
-    }
-    catch (error) {
-        console.warn('⚠️  Redis connection failed (non-critical):', error instanceof Error ? error.message : error);
-        console.warn('   Service will continue without caching');
-    }
-    // Run OAuth configuration validation
-    try {
-        await runAllValidations();
-    }
-    catch (error) {
-        console.error('❌ Startup validation failed:', error instanceof Error ? error.message : error);
-        process.exit(1);
-    }
-    console.log(`🚀 Auth gateway running on port ${env.PORT} in ${env.NODE_ENV} mode`);
-    console.log(`📍 Health check: http://localhost:${env.PORT}/health`);
-    console.log(`🔐 Auth endpoints:`);
-    console.log(`   - POST /v1/auth/login`);
-    console.log(`   - POST /v1/auth/logout`);
-    console.log(`   - GET  /v1/auth/session`);
-    console.log(`   - POST /v1/auth/verify`);
-    console.log(`   - GET  /v1/auth/sessions`);
-    console.log(`🌐 Web endpoints:`);
-    console.log(`   - GET  /web/login`);
-    console.log(`   - POST /web/login`);
-    console.log(`   - GET  /web/logout`);
-    console.log(`🤖 MCP endpoints:`);
-    console.log(`   - POST /mcp/auth`);
-    console.log(`   - GET  /mcp/health`);
-    console.log(`💻 CLI endpoints:`);
-    console.log(`   - POST /auth/cli-login`);
-    console.log(`🔑 OAuth endpoints:`);
-    console.log(`   - GET  /oauth/authorize (also /api/v1/oauth/authorize)`);
-    console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`);
-    console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`);
-    console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`);
-    console.log(`🔌 MCP OAuth Discovery (RFC 8414 + RFC 7591):`);
-    console.log(`   - GET  /.well-known/oauth-authorization-server`);
-    console.log(`   - POST /register (Dynamic Client Registration)`);
-    console.log(`🛡️  Admin endpoints:`);
-    console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`);
-    console.log(`   - POST /admin/change-password`);
-    console.log(`   - GET  /admin/status`);
-    console.log(`\n🍪 Session cookies enabled for *.lanonasis.com`);
-});
-// Graceful shutdown handlers
-process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully...');
-    await closeRedis();
-    process.exit(0);
-});
-process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully...');
-    await closeRedis();
-    process.exit(0);
-});
+export const createApp = () => app;
+export default createApp;
+if (process.env.NODE_ENV !== 'test') {
+    // Start server with validation
+    app.listen(env.PORT, async () => {
+        // Initialize Redis connection
+        try {
+            await redisClient.connect();
+            console.log('✅ Redis connected successfully');
+        }
+        catch (error) {
+            console.warn('⚠️  Redis connection failed (non-critical):', error instanceof Error ? error.message : error);
+            console.warn('   Service will continue without caching');
+        }
+        // Run OAuth configuration validation
+        try {
+            await runAllValidations();
+        }
+        catch (error) {
+            console.error('❌ Startup validation failed:', error instanceof Error ? error.message : error);
+            process.exit(1);
+        }
+        console.log(`🚀 Auth gateway running on port ${env.PORT} in ${env.NODE_ENV} mode`);
+        console.log(`📍 Health check: http://localhost:${env.PORT}/health`);
+        console.log(`🔐 Auth endpoints:`);
+        console.log(`   - POST /v1/auth/login`);
+        console.log(`   - POST /v1/auth/logout`);
+        console.log(`   - GET  /v1/auth/session`);
+        console.log(`   - POST /v1/auth/verify`);
+        console.log(`   - GET  /v1/auth/sessions`);
+        console.log(`🌐 Web endpoints:`);
+        console.log(`   - GET  /web/login`);
+        console.log(`   - POST /web/login`);
+        console.log(`   - GET  /web/logout`);
+        console.log(`🤖 MCP endpoints:`);
+        console.log(`   - POST /mcp/auth`);
+        console.log(`   - GET  /mcp/health`);
+        console.log(`💻 CLI endpoints:`);
+        console.log(`   - POST /auth/cli-login`);
+        console.log(`🔑 OAuth endpoints:`);
+        console.log(`   - GET  /oauth/authorize (also /api/v1/oauth/authorize)`);
+        console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`);
+        console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`);
+        console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`);
+        console.log(`🔌 MCP OAuth Discovery (RFC 8414 + RFC 7591):`);
+        console.log(`   - GET  /.well-known/oauth-authorization-server`);
+        console.log(`   - POST /register (Dynamic Client Registration)`);
+        console.log(`🛡️  Admin endpoints:`);
+        console.log(`   - POST /admin/bypass-login (EMERGENCY ACCESS)`);
+        console.log(`   - POST /admin/change-password`);
+        console.log(`   - GET  /admin/status`);
+        console.log(`\n🍪 Session cookies enabled for *.lanonasis.com`);
+    });
+    // Graceful shutdown handlers
+    process.on('SIGTERM', async () => {
+        console.log('SIGTERM received, shutting down gracefully...');
+        await closeRedis();
+        process.exit(0);
+    });
+    process.on('SIGINT', async () => {
+        console.log('SIGINT received, shutting down gracefully...');
+        await closeRedis();
+        process.exit(0);
+    });
+}
