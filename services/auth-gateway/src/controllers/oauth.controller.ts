@@ -47,6 +47,12 @@ const tokenRequestSchema = z.discriminatedUnion('grant_type', [
         client_id: z.string().min(1),
         scope: z.string().optional(),
     }),
+    // RFC 8628 Device Authorization Grant (GitHub-style CLI auth)
+    z.object({
+        grant_type: z.literal('urn:ietf:params:oauth:grant-type:device_code'),
+        device_code: z.string().min(1),
+        client_id: z.string().min(1),
+    }),
 ])
 
 const revokeRequestSchema = z.object({
@@ -297,6 +303,12 @@ export async function token(req: Request, res: Response) {
                 refresh_expires_in: tokenPair.refreshTokenExpiresIn,
                 scope: (authorizationCode.scope ?? []).join(' '),
             })
+        }
+
+        // RFC 8628 Device Authorization Grant
+        if (payload.grant_type === 'urn:ietf:params:oauth:grant-type:device_code') {
+            const { handleDeviceCodeGrant } = await import('../routes/device.routes.js')
+            return handleDeviceCodeGrant(req, res, payload.device_code, payload.client_id)
         }
 
         if (payload.grant_type === 'refresh_token') {

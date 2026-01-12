@@ -277,10 +277,14 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
 
   try {
     // Verify OTP with Supabase
+    // IMPORTANT: Supabase verifyOtp type must be 'email' for 6-digit codes
+    // Our internal 'magiclink' type only affects how we SEND (link vs code),
+    // but verification of codes always uses 'email' type.
+    // Magic link tokens are verified via the callback URL redirect, not this endpoint.
     const { data, error } = await supabaseAuth.auth.verifyOtp({
       email,
       token,
-      type: verifyType
+      type: 'email' // Always 'email' for 6-digit OTP code verification
     })
 
     if (error || !data.user || !data.session) {

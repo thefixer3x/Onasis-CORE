@@ -24,6 +24,7 @@ import oauthRoutes from './routes/oauth.routes.js'
 import oauthConsentRoutes from './routes/oauth-consent.routes.js'
 import webRoutes from './routes/web.routes.js'
 import syncRoutes from './routes/sync.routes.js'
+import deviceRoutes from './routes/device.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
@@ -175,6 +176,7 @@ app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
 app.use('/oauth', oauthConsentRoutes)  // Supabase OAuth 2.1 Provider consent page
 app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallback)
+app.use('/oauth', deviceRoutes)   // Device code flow for CLI (GitHub-style passwordless)
 
 // Map /auth/login to /web/login for backward compatibility and CLI
 app.get('/auth/login', (req, res) => {
@@ -207,8 +209,10 @@ app.get('/.well-known/oauth-authorization-server', (_req, res) => {
     scopes_supported: ['memories:read', 'memories:write', 'mcp:connect', 'api:access'],
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
+    grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
     code_challenge_methods_supported: ['S256', 'plain'],
+    // RFC 8628 Device Authorization Grant (GitHub-style CLI auth)
+    device_authorization_endpoint: `${baseUrl}/oauth/device`,
     service_documentation: 'https://docs.lanonasis.com/mcp/oauth',
   })
 })
