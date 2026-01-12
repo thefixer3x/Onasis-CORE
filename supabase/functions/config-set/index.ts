@@ -144,7 +144,7 @@ serve(async (req: Request) => {
       user_id: auth.user_id,
       action: 'config.updated',
       resource_type: 'config',
-      resource_id: body.key,
+      resource_id: null,
       metadata: {
         key: body.key,
         value: body.value,
