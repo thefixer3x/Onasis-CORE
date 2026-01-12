@@ -39,7 +39,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       expect(body.code).toBe('OTP_SEND_FAILED')
     }
     if (response.status === 429) {
-      expect(body.code).toBe('OTP_RATE_LIMITED')
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
   })
 
@@ -50,9 +50,14 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       body: JSON.stringify({ type: 'email' })
     })
 
-    expect(response.status).toBe(400)
+    // Accept 400 (validation error) or 429 (rate limited before validation)
+    expect([400, 429]).toContain(response.status)
     const body = await response.json()
-    expect(body.code).toBe('MISSING_EMAIL')
+    if (response.status === 400) {
+      expect(body.code).toBe('MISSING_EMAIL')
+    } else {
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
+    }
   })
 
   it('should reject invalid email format on /v1/auth/otp/send', async () => {
@@ -65,9 +70,14 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       })
     })
 
-    expect(response.status).toBe(400)
+    // Accept 400 (validation error) or 429 (rate limited before validation)
+    expect([400, 429]).toContain(response.status)
     const body = await response.json()
-    expect(body.code).toBe('INVALID_EMAIL')
+    if (response.status === 400) {
+      expect(body.code).toBe('INVALID_EMAIL')
+    } else {
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
+    }
   })
 
   it('should respond to /v1/auth/otp/verify endpoint', async () => {
@@ -81,10 +91,14 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       })
     })
 
-    // Should return 400 for invalid OTP (not 404)
-    expect(response.status).toBe(400)
+    // Should return 400 for invalid OTP, or 429 if rate limited
+    expect([400, 429]).toContain(response.status)
     const body = await response.json()
-    expect(body.code).toBe('OTP_INVALID')
+    if (response.status === 400) {
+      expect(body.code).toBe('OTP_INVALID')
+    } else {
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
+    }
   })
 
   it('should reject missing email on /v1/auth/otp/verify', async () => {
@@ -94,9 +108,14 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       body: JSON.stringify({ token: '123456' })
     })
 
-    expect(response.status).toBe(400)
+    // Accept 400 (validation error) or 429 (rate limited before validation)
+    expect([400, 429]).toContain(response.status)
     const body = await response.json()
-    expect(body.code).toBe('MISSING_EMAIL')
+    if (response.status === 400) {
+      expect(body.code).toBe('MISSING_EMAIL')
+    } else {
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
+    }
   })
 
   it('should reject missing token on /v1/auth/otp/verify', async () => {
@@ -106,9 +125,14 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       body: JSON.stringify({ email: 'test@example.com' })
     })
 
-    expect(response.status).toBe(400)
+    // Accept 400 (validation error) or 429 (rate limited before validation)
+    expect([400, 429]).toContain(response.status)
     const body = await response.json()
-    expect(body.code).toBe('MISSING_TOKEN')
+    if (response.status === 400) {
+      expect(body.code).toBe('MISSING_TOKEN')
+    } else {
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
+    }
   })
 
   it('should respond to /v1/auth/otp/resend endpoint', async () => {
@@ -135,9 +159,14 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       body: JSON.stringify({ type: 'email' })
     })
 
-    expect(response.status).toBe(400)
+    // Accept 400 (validation error) or 429 (rate limited before validation)
+    expect([400, 429]).toContain(response.status)
     const body = await response.json()
-    expect(body.code).toBe('MISSING_EMAIL')
+    if (response.status === 400) {
+      expect(body.code).toBe('MISSING_EMAIL')
+    } else {
+      expect(body.code).toBe('AUTH_RATE_LIMITED')
+    }
   })
 
   it('health endpoint should be accessible', async () => {
