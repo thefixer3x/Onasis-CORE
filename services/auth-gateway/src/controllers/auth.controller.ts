@@ -3,7 +3,7 @@ import type { Request, Response } from 'express'
 import { supabaseAdmin } from '../../db/client.js'
 import { generateTokenPair } from '../utils/jwt.js'
 import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
-import { upsertUserAccount } from '../services/user.service.js'
+import { upsertUserAccount, findUserAccountById } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import * as apiKeyService from '../services/api-key.service.js'
 import { redisClient } from '../services/cache.service.js'
@@ -1545,6 +1545,71 @@ export async function deleteApiKey(req: Request, res: Response) {
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
+    })
+  }
+}
+
+/**
+ * GET /v1/auth/me
+ * Get full user profile including OAuth metadata
+ * Used for personalized experiences in IDE, CLI, and analytics
+ */
+export async function getMe(req: Request, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'Authentication required',
+      code: 'AUTH_REQUIRED',
+    })
+  }
+
+  try {
+    // Fetch full user account including raw_metadata
+    const userAccount = await findUserAccountById(req.user.sub)
+
+    if (!userAccount) {
+      // User exists in JWT but not in user_accounts table
+      // Return basic info from JWT
+      return res.json({
+        id: req.user.sub,
+        email: req.user.email,
+        role: req.user.role,
+        project_scope: req.user.project_scope,
+        platform: req.user.platform,
+        name: null,
+        avatar_url: null,
+        provider: null,
+        created_at: null,
+        last_sign_in_at: null,
+      })
+    }
+
+    // Extract profile from OAuth metadata
+    const metadata = userAccount.raw_metadata || {}
+    const name = (metadata.name || metadata.full_name || metadata.user_name || null) as string | null
+    const avatarUrl = (metadata.avatar_url || metadata.picture || metadata.image || null) as string | null
+
+    return res.json({
+      id: userAccount.user_id,
+      email: userAccount.email,
+      name,
+      avatar_url: avatarUrl,
+      role: userAccount.role,
+      provider: userAccount.provider,
+      project_scope: req.user.project_scope,
+      platform: req.user.platform,
+      created_at: userAccount.created_at,
+      last_sign_in_at: userAccount.last_sign_in_at,
+      // Include raw metadata for clients that need additional fields
+      metadata: {
+        locale: metadata.locale || null,
+        timezone: metadata.timezone || null,
+      },
+    })
+  } catch (error) {
+    logger.error('Get user profile error:', { error, userId: req.user.sub })
+    return res.status(500).json({
+      error: 'Failed to fetch user profile',
+      code: 'PROFILE_FETCH_ERROR',
     })
   }
 }
