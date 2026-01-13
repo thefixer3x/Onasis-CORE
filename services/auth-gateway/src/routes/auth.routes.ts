@@ -18,6 +18,7 @@ router.post('/token/exchange', authController.exchangeSupabaseToken)
 // Protected routes
 router.post('/logout', requireAuth, authController.logout)
 router.get('/session', requireAuth, authController.getSession)
+router.get('/me', requireAuth, authController.getMe)  // Full user profile with OAuth metadata
 router.post('/verify', requireAuth, authController.verifyToken)
 router.get('/sessions', requireAuth, authController.listSessions)
 
