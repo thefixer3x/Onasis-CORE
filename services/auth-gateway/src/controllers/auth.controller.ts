@@ -1121,6 +1121,35 @@ export async function logout(req: Request, res: Response) {
 }
 
 /**
+ * GET /v1/auth/session/check
+ * Lightweight session check for cross-subdomain SSO
+ * Uses cookie-based validation via validateSessionCookie middleware
+ * Returns user info if session is valid, otherwise returns authenticated: false
+ *
+ * Note: For additional user info (name, avatar), read the lanonasis_user cookie
+ * which is set alongside the session cookie during login.
+ */
+export async function checkSession(req: Request, res: Response) {
+  // req.user is set by validateSessionCookie middleware if valid session exists
+  if (!req.user) {
+    return res.json({
+      authenticated: false,
+      user: null,
+    })
+  }
+
+  return res.json({
+    authenticated: true,
+    user: {
+      id: req.user.sub,
+      email: req.user.email,
+      role: req.user.role || 'user',
+      project_scope: req.user.project_scope || null,
+    },
+  })
+}
+
+/**
  * GET /v1/auth/session
  * Get current session info
  */

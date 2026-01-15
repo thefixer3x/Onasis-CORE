@@ -1,8 +1,12 @@
 import express from 'express'
 import * as authController from '../controllers/auth.controller.js'
 import { requireAuth, optionalAuth } from '../middleware/auth.js'
+import { validateSessionCookie } from '../middleware/session.js'
 
 const router = express.Router()
+
+// SSO Session check endpoint - lightweight check for cross-subdomain SSO
+router.get('/session/check', validateSessionCookie, authController.checkSession)
 
 // Public routes
 router.get('/oauth', authController.oauthProvider)
