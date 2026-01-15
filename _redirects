@@ -106,12 +106,12 @@
 /api/v1/config/set          https://lanonasis.supabase.co/functions/v1/config-set           200!
 
 # MCP Protocol Routes
-# WebSocket routing - proxy to VPS MCP server (port 3002)
-/ws               https://168.231.74.29:3002               200!
-/api/v1/ws        https://168.231.74.29:3002/api/v1/ws     200!
+# WebSocket and SSE routing - proxy to VPS MCP server via nginx (SSL terminated)
+/ws               https://mcp.lanonasis.com/ws                   200!
+/api/v1/ws        https://mcp.lanonasis.com/ws                   200!
 
-/sse              /.netlify/functions/mcp-sse                   200
-/api/v1/events    https://168.231.74.29:3003/api/v1/events        200!
+/sse              https://mcp.lanonasis.com/sse                  200!
+/api/v1/events    https://mcp.lanonasis.com/api/v1/events        200!
 /message          /.netlify/functions/mcp-message               200
 /oauth/*          https://auth.lanonasis.com/oauth/:splat        200!
 /api/v1/oauth/*   https://auth.lanonasis.com/oauth/:splat        200!
