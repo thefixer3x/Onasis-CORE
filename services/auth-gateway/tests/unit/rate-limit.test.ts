@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { createRateLimit } from '../../src/middleware/rate-limit.js'
+import { createRateLimit, clearStore } from '../../src/middleware/rate-limit.js'
 
 // Helper to create a fresh app with rate limiting for each test
 function createTestApp(maxRequests = 3, windowMs = 1000) {
@@ -19,6 +19,10 @@ function createTestApp(maxRequests = 3, windowMs = 1000) {
 }
 
 describe('Rate Limiting Middleware', () => {
+    beforeEach(() => {
+        clearStore()
+    })
+
     it('should allow requests within limit', async () => {
         const app = createTestApp()
         
@@ -32,9 +36,7 @@ describe('Rate Limiting Middleware', () => {
         }
     })
 
-    // Note: These tests are skipped due to shared rate limiter store across test runs
-    // In production, the rate limiter uses Redis which provides proper isolation
-    it.skip('should reject requests over limit', async () => {
+    it('should reject requests over limit', async () => {
         const app = createTestApp()
         
         // First 3 requests should succeed
@@ -52,7 +54,7 @@ describe('Rate Limiting Middleware', () => {
         expect(response.headers['retry-after']).toBeDefined()
     })
 
-    it.skip('should reset counter after window expires', async () => {
+    it('should reset counter after window expires', async () => {
         const app = createTestApp(3, 500) // 500ms window for faster test
         
         // Fill up the rate limit
@@ -70,7 +72,7 @@ describe('Rate Limiting Middleware', () => {
         await request(app).get('/test').expect(200)
     }, 5000)
 
-    it.skip('should handle concurrent requests correctly', async () => {
+    it('should handle concurrent requests correctly', async () => {
         const app = createTestApp()
         
         // Create multiple concurrent requests

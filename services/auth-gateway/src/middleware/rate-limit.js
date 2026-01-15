@@ -1,6 +1,14 @@
 import { env } from '../../config/env.js';
 // In-memory store for rate limiting (production should use Redis)
 const store = {};
+/**
+ * Clear the rate limit store (for testing purposes)
+ */
+export function clearStore() {
+    for (const key in store) {
+        delete store[key];
+    }
+}
 // Cleanup old entries periodically
 setInterval(() => {
     const now = Date.now();
@@ -26,9 +34,8 @@ export function createRateLimit(options) {
             ? options.keyGenerator(req)
             : `${req.ip}:${req.get('User-Agent') || 'unknown'}`;
         const now = Date.now();
-        const windowStart = now - options.windowMs;
-        // Initialize or get existing entry
-        if (!store[key] || store[key].resetTime <= windowStart) {
+        // Initialize or get existing entry (reset if window has expired)
+        if (!store[key] || store[key].resetTime <= now) {
             store[key] = {
                 count: 0,
                 resetTime: now + options.windowMs
