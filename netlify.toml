@@ -7,7 +7,6 @@
   NODE_VERSION = "18"
   NODE_ENV = "production"
   SECRETS_SCAN_ENABLED = "false"
-  NPM_FLAGS = "--version"
 
 # ============================================================================
 # NETLIFY.TOML - Secondary routing (fallback only)
