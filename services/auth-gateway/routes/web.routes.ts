@@ -1,5 +1,5 @@
 import express from 'express'
-import { supabaseAdmin } from '../../db/client.js'
+import { supabaseAdmin, supabaseAuth } from '../../db/client.js'
 import { generateTokenPair } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
@@ -289,8 +289,8 @@ router.post('/login', async (req, res) => {
   }
 
   try {
-    // Authenticate with Supabase
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    // Authenticate with Main DB Supabase (where users are registered)
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({
       email,
       password,
     })
