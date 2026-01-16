@@ -181,8 +181,55 @@ router.get('/device', async (req: Request, res: Response): Promise<void> => {
 })
 
 /**
+ * GET /oauth/device/check
+ *
+ * Check if a user code is valid (exists and not expired).
+ * Used by the verification page before moving to email step.
+ */
+router.get('/device/check', async (req: Request, res: Response): Promise<void> => {
+  const userCode = (req.query.code as string)?.toUpperCase().replace(/\s/g, '').replace(/-/g, '')
+
+  if (!userCode || userCode.length !== 8) {
+    res.status(400).json({ valid: false, error: 'Invalid code format' })
+    return
+  }
+
+  // Format back with dash for lookup
+  const formattedCode = userCode.slice(0, 4) + '-' + userCode.slice(4)
+
+  try {
+    const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${formattedCode}`)
+
+    if (!deviceCode) {
+      res.status(404).json({ valid: false, error: 'Code not found or expired' })
+      return
+    }
+
+    // Check if device data exists
+    const deviceDataStr = await redisClient.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+    if (!deviceDataStr) {
+      res.status(404).json({ valid: false, error: 'Device session expired' })
+      return
+    }
+
+    const deviceData: DeviceCodeData = JSON.parse(deviceDataStr)
+
+    // Check if already authorized or denied
+    if (deviceData.status !== 'pending') {
+      res.status(400).json({ valid: false, error: `Code already ${deviceData.status}` })
+      return
+    }
+
+    res.json({ valid: true, client_id: deviceData.client_id })
+  } catch (error) {
+    logger.error('Device code check failed', { error })
+    res.status(500).json({ valid: false, error: 'Server error' })
+  }
+})
+
+/**
  * POST /oauth/device/verify
- * 
+ *
  * User submits the code from CLI. This triggers email OTP verification.
  */
 router.post('/device/verify', async (req: Request, res: Response): Promise<void> => {
@@ -738,17 +785,39 @@ function getVerificationPageHTML(error: string | null, prefillCode: string): str
       state.userCode = v;
     });
 
-    // Step 1: Verify code exists
+    // Step 1: Verify code exists in Redis
     document.getElementById('verify-code-btn').addEventListener('click', async () => {
+      const btn = document.getElementById('verify-code-btn');
       const code = state.userCode.replace(/-/g, '');
       if (code.length !== 8) {
-        alert('Please enter a valid 8-character code');
+        alert('Please enter a valid 8-character code (e.g., ABCD-1234)');
         return;
       }
-      
-      document.getElementById('code-step').classList.add('hidden');
-      document.getElementById('email-step').classList.remove('hidden');
-      document.getElementById('denied-step').classList.remove('hidden');
+
+      btn.disabled = true;
+      btn.textContent = 'Verifying...';
+
+      try {
+        // Verify code exists on server
+        const res = await fetch('/oauth/device/check?code=' + encodeURIComponent(state.userCode));
+        const data = await res.json();
+
+        if (!res.ok || !data.valid) {
+          alert(data.error || 'Invalid or expired code. Please check the code and try again.');
+          btn.disabled = false;
+          btn.textContent = 'Continue';
+          return;
+        }
+
+        document.getElementById('code-step').classList.add('hidden');
+        document.getElementById('email-step').classList.remove('hidden');
+        document.getElementById('denied-step').classList.remove('hidden');
+      } catch (err) {
+        console.error('Code verification error:', err);
+        alert('Failed to verify code. Please try again.');
+        btn.disabled = false;
+        btn.textContent = 'Continue';
+      }
     });
 
     // Step 2: Send OTP to email
