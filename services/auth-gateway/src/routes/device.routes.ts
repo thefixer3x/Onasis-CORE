@@ -160,24 +160,31 @@ router.post('/device', async (req: Request, res: Response): Promise<void> => {
 
 /**
  * GET /oauth/device
- * 
+ *
  * Verification page where user enters the code from CLI.
  * This serves HTML or redirects to a web page.
  */
 router.get('/device', async (req: Request, res: Response): Promise<void> => {
   const userCode = req.query.code as string
 
+  // Generate nonce for CSP
+  const nonce = crypto.randomBytes(16).toString('base64')
+  res.setHeader(
+    'Content-Security-Policy',
+    `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; form-action 'self'`
+  )
+
   // If code provided in URL, validate it
   if (userCode) {
     const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${userCode}`)
     if (!deviceCode) {
-      res.status(400).send(getVerificationPageHTML('Invalid or expired code. Please try again.', userCode))
+      res.status(400).send(getVerificationPageHTML('Invalid or expired code. Please try again.', userCode, nonce))
       return
     }
   }
 
   // Serve verification page
-  res.send(getVerificationPageHTML(null, userCode || ''))
+  res.send(getVerificationPageHTML(null, userCode || '', nonce))
 })
 
 /**
@@ -591,7 +598,7 @@ export async function handleDeviceCodeGrant(
 /**
  * Generate HTML for the verification page
  */
-function getVerificationPageHTML(error: string | null, prefillCode: string): string {
+function getVerificationPageHTML(error: string | null, prefillCode: string, nonce: string = ''): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -771,7 +778,7 @@ function getVerificationPageHTML(error: string | null, prefillCode: string): str
     </div>
   </div>
 
-  <script>
+  <script nonce="${nonce}">
     const state = {
       userCode: '${prefillCode}',
       email: ''
