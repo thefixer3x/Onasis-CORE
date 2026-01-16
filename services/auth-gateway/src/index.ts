@@ -104,7 +104,8 @@ const generalLimiter = rateLimit({
   message: { error: 'Too many requests', code: 'RATE_LIMITED', retryAfter: '15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => isTestEnv || req.path === '/health' // Skip health checks and tests
+  // Skip: health checks, tests, and /oauth/token (has its own dedicated rate limiter)
+  skip: (req) => isTestEnv || req.path === '/health' || req.path === '/oauth/token'
 })
 
 // Strict rate limiting for authentication endpoints (brute-force protection)
