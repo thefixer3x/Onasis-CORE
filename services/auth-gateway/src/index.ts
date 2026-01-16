@@ -117,6 +117,17 @@ const authLimiter = rateLimit({
   skip: () => isTestEnv,
 })
 
+// Lenient rate limiter for device code polling (RFC 8628)
+// Device code flow needs to poll every 5 seconds, so allow 200 requests per 15 min
+const deviceCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // Allow frequent polling
+  message: { error: 'slow_down', error_description: 'Polling too fast' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isTestEnv,
+})
+
 if (!isTestEnv) {
   // Apply general rate limiter globally
   app.use(generalLimiter)
@@ -127,7 +138,17 @@ if (!isTestEnv) {
   app.use('/v1/auth/otp/send', authLimiter)
   app.use('/v1/auth/otp/verify', authLimiter)
   app.use('/admin/bypass-login', authLimiter)
-  app.use('/oauth/token', authLimiter)
+
+  // Smart rate limiter for /oauth/token - use lenient limit for device_code polling
+  app.use('/oauth/token', express.urlencoded({ extended: true }), (req, res, next) => {
+    const grantType = req.body?.grant_type
+    if (grantType === 'urn:ietf:params:oauth:grant-type:device_code') {
+      // Device code polling needs frequent requests
+      return deviceCodeLimiter(req, res, next)
+    }
+    // Other grant types get strict rate limiting
+    return authLimiter(req, res, next)
+  })
 }
 
 app.use(cookieParser())
