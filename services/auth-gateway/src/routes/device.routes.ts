@@ -136,8 +136,9 @@ router.post('/device', async (req: Request, res: Response): Promise<void> => {
     logger.info('Device code requested', { clientId, userCode })
 
     // Build verification URL
+    // Note: Device routes are mounted at /oauth, so full path is /oauth/device
     const baseUrl = env.AUTH_BASE_URL || `https://auth.lanonasis.com`
-    const verificationUri = `${baseUrl}/device`
+    const verificationUri = `${baseUrl}/oauth/device`
     const verificationUriComplete = `${verificationUri}?code=${userCode}`
 
     res.json({
