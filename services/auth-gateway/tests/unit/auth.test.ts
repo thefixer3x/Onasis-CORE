@@ -56,8 +56,8 @@ describe('Auth Middleware', () => {
         exp: Date.now() / 1000 + 3600
       }
 
-      vi.mocked(extractBearerToken).mockReturnValue('valid-token')
-      vi.mocked(verifyToken).mockReturnValue(mockPayload)
+      (extractBearerToken as any).mockReturnValue('valid-token')
+      (verifyToken as any).mockReturnValue(mockPayload)
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
@@ -67,7 +67,7 @@ describe('Auth Middleware', () => {
     })
 
     it('should return 401 when no token or API key provided', async () => {
-      vi.mocked(extractBearerToken).mockReturnValue(null)
+      (extractBearerToken as any).mockReturnValue(null)
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
@@ -80,13 +80,13 @@ describe('Auth Middleware', () => {
     })
 
     it('should try API key when JWT is invalid', async () => {
-      vi.mocked(extractBearerToken).mockReturnValue('invalid-token')
-      vi.mocked(verifyToken).mockImplementation(() => {
+      (extractBearerToken as any).mockReturnValue('invalid-token')
+      (verifyToken as any).mockImplementation(() => {
         throw new Error('Invalid token')
       })
       
       mockReq.headers = { 'x-api-key': 'lano_test_key' }
-      vi.mocked(validateAPIKey).mockResolvedValue({
+      (validateAPIKey as any).mockResolvedValue({
         valid: true,
         userId: 'user-456',
         permissions: ['memories.read'],
@@ -117,9 +117,9 @@ describe('Auth Middleware', () => {
     })
 
     it('should return 401 when API key validation fails', async () => {
-      vi.mocked(extractBearerToken).mockReturnValue(null)
+      (extractBearerToken as any).mockReturnValue(null)
       mockReq.headers = { 'x-api-key': 'invalid_key' }
-      vi.mocked(validateAPIKey).mockResolvedValue({
+      (validateAPIKey as any).mockResolvedValue({
         valid: false,
         userId: null
       })
@@ -313,8 +313,8 @@ describe('Auth Middleware', () => {
         exp: Date.now() / 1000 + 3600
       }
 
-      vi.mocked(extractBearerToken).mockReturnValue('valid-token')
-      vi.mocked(verifyToken).mockReturnValue(mockPayload)
+      (extractBearerToken as any).mockReturnValue('valid-token')
+      (verifyToken as any).mockReturnValue(mockPayload)
 
       await optionalAuth(mockReq as Request, mockRes as Response, mockNext)
 
@@ -323,7 +323,7 @@ describe('Auth Middleware', () => {
     })
 
     it('should continue without user when no token provided', async () => {
-      vi.mocked(extractBearerToken).mockReturnValue(null)
+      (extractBearerToken as any).mockReturnValue(null)
 
       await optionalAuth(mockReq as Request, mockRes as Response, mockNext)
 
@@ -332,8 +332,8 @@ describe('Auth Middleware', () => {
     })
 
     it('should continue without user when token is invalid', async () => {
-      vi.mocked(extractBearerToken).mockReturnValue('invalid-token')
-      vi.mocked(verifyToken).mockImplementation(() => {
+      (extractBearerToken as any).mockReturnValue('invalid-token')
+      (verifyToken as any).mockImplementation(() => {
         throw new Error('Invalid token')
       })
 
