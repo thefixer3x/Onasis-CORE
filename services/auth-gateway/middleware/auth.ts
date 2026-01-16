@@ -13,13 +13,43 @@ declare global {
 }
 
 /**
- * Middleware to verify JWT token or API key and attach user to request
- * Supports both authentication methods:
- * - JWT Bearer token: Authorization: Bearer <token>
- * - API Key: X-API-Key: <hashed_key>
+ * Check for SSO session cookie (lanonasis_session)
+ * This is the highest priority auth method for web requests
+ */
+function checkSSOCookie(req: Request): JWTPayload | null {
+  const sessionToken = req.cookies?.lanonasis_session
+  if (!sessionToken) return null
+
+  try {
+    const payload = verifyToken(sessionToken)
+    // Check if token is expired
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      return null
+    }
+    return payload
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Middleware to verify authentication via SSO cookie, JWT token, or API key
+ *
+ * Authentication priority:
+ * 1. SSO cookie (lanonasis_session) - for web browser requests
+ * 2. JWT Bearer token (Authorization: Bearer <token>) - for API clients
+ * 3. API Key (X-API-Key: <hashed_key>) - for programmatic access
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  // Try JWT token first
+  // Priority 1: Check SSO session cookie first (web requests)
+  const ssoPayload = checkSSOCookie(req)
+  if (ssoPayload) {
+    req.user = ssoPayload
+    req.scopes = ['*'] // SSO users get full access
+    return next()
+  }
+
+  // Priority 2: Try JWT Bearer token
   const token = extractBearerToken(req.headers.authorization)
 
   if (token) {
@@ -225,8 +255,18 @@ export function requireAllScopes(...requiredScopes: string[]) {
 
 /**
  * Optional auth middleware - attaches user if token is valid, but doesn't require it
+ * Checks SSO cookie first, then JWT, then API key
  */
 export async function optionalAuth(req: Request, res: Response, next: NextFunction) {
+  // Priority 1: Check SSO session cookie first
+  const ssoPayload = checkSSOCookie(req)
+  if (ssoPayload) {
+    req.user = ssoPayload
+    req.scopes = ['*']
+    return next()
+  }
+
+  // Priority 2: Try JWT Bearer token
   const token = extractBearerToken(req.headers.authorization)
 
   if (token) {
@@ -240,7 +280,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
     }
   }
 
-  // Try API key authentication (optional)
+  // Priority 3: Try API key authentication (optional)
   const apiKey = req.headers['x-api-key'] as string
   if (apiKey) {
     try {
