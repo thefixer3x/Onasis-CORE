@@ -7,15 +7,18 @@ import { env } from '../../config/env.js'
  * Implements stricter origin validation and security headers
  */
 
-// Parse allowed origins from environment
+// Parse allowed origins from environment (called lazily to avoid circular deps)
 const getAllowedOrigins = (): (string | RegExp)[] => {
-    const origins = env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+    // Access env lazily to avoid circular dependency issues
+    const corsOrigin = env?.CORS_ORIGIN || process.env.CORS_ORIGIN || '*'
+    const nodeEnv = env?.NODE_ENV || process.env.NODE_ENV
+    const origins = corsOrigin.split(',').map(origin => origin.trim())
     const result: (string | RegExp)[] = []
 
     for (const origin of origins) {
         if (origin === '*') {
-            // Only allow * in development
-            if (env.NODE_ENV === 'development') {
+            // Only allow * in development or test
+            if (nodeEnv === 'development' || nodeEnv === 'test') {
                 result.push('*')
             }
         } else if (origin.startsWith('*.')) {
@@ -32,9 +35,21 @@ const getAllowedOrigins = (): (string | RegExp)[] => {
 
 /**
  * Standard CORS configuration for most endpoints
+ * Note: origin is a function to evaluate lazily at request time
  */
 export const standardCors = cors({
-    origin: getAllowedOrigins(),
+    origin: (origin, callback) => {
+        const allowed = getAllowedOrigins()
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true)
+        // Check if origin is allowed
+        const isAllowed = allowed.some(allowedOrigin => {
+            if (allowedOrigin === '*') return true
+            if (allowedOrigin instanceof RegExp) return allowedOrigin.test(origin)
+            return allowedOrigin === origin
+        })
+        callback(null, isAllowed)
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
