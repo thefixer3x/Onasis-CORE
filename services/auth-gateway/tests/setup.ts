@@ -17,6 +17,12 @@ process.env.CORS_ORIGIN = 'http://localhost:3000,http://localhost:5173'
 process.env.AUTH_BASE_URL = 'https://auth.lanonasis.com'
 process.env.REDIS_URL = 'redis://localhost:6379'
 
+// CORS and domain configuration
+process.env.CORS_ORIGIN = 'http://localhost:3000,http://localhost:5173'
+process.env.COOKIE_DOMAIN = 'localhost'
+process.env.DASHBOARD_URL = 'http://localhost:3000'
+process.env.AUTH_BASE_URL = 'http://localhost:4000'
+
 // Keep legacy aliases for older code paths if needed
 process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
 process.env.NEON_DATABASE_URL = process.env.DATABASE_URL

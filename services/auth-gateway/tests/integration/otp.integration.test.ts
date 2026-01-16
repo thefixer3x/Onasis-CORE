@@ -32,9 +32,10 @@ vi.mock('../../src/utils/jwt.js', () => ({
   })
 }))
 
-import otpRoutes from '../../src/routes/otp.routes.js'
-import { redisClient } from '../../src/services/cache.service.js'
-import { supabaseAuth } from '../../db/client.js'
+// Import after mocks are set up
+const { default: otpRoutes } = await import('../../src/routes/otp.routes.js')
+const { redisClient } = await import('../../src/services/cache.service.js')
+const { supabaseAuth } = await import('../../db/client.js')
 
 function createApp() {
   const app = express()
