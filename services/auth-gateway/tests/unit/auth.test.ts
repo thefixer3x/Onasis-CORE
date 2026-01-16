@@ -11,11 +11,13 @@ vi.mock('../../src/services/api-key.service.js', () => ({
   validateAPIKey: vi.fn()
 }))
 
+const mockGetUserById = vi.fn()
+
 vi.mock('../../db/client.js', () => ({
   supabaseAdmin: {
     auth: {
       admin: {
-        getUserById: vi.fn()
+        getUserById: mockGetUserById
       }
     }
   }
@@ -93,27 +95,25 @@ describe('Auth Middleware', () => {
         projectScope: 'test-project'
       })
 
-      // Mock the dynamic import
-      const mockSupabase = {
-        auth: {
-          admin: {
-            getUserById: vi.fn().mockResolvedValue({
-              data: {
-                user: {
-                  email: 'apikey@example.com',
-                  user_metadata: { role: 'admin' }
-                }
-              },
-              error: null
-            })
+      // Mock the Supabase getUserById call
+      mockGetUserById.mockResolvedValue({
+        data: {
+          user: {
+            email: 'apikey@example.com',
+            user_metadata: { role: 'admin' }
           }
-        }
-      }
-      vi.doMock('../../db/client.js', () => ({ supabaseAdmin: mockSupabase }))
+        },
+        error: null
+      })
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
       expect(validateAPIKey).toHaveBeenCalledWith('lano_test_key')
+      expect(mockNext).toHaveBeenCalled()
+      expect(mockReq.user).toBeDefined()
+      expect(mockReq.user?.sub).toBe('user-456')
+      expect(mockReq.user?.email).toBe('apikey@example.com')
+      expect(mockReq.scopes).toEqual(['memories.read'])
     })
 
     it('should return 401 when API key validation fails', async () => {
@@ -121,12 +121,15 @@ describe('Auth Middleware', () => {
       mockReq.headers = { 'x-api-key': 'invalid_key' }
       (validateAPIKey as any).mockResolvedValue({
         valid: false,
-        userId: null
+        userId: null,
+        permissions: [],
+        projectScope: null
       })
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
       expect(mockRes.status).toHaveBeenCalledWith(401)
+      expect(mockNext).not.toHaveBeenCalled()
     })
   })
 
