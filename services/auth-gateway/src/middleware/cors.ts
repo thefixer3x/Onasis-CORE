@@ -72,7 +72,8 @@ export const standardCors = cors({
 const TRUSTED_SERVER_ORIGINS = [
     'https://api.lanonasis.com',
     'https://mcp.lanonasis.com',
-    'https://maas.lanonasis.com'
+    'https://maas.lanonasis.com',
+    'https://auth.lanonasis.com'  // Device verification page makes same-origin API calls
 ]
 
 /**
@@ -182,10 +183,11 @@ export function validateReferer(req: Request, res: Response, next: NextFunction)
         return next()
     }
 
-    // Skip referer validation for /oauth/device endpoint
+    // Skip referer validation for all device flow endpoints
     // Device code flow is used by CLI/terminal apps which don't have Referer headers
     // Protection is provided by rate limiting and the device_code itself
-    if (req.path === '/device' || req.path.endsWith('/oauth/device')) {
+    // This includes /device, /device/check, /device/verify, /device/authorize, /device/deny
+    if (req.path.startsWith('/device') || req.path.includes('/oauth/device')) {
         return next()
     }
 
@@ -193,6 +195,13 @@ export function validateReferer(req: Request, res: Response, next: NextFunction)
     // Token revocation may be called from SDKs/desktop apps without Referer
     // Protection is provided by requiring the token being revoked
     if (req.path === '/revoke' || req.path.endsWith('/oauth/revoke')) {
+        return next()
+    }
+
+    // Skip referer validation for OTP endpoints
+    // These are called during device flow and email verification from web pages
+    // Protection is provided by rate limiting and OTP expiry
+    if (req.path.includes('/otp/')) {
         return next()
     }
 

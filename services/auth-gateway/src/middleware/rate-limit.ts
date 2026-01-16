@@ -115,17 +115,52 @@ export const authorizeRateLimit = createRateLimit({
     keyGenerator: (req) => `authorize:${req.ip}`
 })
 
-// Token endpoint: 5 requests per minute per client
-export const tokenRateLimit = createRateLimit({
-    windowMs: 60 * 1000, // 1 minute  
-    maxRequests: 5,
-    message: 'Too many token requests. Please try again later.',
-    keyGenerator: (req) => {
-        // Use client_id if available, fall back to IP
-        const clientId = req.body?.client_id || req.query?.client_id
-        return clientId ? `token:${clientId}` : `token:${req.ip}`
+// Token endpoint: smart rate limiting based on grant type
+// Device code polling needs 12 req/min (every 5 sec), others get 5 req/min
+export const tokenRateLimit = (req: Request, res: Response, next: NextFunction): void => {
+    const grantType = req.body?.grant_type
+    const isDeviceCodeGrant = grantType === 'urn:ietf:params:oauth:grant-type:device_code'
+
+    // Use client_id if available, fall back to IP
+    const clientId = req.body?.client_id || req.query?.client_id
+    const baseKey = clientId ? `token:${clientId}` : `token:${req.ip}`
+
+    // Device code polling gets its own higher-limit bucket
+    const key = isDeviceCodeGrant ? `device_poll:${baseKey}` : baseKey
+    const maxRequests = isDeviceCodeGrant ? 60 : 5  // 60/min for polling, 5/min for others
+    const windowMs = 60 * 1000 // 1 minute
+
+    // Skip in test environment
+    if (env.NODE_ENV === 'test') {
+        return next()
     }
-})
+
+    const now = Date.now()
+    const windowStart = now
+    const windowEnd = now + windowMs
+
+    if (!store[key] || store[key].resetTime <= now) {
+        store[key] = { count: 1, resetTime: windowEnd }
+        return next()
+    }
+
+    store[key].count++
+
+    if (store[key].count > maxRequests) {
+        const message = isDeviceCodeGrant
+            ? 'slow_down'
+            : 'Too many token requests. Please try again later.'
+        res.status(429).json({
+            error: message,
+            error_description: isDeviceCodeGrant
+                ? 'Polling too fast. Please slow down.'
+                : 'Rate limit exceeded'
+        })
+        return
+    }
+
+    next()
+}
 
 // Revocation endpoint: 10 requests per minute per client
 export const revokeRateLimit = createRateLimit({
