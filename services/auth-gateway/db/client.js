@@ -26,6 +26,23 @@ export const supabaseAdmin = createClient(env.SUPABASE_URL || '', env.SUPABASE_S
         schema: 'public',
     },
 });
+
+/**
+ * Supabase Auth Client - connects to Main DB (mxtsd...)
+ * Used for: User authentication (signInWithPassword, signUp, etc.)
+ * This is needed because users are registered in Main DB, not Auth-Gateway DB
+ */
+export const supabaseAuth = createClient(
+    env.MAIN_SUPABASE_URL || env.SUPABASE_URL || '',
+    env.MAIN_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
+    {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
+    }
+);
+
 export async function checkDatabaseHealth() {
     try {
         const client = await dbPool.connect();

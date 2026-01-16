@@ -23,12 +23,13 @@ setInterval(() => {
  */
 export function createRateLimit(options) {
     const skipInTest = options.skipInTest ?? true;
-    if (skipInTest && env.NODE_ENV === 'test') {
-        return (_req, _res, next) => {
-            next();
-        };
-    }
+    // Return middleware that checks env lazily (at request time, not module load time)
+    // This avoids circular dependency issues with env initialization
     return (req, res, next) => {
+        // Check test environment lazily to avoid circular dependency
+        if (skipInTest && (env?.NODE_ENV === 'test' || process.env.NODE_ENV === 'test')) {
+            return next();
+        }
         // Generate key for rate limiting (IP + User-Agent by default)
         const key = options.keyGenerator
             ? options.keyGenerator(req)
@@ -122,8 +123,10 @@ export const oauthGeneralRateLimit = createRateLimit({
  * Adaptive rate limiting based on environment
  */
 export function getEnvironmentAwareRateLimit(baseOptions) {
+    // Check env lazily to avoid circular dependency
+    const nodeEnv = env?.NODE_ENV || process.env.NODE_ENV;
     // Stricter limits in production
-    if (env.NODE_ENV === 'production') {
+    if (nodeEnv === 'production') {
         return baseOptions;
     }
     // More relaxed limits in development
