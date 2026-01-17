@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
 
     const duplicateGroups: DuplicateGroup[] = [];
     const processedIds = new Set<string>();
-    let totalCost = 0;
+    const totalCost = 0;
 
     // Check if we have embeddings
     const memoriesWithEmbeddings = memories.filter((m) => m.embedding);

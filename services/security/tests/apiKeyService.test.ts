@@ -24,20 +24,55 @@ vi.mock('../config/env.js', () => ({
 const projectInsertPayloads: unknown[] = [];
 const auditInsertPayloads: Array<{ table: string; payload: unknown }> = [];
 
+type ApiKeyProjectsInsertReturn = {
+  select: () => {
+    single: () => Promise<{ data: Record<string, unknown>; error: null }>;
+  };
+};
+
+type ApiKeyProjectsApi = {
+  insert: (payload: Record<string, unknown>) => ApiKeyProjectsInsertReturn;
+};
+
+type GenericSelectReturn = {
+  single: () => Promise<{ data: null; error: null }>;
+};
+
+type GenericTableApi = {
+  insert: (payload: Record<string, unknown>) => Promise<{ data: null; error: null }>;
+  select: () => GenericSelectReturn;
+  update: (payload: Record<string, unknown>) => Promise<{ data: null; error: null }>;
+  eq: (column: string, value: unknown) => GenericTableApi;
+};
+
 const supabaseMock = {
   from: vi.fn((table: string) => {
     if (table === 'api_key_projects') {
-      const api: any = {};
-      api.insert = vi.fn((payload: any) => {
+      const insert: ApiKeyProjectsApi['insert'] = vi.fn((payload: Record<string, unknown>) => {
         projectInsertPayloads.push(payload);
+
+        const organizationId =
+          typeof payload['organization_id'] === 'string'
+            ? payload['organization_id']
+            : typeof payload['organizationId'] === 'string'
+              ? payload['organizationId']
+              : undefined;
+
+        const ownerId =
+          typeof payload['owner_id'] === 'string'
+            ? payload['owner_id']
+            : typeof payload['ownerId'] === 'string'
+              ? payload['ownerId']
+              : undefined;
+
         return {
           select: () => ({
             single: async () => {
               const project = {
                 ...payload,
                 id: 'proj-1',
-                organization_id: payload.organization_id ?? payload.organizationId,
-                owner_id: payload.owner_id ?? payload.ownerId,
+                organization_id: organizationId,
+                owner_id: ownerId,
                 created_at: '2025-01-01T00:00:00.000Z',
                 updated_at: '2025-01-01T00:00:00.000Z',
               };
@@ -45,21 +80,23 @@ const supabaseMock = {
             },
           }),
         };
-      });
+      }) as unknown as ApiKeyProjectsApi['insert'];
+
+      const api: ApiKeyProjectsApi = { insert };
       return api;
     }
 
-    const api: any = {
-      insert: vi.fn(async (payload: any) => {
-        auditInsertPayloads.push({ table, payload });
-        return { data: null, error: null };
-      }),
-      select: vi.fn(() => ({
-        single: vi.fn(async () => ({ data: null, error: null })),
-      })),
-      update: vi.fn(async () => ({ data: null, error: null })),
-      eq: vi.fn(() => api),
-    };
+    const api = {} as GenericTableApi;
+    api.insert = vi.fn(async (payload: Record<string, unknown>) => {
+      auditInsertPayloads.push({ table, payload });
+      return { data: null, error: null };
+    }) as unknown as GenericTableApi['insert'];
+    api.select = vi.fn(() => ({
+      single: vi.fn(async () => ({ data: null, error: null })),
+    })) as unknown as GenericTableApi['select'];
+    api.update = vi.fn(async () => ({ data: null, error: null })) as unknown as GenericTableApi['update'];
+    api.eq = vi.fn(() => api) as unknown as GenericTableApi['eq'];
+
     return api;
   }),
 };
@@ -117,7 +154,7 @@ describe('ApiKeyService (vitest suite)', () => {
           organizationId: 'not-a-uuid',
           teamMembers: [],
           settings: {},
-        } as any,
+        },
         '22222222-2222-4222-a222-222222222222'
       )
     ).rejects.toThrow();

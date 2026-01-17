@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
     const supabase = getSupabaseClient();
     let queryText = body.query;
-    let sourceMemoryId = body.memory_id;
+    const sourceMemoryId = body.memory_id;
 
     // If memory_id provided, use its content as query
     if (sourceMemoryId && !queryText) {
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     );
 
     // Try vector search with pgvector (if embeddings exist)
-    let { data: memoriesWithEmbeddings } = await supabase
+    const { data: memoriesWithEmbeddings } = await supabase
       .from("memory_entries")
       .select("id, title, content, type, tags, embedding, created_at")
       .eq("user_id", userId)

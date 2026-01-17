@@ -106,7 +106,7 @@ export default tseslint.config(
         ...globals.node,
         ...globals.browser,
       },
-      sourceType: "commonjs",
+      sourceType: "script",
     },
     rules: {
       "no-unused-vars": [
@@ -117,6 +117,22 @@ export default tseslint.config(
         },
       ],
       "prefer-const": "error",
+    },
+  },
+  // Override: some .js files in this package are ES modules even if they match the CommonJS globs
+  {
+    files: [
+      "scripts/cli-integration.js",
+      "scripts/external-mcp-client.js",
+      "services/api-gateway/tests/**/*.js",
+    ],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+      sourceType: "module",
     },
   }
 );
