@@ -25,6 +25,7 @@ import oauthConsentRoutes from './routes/oauth-consent.routes.js'
 import webRoutes from './routes/web.routes.js'
 import syncRoutes from './routes/sync.routes.js'
 import deviceRoutes from './routes/device.routes.js'
+import servicesRoutes from './routes/services.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
@@ -199,6 +200,12 @@ app.use('/oauth', oauthRoutes)
 app.use('/oauth', oauthConsentRoutes)  // Supabase OAuth 2.1 Provider consent page
 app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallback)
 app.use('/oauth', deviceRoutes)   // Device code flow for CLI (GitHub-style passwordless)
+
+// ============================================================================
+// UNIFIED SERVICE ROUTER (ported from unified-router.cjs)
+// Routes authenticated requests to Supabase edge functions
+// ============================================================================
+app.use(servicesRoutes)
 
 // Map /auth/login to /web/login for backward compatibility and CLI
 app.get('/auth/login', (req, res) => {
@@ -392,6 +399,11 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
     console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`)
     console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`)
+    console.log(`🔀 Service Router endpoints:`)
+    console.log(`   - GET  /services (discovery)`)
+    console.log(`   - ALL  /api/v1/services/:name/* (authenticated routing)`)
+    console.log(`   - POST /api/v1/chat/completions (legacy)`)
+    console.log(`   - POST /webhook/:service`)
     console.log(`🔌 MCP OAuth Discovery (RFC 8414 + RFC 7591):`)
     console.log(`   - GET  /.well-known/oauth-authorization-server`)
     console.log(`   - POST /register (Dynamic Client Registration)`)

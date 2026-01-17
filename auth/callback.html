@@ -153,37 +153,27 @@
         }
         
         function handleAuthSuccess(code, accessToken, returnTo) {
-            statusMessage.textContent = 'Authentication Successful!';
-            statusDetail.textContent = 'Redirecting you to your dashboard...';
-            
-            // Simulate processing time
-            setTimeout(() => {
-                // Determine redirect destination based on return_to parameter
-                let redirectUrl = 'https://dashboard.lanonasis.com';
-                
-                if (returnTo === 'dashboard') {
-                    redirectUrl = 'https://dashboard.lanonasis.com';
-                } else if (returnTo === 'console') {
-                    redirectUrl = 'https://api.lanonasis.com/console';
-                } else if (returnTo === 'vortexcore') {
-                    redirectUrl = 'https://auth.vortexcore.app';
-                }
-                
-                // Log the successful authentication
-                console.log('Authentication successful:', {
-                    code: code ? 'received' : null,
-                    accessToken: accessToken ? 'received' : null,
-                    returnTo,
-                    redirectUrl
-                });
-                
-                // In production, you would:
-                // 1. Exchange the code for tokens via Supabase
-                // 2. Set session cookies/localStorage
-                // 3. Redirect to the appropriate destination
-                
-                window.location.href = redirectUrl;
-            }, 1500);
+            statusMessage.textContent = 'Completing authentication...';
+            statusDetail.textContent = 'Exchanging authorization code for a session.';
+
+            const authGatewayBase = window.location.hostname === 'auth.lanonasis.com'
+                ? window.location.origin
+                : 'https://auth.lanonasis.com';
+
+            if (code) {
+                // Hand off to auth-gateway server-side callback to exchange the code
+                // and set .lanonasis.com session cookies before redirecting.
+                const callbackUrl = `${authGatewayBase}/v1/auth/oauth/callback${window.location.search}`;
+                window.location.replace(callbackUrl);
+                return;
+            }
+
+            if (accessToken) {
+                handleAuthError('missing_code', 'Authorization code missing. Please retry sign-in.');
+                return;
+            }
+
+            handleAuthError('missing_callback', 'Missing OAuth callback parameters.');
         }
         
         function retryAuth() {

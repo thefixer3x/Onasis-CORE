@@ -12,11 +12,22 @@
  * These tests use mocked Supabase but test the full auth gateway logic.
  */
 
+// Mock env module at the very top of the file
+vi.mock('../../src/config/env.js', () => ({
+  env: {
+    CORS_ORIGIN: 'http://localhost:3000',
+    JWT_SECRET: 'test-secret',
+    SUPABASE_URL: 'https://test.supabase.co',
+    SUPABASE_ANON_KEY: 'test-key',
+    DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
+    PORT: '3001'
+  }
+}));
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 
-// Mock Supabase Admin client
 const mockSupabaseAuth = {
   signInWithPassword: vi.fn(),
   getUserById: vi.fn(),
@@ -33,16 +44,20 @@ const mockSupabaseAdmin = {
   },
 }
 
+const mockGenerateTokenPair = vi.fn();
+const mockVerifyToken = vi.fn();
+const mockCreateSession = vi.fn();
+const mockGetUserSessions = vi.fn();
+const mockRevokeSession = vi.fn();
+const mockLogAuthEvent = vi.fn();
+const mockUpsertUserAccount = vi.fn();
+
 vi.mock('../../db/client.js', () => ({
   supabaseAdmin: mockSupabaseAdmin,
   dbPool: {
     query: vi.fn(),
   },
 }))
-
-// Mock JWT utilities
-const mockGenerateTokenPair = vi.fn()
-const mockVerifyToken = vi.fn()
 
 vi.mock('../../src/utils/jwt.js', () => ({
   generateTokenPair: mockGenerateTokenPair,
@@ -53,37 +68,29 @@ vi.mock('../../src/utils/jwt.js', () => ({
   }),
 }))
 
-// Mock session service
-const mockCreateSession = vi.fn()
-const mockGetUserSessions = vi.fn()
-const mockRevokeSession = vi.fn()
-
 vi.mock('../../src/services/session.service.js', () => ({
   createSession: mockCreateSession,
   revokeSession: mockRevokeSession,
   getUserSessions: mockGetUserSessions,
 }))
 
-// Mock audit logging
-const mockLogAuthEvent = vi.fn()
 vi.mock('../../src/services/audit.service.js', () => ({
   logAuthEvent: mockLogAuthEvent,
 }))
 
-// Mock user account service
-const mockUpsertUserAccount = vi.fn()
 vi.mock('../../src/services/user.service.js', () => ({
   upsertUserAccount: mockUpsertUserAccount,
 }))
 
-// NOTE: Skipped due to ESM module loading issues - mocks don't apply before module graph resolves
-describe.skip('Auth Gateway Integration Tests', () => {
+describe('Auth Gateway Integration Tests', () => {
   let app: express.Application
 
   beforeAll(async () => {
-    // Import app after mocks are set up
-    const { default: createApp } = await import('../../src/index.js')
-    app = createApp()
+    // Then import app
+    const { createApp } = await import('../../src/index.js');
+    app = createApp();
+    
+    // Other test setup...
   })
 
   beforeEach(() => {

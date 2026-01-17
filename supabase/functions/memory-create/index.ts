@@ -15,7 +15,8 @@ type MemoryType = 'context' | 'project' | 'knowledge' | 'reference' | 'personal'
 interface CreateMemoryRequest {
   title: string;
   content: string;
-  memory_type: MemoryType;
+  memory_type?: MemoryType;  // Preferred field name
+  type?: MemoryType;         // Also accept 'type' for backwards compatibility
   tags?: string[];
   metadata?: Record<string, unknown>;
   topic_id?: string;
@@ -66,6 +67,9 @@ serve(async (req: Request) => {
     // Parse request body
     const body: CreateMemoryRequest = await req.json();
 
+    // Normalize field names: accept 'type' as alias for 'memory_type'
+    const memoryType = body.memory_type || body.type;
+
     // Validate required fields
     const errors: string[] = [];
     if (!body.title || body.title.trim().length === 0) {
@@ -74,9 +78,9 @@ serve(async (req: Request) => {
     if (!body.content || body.content.trim().length === 0) {
       errors.push('content is required');
     }
-    if (!body.memory_type) {
-      errors.push('memory_type is required');
-    } else if (!VALID_MEMORY_TYPES.includes(body.memory_type)) {
+    if (!memoryType) {
+      errors.push('memory_type (or type) is required');
+    } else if (!VALID_MEMORY_TYPES.includes(memoryType)) {
       errors.push(
         `memory_type must be one of: ${VALID_MEMORY_TYPES.join(', ')}`
       );
@@ -135,8 +139,8 @@ serve(async (req: Request) => {
       organization_id: auth.organization_id,
       title: body.title.trim(),
       content: body.content.trim(),
-      memory_type: body.memory_type,
-      type: body.memory_type, // Also set legacy 'type' field
+      memory_type: memoryType,
+      type: memoryType, // Also set legacy 'type' field
       tags: body.tags || [],
       metadata: body.metadata || {},
     };
@@ -180,7 +184,7 @@ serve(async (req: Request) => {
         resource_id: memory.id,
         metadata: {
           title: body.title,
-          memory_type: body.memory_type,
+          memory_type: memoryType,
           has_embedding: !!embedding,
         },
       })
