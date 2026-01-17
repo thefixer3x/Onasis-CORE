@@ -128,12 +128,9 @@ async function validateInternalApiKey(apiKey: string): Promise<UnifiedUser | nul
   }
 }
 
-// Extend Express Request type to include user
-declare global {
-  namespace Express {
-    interface Request {
-      user?: UnifiedUser;
-    }
+declare module 'express' {
+  interface Request {
+    user?: UnifiedUser;
   }
 }
 

@@ -524,7 +524,7 @@ export async function handleDeviceCodeGrant(
         })
         return
 
-      case 'authorized':
+      case 'authorized': {
         // Success! Generate tokens
         if (!deviceData.user_id || !deviceData.email) {
           res.status(400).json({
@@ -579,6 +579,7 @@ export async function handleDeviceCodeGrant(
           scope: deviceData.scope
         })
         return
+      }
 
       default:
         res.status(400).json({

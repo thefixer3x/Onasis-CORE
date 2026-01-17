@@ -74,7 +74,7 @@ serve(async (req: Request) => {
     );
 
     // Try to get config from database
-    let dbConfig: Record<string, any> = {};
+    const dbConfig: Record<string, any> = {};
 
     try {
       // First try user-level config
