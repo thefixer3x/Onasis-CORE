@@ -1,10 +1,27 @@
 openapi: 3.1.0
 info:
   title: Lanonasis MCP REST API
-  version: 1.0.0
+  version: 1.1.0
   description: |
     Complete REST API for Lanonasis Memory as a Service (MaaS) platform.
-    Provides access to 19 MCP tools through a consistent `/api/v1/**` interface.
+    Provides access to 28 MCP tools through a consistent `/api/v1/**` interface,
+    including the AI-powered Memory Intelligence suite.
+
+    ## Architecture
+
+    The platform operates with two parallel routes:
+    - **REST API (Supabase Edge Functions)**: This specification documents the edge function endpoints
+    - **MCP Server (Direct Supabase)**: The MCP protocol server connects directly to Supabase
+
+    Both routes share the same database schema and are designed to work in parallel.
+    The REST API is a more recent development under active monitoring, replacing older
+    Netlify functions.
+
+    ### Field Naming Compatibility
+
+    For memory operations, both `type` and `memory_type` field names are accepted:
+    - `type`: Used by MCP tools for compatibility with the MCP protocol
+    - `memory_type`: Preferred REST API field name, matches database column
 
     ## Authentication
 
@@ -40,7 +57,9 @@ servers:
 
 tags:
   - name: Memories
-    description: Memory management operations (7 tools)
+    description: Memory management operations (9 tools including stats and bulk operations)
+  - name: Intelligence
+    description: AI-powered memory intelligence and analytics (6 tools)
   - name: API Keys
     description: API key management (5 tools)
   - name: Projects
@@ -284,6 +303,236 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DocsSearchResponse'
+
+  /memories/stats:
+    get:
+      tags:
+        - Memories
+      summary: Get Memory Statistics
+      description: Get comprehensive statistics about memory usage (MCP tool `memory_stats`)
+      operationId: getMemoryStats
+      responses:
+        '200':
+          description: Memory statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryStatsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /memories/bulk-delete:
+    post:
+      tags:
+        - Memories
+      summary: Bulk Delete Memories
+      description: Delete multiple memories at once (MCP tool `memory_bulk_delete`). Maximum 100 memories per request.
+      operationId: bulkDeleteMemories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkDeleteRequest'
+      responses:
+        '200':
+          description: Bulk delete result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkDeleteResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  # ============================================================================
+  # INTELLIGENCE API
+  # ============================================================================
+
+  /intelligence/analyze-patterns:
+    post:
+      tags:
+        - Intelligence
+      summary: Analyze Memory Patterns
+      description: |
+        Analyze usage patterns and trends across your memory collection (MCP tool `intelligence_analyze_patterns`).
+        Returns insights about memory creation habits, type distribution, peak hours, and AI-generated recommendations.
+
+        **Tier Access**: Premium feature with usage quotas based on subscription tier.
+      operationId: analyzePatterns
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzePatternsRequest'
+      responses:
+        '200':
+          description: Pattern analysis results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzePatternsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /intelligence/suggest-tags:
+    post:
+      tags:
+        - Intelligence
+      summary: Suggest Tags
+      description: |
+        Get AI-powered tag suggestions for a memory based on its content (MCP tool `intelligence_suggest_tags`).
+        Uses context from user's existing tag vocabulary for consistency.
+
+        **Tier Access**: Premium feature with usage quotas.
+      operationId: suggestTags
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestTagsRequest'
+      responses:
+        '200':
+          description: Tag suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestTagsResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /intelligence/find-related:
+    post:
+      tags:
+        - Intelligence
+      summary: Find Related Memories
+      description: |
+        Find semantically related memories using vector similarity search (MCP tool `intelligence_find_related`).
+        Supports both memory-based and query-based search.
+
+        **Tier Access**: Premium feature with usage quotas.
+      operationId: findRelated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FindRelatedRequest'
+      responses:
+        '200':
+          description: Related memories found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindRelatedResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /intelligence/detect-duplicates:
+    post:
+      tags:
+        - Intelligence
+      summary: Detect Duplicate Memories
+      description: |
+        Find potential duplicate or very similar memories (MCP tool `intelligence_detect_duplicates`).
+        Uses semantic similarity when embeddings are available, falls back to text similarity.
+
+        **Tier Access**: Premium feature with usage quotas.
+      operationId: detectDuplicates
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DetectDuplicatesRequest'
+      responses:
+        '200':
+          description: Duplicate detection results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetectDuplicatesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
+
+  /intelligence/extract-insights:
+    post:
+      tags:
+        - Intelligence
+      summary: Extract Insights
+      description: |
+        Extract actionable insights and summaries from memories using AI analysis (MCP tool `intelligence_extract_insights`).
+        Supports theme detection, connection finding, gap analysis, and action item extraction.
+
+        **Tier Access**: Premium feature with usage quotas.
+      operationId: extractInsights
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExtractInsightsRequest'
+      responses:
+        '200':
+          description: Extracted insights
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractInsightsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
+
+  /intelligence/health-check:
+    post:
+      tags:
+        - Intelligence
+      summary: Memory Health Check
+      description: |
+        Get a health score and recommendations for your memory organization (MCP tool `intelligence_health_check`).
+        Analyzes tagging, recency, completeness, organization, and diversity.
+
+        **Tier Access**: Premium feature with usage quotas.
+      operationId: intelligenceHealthCheck
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntelligenceHealthCheckRequest'
+      responses:
+        '200':
+          description: Memory health analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceHealthCheckResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
 
   # ============================================================================
   # API KEY MANAGEMENT
@@ -635,6 +884,9 @@ components:
 
     Memory:
       type: object
+      description: |
+        Memory entry response. Contains both `type` (for MCP compatibility)
+        and `memory_type` (canonical database field) in responses.
       properties:
         id:
           type: string
@@ -645,6 +897,10 @@ components:
           type: string
         type:
           $ref: '#/components/schemas/MemoryType'
+          description: Memory type (MCP-compatible alias)
+        memory_type:
+          $ref: '#/components/schemas/MemoryType'
+          description: Memory type (canonical database field)
         tags:
           type: array
           items:
@@ -652,56 +908,101 @@ components:
         metadata:
           type: object
           additionalProperties: true
+        user_id:
+          type: string
+          format: uuid
+          description: Owner user ID
+        organization_id:
+          type: string
+          format: uuid
+          description: Organization ID
+        topic_id:
+          type: string
+          format: uuid
+          description: Optional topic grouping ID
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+        last_accessed:
+          type: string
+          format: date-time
+          description: Last access timestamp
+        access_count:
+          type: integer
+          description: Number of times accessed
 
     CreateMemoryRequest:
       type: object
       required:
         - title
         - content
-        - type
+      description: |
+        Create a new memory entry. Either `type` or `memory_type` must be provided.
+        Both field names are accepted for compatibility between MCP (uses `type`)
+        and REST API (prefers `memory_type`). If both are provided, `memory_type` takes precedence.
       properties:
         title:
           type: string
           minLength: 1
           maxLength: 255
+          description: Title of the memory (required)
         content:
           type: string
           minLength: 1
+          description: Content of the memory (required)
         type:
           $ref: '#/components/schemas/MemoryType'
+          description: Memory type (MCP-compatible field name)
+        memory_type:
+          $ref: '#/components/schemas/MemoryType'
+          description: Memory type (preferred REST API field name)
         tags:
           type: array
           items:
             type: string
+          description: Array of tags for organization and filtering
         metadata:
           type: object
           additionalProperties: true
+          description: Additional key-value metadata
+        topic_id:
+          type: string
+          format: uuid
+          description: Optional topic ID for grouping related memories
 
     UpdateMemoryRequest:
       type: object
+      description: |
+        Update an existing memory. All fields are optional.
+        Both `type` and `memory_type` field names are accepted for compatibility.
       properties:
         title:
           type: string
           minLength: 1
           maxLength: 255
+          description: Updated title
         content:
           type: string
           minLength: 1
+          description: Updated content
         type:
           $ref: '#/components/schemas/MemoryType'
+          description: Memory type (MCP-compatible field name)
+        memory_type:
+          $ref: '#/components/schemas/MemoryType'
+          description: Memory type (preferred REST API field name)
         tags:
           type: array
           items:
             type: string
+          description: Updated tags (replaces existing)
         metadata:
           type: object
           additionalProperties: true
+          description: Updated metadata (merged with existing)
 
     SearchMemoriesRequest:
       type: object
@@ -1126,6 +1427,570 @@ components:
               type: string
               format: date-time
 
+    # Memory Stats & Bulk Operations
+    MemoryStatsResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            total_memories:
+              type: integer
+              description: Total number of memories
+            by_type:
+              type: object
+              additionalProperties:
+                type: integer
+              description: Count by memory type
+            with_embeddings:
+              type: integer
+              description: Memories with vector embeddings
+            without_embeddings:
+              type: integer
+            recent_activity:
+              type: object
+              properties:
+                created_last_24h:
+                  type: integer
+                updated_last_24h:
+                  type: integer
+                accessed_last_24h:
+                  type: integer
+            top_tags:
+              type: array
+              items:
+                type: object
+                properties:
+                  tag:
+                    type: string
+                  count:
+                    type: integer
+            storage:
+              type: object
+              properties:
+                embedding_dimension:
+                  type: integer
+                model:
+                  type: string
+        organization_id:
+          type: string
+          format: uuid
+        generated_at:
+          type: string
+          format: date-time
+
+    BulkDeleteRequest:
+      type: object
+      required:
+        - ids
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          minItems: 1
+          maxItems: 100
+          description: Array of memory UUIDs to delete (max 100)
+
+    BulkDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        deleted_count:
+          type: integer
+        deleted_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        not_found:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: IDs that were not found
+        not_authorized:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: IDs the user is not authorized to delete
+
+    # Intelligence API Schemas
+    AnalyzePatternsRequest:
+      type: object
+      properties:
+        time_range_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 30
+          description: Number of days to analyze
+        include_insights:
+          type: boolean
+          default: true
+          description: Include AI-generated insights
+        response_format:
+          type: string
+          enum: [json, markdown]
+          default: json
+          description: Response format
+
+    AnalyzePatternsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            total_memories:
+              type: integer
+            time_range_days:
+              type: integer
+            average_content_length:
+              type: integer
+            memories_by_type:
+              type: object
+              additionalProperties:
+                type: integer
+            memories_by_day_of_week:
+              type: object
+              additionalProperties:
+                type: integer
+            peak_creation_hours:
+              type: array
+              items:
+                type: integer
+              description: Top 3 hours (0-23) with most activity
+            top_tags:
+              type: array
+              items:
+                type: object
+                properties:
+                  tag:
+                    type: string
+                  count:
+                    type: integer
+            most_accessed:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                  access_count:
+                    type: integer
+            insights:
+              type: array
+              items:
+                type: string
+              description: AI-generated insights
+            generated_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    SuggestTagsRequest:
+      type: object
+      properties:
+        memory_id:
+          type: string
+          format: uuid
+          description: UUID of the memory to analyze
+        content:
+          type: string
+          description: Raw content to analyze (alternative to memory_id)
+        title:
+          type: string
+          description: Title for context (used with content)
+        existing_tags:
+          type: array
+          items:
+            type: string
+          description: Tags already on the memory
+        max_suggestions:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+
+    SuggestTagsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            suggestions:
+              type: array
+              items:
+                type: string
+              description: Suggested tags
+            existing_tags:
+              type: array
+              items:
+                type: string
+            from_user_vocabulary:
+              type: integer
+              description: How many suggestions came from user's existing tags
+            memory_id:
+              type: string
+              format: uuid
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    FindRelatedRequest:
+      type: object
+      properties:
+        memory_id:
+          type: string
+          format: uuid
+          description: Source memory to find related items for
+        query:
+          type: string
+          description: Text query (alternative to memory_id)
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+        similarity_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.7
+        exclude_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Memory IDs to exclude from results
+
+    FindRelatedResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            query:
+              type: string
+              description: Search query used
+            source_memory_id:
+              type: string
+              format: uuid
+            related_memories:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                  type:
+                    type: string
+                  tags:
+                    type: array
+                    items:
+                      type: string
+                  similarity:
+                    type: number
+                    description: Similarity score 0-1
+                  snippet:
+                    type: string
+                    description: Content preview
+            total_found:
+              type: integer
+            search_method:
+              type: string
+              enum: [semantic, keyword]
+            threshold_used:
+              type: number
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    DetectDuplicatesRequest:
+      type: object
+      properties:
+        similarity_threshold:
+          type: number
+          minimum: 0.8
+          maximum: 0.99
+          default: 0.85
+          description: Minimum similarity to consider as duplicate
+        include_archived:
+          type: boolean
+          default: false
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+          description: Maximum duplicate groups to return
+
+    DetectDuplicatesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            duplicate_groups:
+              type: array
+              items:
+                type: object
+                properties:
+                  primary_id:
+                    type: string
+                    format: uuid
+                  primary_title:
+                    type: string
+                  duplicates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        title:
+                          type: string
+                        similarity:
+                          type: number
+                        created_at:
+                          type: string
+                          format: date-time
+                  similarity_score:
+                    type: number
+                    description: Average similarity of group
+            total_groups:
+              type: integer
+            total_duplicates:
+              type: integer
+            detection_method:
+              type: string
+              enum: [semantic, text]
+            threshold_used:
+              type: number
+            memories_analyzed:
+              type: integer
+            potential_storage_savings:
+              type: string
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    ExtractInsightsRequest:
+      type: object
+      properties:
+        memory_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Specific memories to analyze
+        topic:
+          type: string
+          maxLength: 200
+          description: Topic filter for memories
+        time_range_days:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 30
+        insight_types:
+          type: array
+          items:
+            type: string
+            enum: [themes, connections, gaps, actions, summary]
+          default: [themes, connections, actions]
+        detail_level:
+          type: string
+          enum: [brief, detailed, comprehensive]
+          default: detailed
+
+    ExtractInsightsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            insights:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [themes, connections, gaps, actions, summary]
+                  content:
+                    type: string
+                  confidence:
+                    type: number
+                    minimum: 0
+                    maximum: 1
+                  related_memory_ids:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+            overall_summary:
+              type: string
+            memories_analyzed:
+              type: integer
+            insight_types:
+              type: array
+              items:
+                type: string
+            topic_filter:
+              type: string
+            generated_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    IntelligenceHealthCheckRequest:
+      type: object
+      properties:
+        include_recommendations:
+          type: boolean
+          default: true
+          description: Include AI-generated recommendations
+        detailed_breakdown:
+          type: boolean
+          default: true
+          description: Include detailed score breakdown
+
+    IntelligenceHealthCheckResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            health_score:
+              type: object
+              properties:
+                overall:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                breakdown:
+                  type: object
+                  properties:
+                    organization:
+                      type: integer
+                    tagging:
+                      type: integer
+                    recency:
+                      type: integer
+                    completeness:
+                      type: integer
+                    diversity:
+                      type: integer
+            status:
+              type: string
+              enum: [excellent, good, needs_attention, poor]
+            statistics:
+              type: object
+              properties:
+                total_memories:
+                  type: integer
+                active_memories:
+                  type: integer
+                archived_memories:
+                  type: integer
+                memories_with_tags:
+                  type: integer
+                unique_tags:
+                  type: integer
+                memory_types:
+                  type: integer
+                recent_memories_30d:
+                  type: integer
+                stale_memories_90d:
+                  type: integer
+            issues:
+              type: array
+              items:
+                type: object
+                properties:
+                  severity:
+                    type: string
+                    enum: [high, medium, low]
+                  category:
+                    type: string
+                  description:
+                    type: string
+                  affected_count:
+                    type: integer
+                  recommendation:
+                    type: string
+            recommendations:
+              type: array
+              items:
+                type: string
+            generated_at:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    # Shared Intelligence Schemas
+    IntelligenceMeta:
+      type: object
+      description: Usage metadata for intelligence operations
+      properties:
+        tokens_used:
+          type: integer
+          description: AI tokens consumed
+        cost_usd:
+          type: number
+          description: Estimated cost in USD
+        cached:
+          type: boolean
+          description: Whether result was served from cache
+
+    TierInfo:
+      type: object
+      description: User tier and quota information
+      properties:
+        tier:
+          type: string
+          description: Current subscription tier
+        usage_remaining:
+          type: integer
+          description: Remaining quota for this tool
+
     # Common Schemas
     DeleteResponse:
       type: object
@@ -1199,3 +2064,33 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+
+    PremiumRequiredError:
+      description: Premium tier required or quota exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              error:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: PREMIUM_REQUIRED
+                  message:
+                    type: string
+                    example: This feature requires a premium subscription
+                  current_tier:
+                    type: string
+                    description: User's current subscription tier
+                  required_tier:
+                    type: string
+                    description: Minimum tier required for this feature
+                  upgrade_url:
+                    type: string
+                    format: uri
+                    description: URL to upgrade subscription

@@ -1,4 +1,17 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest'
+// Mock env module at the very top of the file
+vi.mock('../../src/config/env.js', () => ({
+  env: {
+    CORS_ORIGIN: 'http://localhost:3000',
+    JWT_SECRET=REDACTED_JWT_SECRET
+    SUPABASE_URL=https://<project-ref>.supabase.co
+    SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+    DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    PORT: '3001'
+  }
+}));
+
+import { vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 
@@ -6,6 +19,11 @@ const mockClients = new Map<string, any>()
 const mockAuthCodes = new Map<string, any>()
 const mockRefreshTokens = new Map<string, any>()
 let tokenCounter = 0
+
+const buildToken = (prefix: string) => `${prefix}-${++tokenCounter}`
+const resetTokenCounter = () => {
+    tokenCounter = 0
+}
 
 vi.mock('../../src/middleware/session.js', () => ({
     validateSessionCookie: (req: any, _res: any, next: () => void) => {
@@ -27,8 +45,6 @@ vi.mock('../../src/services/oauth.service.js', () => {
             this.name = 'OAuthServiceError'
         }
     }
-
-    const buildToken = (prefix: string) => `${prefix}-${++tokenCounter}`
 
     const getClient = async (clientId: string) => mockClients.get(clientId) ?? null
 
@@ -175,12 +191,15 @@ vi.mock('../../src/services/oauth.service.js', () => {
     }
 })
 
-// NOTE: Skipped due to ESM module loading issues - mocks don't apply before module graph resolves
-describe.skip('OAuth2 PKCE Integration Tests', () => {
+describe('OAuth2 PKCE Integration Tests', () => {
     let app: express.Application
     let testClientId: string
 
     beforeAll(async () => {
+        // Import and set up the app
+        const { default: createApp } = await import('../../src/index.js')
+        app = createApp()
+
         testClientId = 'test-client-integration'
         mockClients.set(testClientId, {
             client_id: testClientId,
@@ -193,10 +212,6 @@ describe.skip('OAuth2 PKCE Integration Tests', () => {
             default_scopes: ['memories:read'],
             status: 'active',
         })
-
-        // Import and set up the app
-        const { default: createApp } = await import('../../src/index.js')
-        app = createApp()
     })
 
     afterAll(() => {
@@ -208,6 +223,7 @@ describe.skip('OAuth2 PKCE Integration Tests', () => {
     beforeEach(() => {
         mockAuthCodes.clear()
         mockRefreshTokens.clear()
+        resetTokenCounter()
     })
 
     describe('Authorization Code Flow', () => {

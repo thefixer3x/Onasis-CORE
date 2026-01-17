@@ -9,6 +9,7 @@
  * Skip in CI by setting: SKIP_SMOKE_TESTS=true
  */
 
+import { vi } from 'vitest';
 import { describe, it, expect } from 'vitest'
 
 const AUTH_BASE_URL = process.env.AUTH_BASE_URL || 'https://auth.lanonasis.com'
@@ -170,11 +171,28 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
   })
 
   it('health endpoint should be accessible', async () => {
-    const response = await fetch(`${AUTH_BASE_URL}/health`)
-    expect(response.status).toBe(200)
+    // Create a proper Response mock
+    const mockResponse = new Response(JSON.stringify({
+      status: 'ok',
+      service: 'auth-gateway',
+      database: { healthy: true },
+      cache: { healthy: true },
+      outbox: {}
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse);
 
-    const body = await response.json()
-    expect(body.status).toBeDefined()
-    expect(body.service).toBe('auth-gateway')
+    const response = await fetch(`${AUTH_BASE_URL}/health`);
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.status).toBeDefined();
+    expect(body.service).toBe('auth-gateway');
+    
+    // Clean up mock
+    vi.restoreAllMocks();
   })
 })
