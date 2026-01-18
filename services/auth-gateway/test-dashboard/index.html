@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auth Gateway - E2E Test Client</title>
+  <style>
+    :root {
+      --bg-primary: #0a0a0b;
+      --bg-secondary: #141416;
+      --bg-tertiary: #1c1c1f;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --error: #ef4444;
+      --warning: #f59e0b;
+      --border: #27272a;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card-header h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    .step-number {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent);
+      color: white;
+      border-radius: 50%;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .step-number.completed {
+      background: var(--success);
+    }
+
+    .step-number.error {
+      background: var(--error);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      width: 100%;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .info-box {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.8rem;
+      overflow-x: auto;
+    }
+
+    .info-box.success {
+      border-left: 3px solid var(--success);
+    }
+
+    .info-box.error {
+      border-left: 3px solid var(--error);
+    }
+
+    .info-box.pending {
+      border-left: 3px solid var(--warning);
+    }
+
+    .info-label {
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      margin-bottom: 4px;
+    }
+
+    .info-value {
+      word-break: break-all;
+      color: var(--text-primary);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .status-badge.success { background: rgba(34, 197, 94, 0.2); color: var(--success); }
+    .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
+    .status-badge.pending { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .status-badge.info { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .flow-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .flow-box {
+      padding: 8px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+
+    .flow-box.active {
+      border-color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+    }
+
+    .flow-box.completed {
+      border-color: var(--success);
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .flow-arrow {
+      color: var(--text-secondary);
+      font-size: 1.2rem;
+    }
+
+    .log-panel {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 16px;
+    }
+
+    .log-entry {
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 0.75rem;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: var(--text-secondary);
+      margin-right: 8px;
+    }
+
+    .log-success { color: var(--success); }
+    .log-error { color: var(--error); }
+    .log-info { color: var(--accent); }
+
+    .hidden { display: none !important; }
+
+    .section-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 32px 0;
+    }
+
+    .config-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .config-bar select, .config-bar input {
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+    }
+
+    .token-display {
+      background: var(--bg-primary);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 16px;
+    }
+
+    .token-field {
+      margin-bottom: 12px;
+    }
+
+    .token-field:last-child {
+      margin-bottom: 0;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .user-avatar {
+      width: 48px;
+      height: 48px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .user-details h3 {
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .user-details p {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .actions .btn {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Auth Gateway E2E Test Client</h1>
+      <p class="subtitle">Simulates real OAuth/PKCE flow like CLI & IDE integrations</p>
+    </header>
+
+    <!-- Environment Config -->
+    <div class="config-bar">
+      <select id="environment" onchange="updateEnvironment()">
+        <option value="local">Local (localhost:4000)</option>
+        <option value="staging">Staging (auth-staging.lanonasis.com)</option>
+        <option value="production">Production (auth.lanonasis.com)</option>
+      </select>
+      <input type="text" id="authBaseUrl" value="http://localhost:4000" style="min-width: 280px;" />
+      <span class="status-badge" id="healthStatus">Checking...</span>
+    </div>
+
+    <!-- Flow Diagram -->
+    <div class="flow-diagram">
+      <div class="flow-step">
+        <div class="flow-box" id="flow-client">Client</div>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">
+        <div class="flow-box" id="flow-authorize">/oauth/authorize</div>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">
+        <div class="flow-box" id="flow-login">Login/Consent</div>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">
+        <div class="flow-box" id="flow-callback">Callback + Code</div>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">
+        <div class="flow-box" id="flow-exchange">Token Exchange</div>
+      </div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-step">
+        <div class="flow-box" id="flow-authenticated">Authenticated</div>
+      </div>
+    </div>
+
+    <!-- Pre-Auth State (shown before authentication) -->
+    <div id="preAuthState">
+      <!-- Step 1: Register Client (Dynamic Registration) -->
+      <div class="card">
+        <div class="card-header">
+          <div class="step-number" id="step1-status">1</div>
+          <h2>Register OAuth Client (RFC 7591)</h2>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+          First, we dynamically register an OAuth client - just like CLI/IDE tools do on first run.
+        </p>
+        <div class="form-group">
+          <label>Client Name</label>
+          <input type="text" id="clientName" value="E2E Test Client" />
+        </div>
+        <div class="form-group">
+          <label>Redirect URI (this page's callback)</label>
+          <input type="text" id="redirectUri" readonly />
+        </div>
+        <div class="form-group">
+          <label>Scopes</label>
+          <input type="text" id="scopes" value="memories:read memories:write mcp:connect" />
+        </div>
+        <button class="btn btn-primary" id="registerBtn" onclick="registerClient()">
+          Register Client
+        </button>
+        <div class="info-box hidden" id="clientInfo">
+          <div class="info-label">Client ID</div>
+          <div class="info-value" id="clientIdDisplay">-</div>
+        </div>
+      </div>
+
+      <!-- Step 2: Generate PKCE -->
+      <div class="card">
+        <div class="card-header">
+          <div class="step-number" id="step2-status">2</div>
+          <h2>Generate PKCE Challenge</h2>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+          Generate code_verifier and code_challenge for secure token exchange (PKCE S256).
+        </p>
+        <button class="btn btn-primary" id="pkceBtn" onclick="generatePKCE()" disabled>
+          Generate PKCE
+        </button>
+        <div class="info-box hidden" id="pkceInfo">
+          <div style="margin-bottom: 12px;">
+            <div class="info-label">Code Verifier (stored locally)</div>
+            <div class="info-value" id="codeVerifierDisplay" style="font-size: 0.7rem;">-</div>
+          </div>
+          <div>
+            <div class="info-label">Code Challenge (sent to server)</div>
+            <div class="info-value" id="codeChallengeDisplay" style="font-size: 0.7rem;">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Start OAuth Flow -->
+      <div class="card">
+        <div class="card-header">
+          <div class="step-number" id="step3-status">3</div>
+          <h2>Start OAuth Authorization</h2>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+          Redirect to auth gateway's /oauth/authorize endpoint. You'll see the real login page.
+        </p>
+        <div class="info-box pending" id="authUrlPreview">
+          <div class="info-label">Authorization URL (will redirect here)</div>
+          <div class="info-value" id="authUrlDisplay" style="font-size: 0.75rem;">Generate PKCE first...</div>
+        </div>
+        <button class="btn btn-primary" id="startAuthBtn" onclick="startOAuthFlow()" disabled>
+          Start OAuth Flow →
+        </button>
+      </div>
+    </div>
+
+    <!-- Callback Processing (shown when returning from auth) -->
+    <div id="callbackState" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <div class="step-number" id="step4-status">4</div>
+          <h2>Processing Callback</h2>
+        </div>
+        <div class="info-box pending" id="callbackInfo">
+          <div style="margin-bottom: 12px;">
+            <div class="info-label">Authorization Code</div>
+            <div class="info-value" id="authCodeDisplay">-</div>
+          </div>
+          <div>
+            <div class="info-label">State</div>
+            <div class="info-value" id="stateDisplay">-</div>
+          </div>
+        </div>
+        <div id="exchangeProgress">
+          <p style="color: var(--text-secondary); margin-bottom: 12px;">Exchanging code for tokens...</p>
+          <div class="info-box" id="exchangeResult"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Authenticated State (shown after successful auth) -->
+    <div id="authenticatedState" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <div class="step-number completed">✓</div>
+          <h2>Authentication Successful!</h2>
+        </div>
+
+        <div class="user-info">
+          <div class="user-avatar" id="userAvatar">?</div>
+          <div class="user-details">
+            <h3 id="userEmail">user@example.com</h3>
+            <p id="userRole">Role: authenticated</p>
+          </div>
+          <span class="status-badge success">Authenticated</span>
+        </div>
+
+        <div class="token-display">
+          <div class="token-field">
+            <div class="info-label">Access Token</div>
+            <textarea id="accessTokenDisplay" readonly rows="3" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.75rem;"></textarea>
+          </div>
+          <div class="token-field">
+            <div class="info-label">Refresh Token</div>
+            <textarea id="refreshTokenDisplay" readonly rows="2" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.75rem;"></textarea>
+          </div>
+          <div class="form-row" style="margin-top: 12px;">
+            <div>
+              <div class="info-label">Expires In</div>
+              <div id="expiresInDisplay" style="color: var(--text-primary);">-</div>
+            </div>
+            <div>
+              <div class="info-label">Token Type</div>
+              <div id="tokenTypeDisplay" style="color: var(--text-primary);">-</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-secondary" onclick="verifyToken()">Verify Token</button>
+          <button class="btn btn-secondary" onclick="getSession()">Get Session</button>
+          <button class="btn btn-secondary" onclick="introspectToken()">Introspect</button>
+          <button class="btn btn-primary" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="info-box hidden" id="verifyResult" style="margin-top: 16px;"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Test Another Flow</h2>
+        </div>
+        <button class="btn btn-secondary" onclick="resetFlow()" style="width: 100%;">
+          Reset & Start New Flow
+        </button>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="errorState" class="hidden">
+      <div class="card">
+        <div class="card-header">
+          <div class="step-number error">✗</div>
+          <h2>Authentication Failed</h2>
+        </div>
+        <div class="info-box error" id="errorInfo">
+          <div class="info-label">Error</div>
+          <div class="info-value" id="errorDisplay">-</div>
+        </div>
+        <button class="btn btn-primary" onclick="resetFlow()" style="margin-top: 16px;">
+          Try Again
+        </button>
+      </div>
+    </div>
+
+    <!-- OTP Flow Test -->
+    <div class="section-divider"></div>
+    <div class="card" id="otpFlowCard">
+      <div class="card-header">
+        <h2>OTP Flow Test (Passwordless)</h2>
+        <span class="status-badge info">Separate Flow</span>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+        Test the OTP/Magic Link authentication flow - separate from OAuth/PKCE.
+      </p>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="otpEmail" placeholder="your@email.com" />
+        </div>
+        <div class="form-group">
+          <label>Type</label>
+          <select id="otpType">
+            <option value="email">6-digit OTP Code</option>
+            <option value="magiclink">Magic Link</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" onclick="sendOtp()" id="sendOtpBtn">
+        Send OTP
+      </button>
+
+      <div class="info-box hidden" id="otpSendResult" style="margin-top: 16px;"></div>
+
+      <div id="otpVerifySection" class="hidden" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+        <div class="form-group">
+          <label>Enter OTP Code</label>
+          <input type="text" id="otpCode" placeholder="123456" maxlength="6" style="font-size: 1.5rem; text-align: center; letter-spacing: 8px;" />
+        </div>
+        <button class="btn btn-success" onclick="verifyOtp()">
+          Verify OTP →
+        </button>
+        <div class="info-box hidden" id="otpVerifyResult" style="margin-top: 16px;"></div>
+      </div>
+    </div>
+
+    <!-- API Key Test -->
+    <div class="card" id="apiKeyCard">
+      <div class="card-header">
+        <h2>API Key Validation Test</h2>
+        <span class="status-badge info">Direct API</span>
+      </div>
+      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
+        Test API key validation - the issue you reported.
+      </p>
+
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="text" id="testApiKey" placeholder="lano_... or pk_... or sk_..." />
+      </div>
+
+      <button class="btn btn-primary" onclick="testApiKeyValidation()">
+        Validate API Key
+      </button>
+
+      <div class="info-box hidden" id="apiKeyResult" style="margin-top: 16px;"></div>
+    </div>
+
+    <!-- Activity Log -->
+    <div class="section-divider"></div>
+    <div class="card">
+      <div class="card-header">
+        <h2>Activity Log</h2>
+        <button class="btn btn-secondary" onclick="clearLog()" style="padding: 6px 12px; font-size: 0.8rem;">Clear</button>
+      </div>
+      <div class="log-panel" id="logPanel">
+        <div class="log-entry" style="color: var(--text-secondary);">Waiting for activity...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========================================================================
+    // STATE
+    // ========================================================================
+    const STATE_KEY = 'auth_test_state';
+    let state = {
+      clientId: null,
+      clientSecret: null,
+      codeVerifier: null,
+      codeChallenge: null,
+      authState: null,
+      accessToken: null,
+      refreshToken: null,
+      user: null
+    };
+
+    // ========================================================================
+    // INITIALIZATION
+    // ========================================================================
+    function init() {
+      // Set redirect URI to current page
+      const currentUrl = new URL(window.location.href);
+      currentUrl.search = '';
+      currentUrl.hash = '';
+      document.getElementById('redirectUri').value = currentUrl.toString();
+
+      // Check for callback params (returning from auth)
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('code')) {
+        handleCallback(params);
+        return;
+      }
+
+      if (params.has('error')) {
+        showError(params.get('error'), params.get('error_description'));
+        return;
+      }
+
+      // Restore state from storage
+      const savedState = sessionStorage.getItem(STATE_KEY);
+      if (savedState) {
+        state = JSON.parse(savedState);
+        restoreUI();
+      }
+
+      // Check health
+      checkHealth();
+    }
+
+    function saveState() {
+      sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
+    }
+
+    function restoreUI() {
+      if (state.clientId) {
+        document.getElementById('clientIdDisplay').textContent = state.clientId;
+        document.getElementById('clientInfo').classList.remove('hidden');
+        document.getElementById('step1-status').classList.add('completed');
+        document.getElementById('step1-status').textContent = '✓';
+        document.getElementById('pkceBtn').disabled = false;
+        document.getElementById('flow-client').classList.add('completed');
+      }
+
+      if (state.codeVerifier) {
+        document.getElementById('codeVerifierDisplay').textContent = state.codeVerifier;
+        document.getElementById('codeChallengeDisplay').textContent = state.codeChallenge;
+        document.getElementById('pkceInfo').classList.remove('hidden');
+        document.getElementById('step2-status').classList.add('completed');
+        document.getElementById('step2-status').textContent = '✓';
+        document.getElementById('startAuthBtn').disabled = false;
+        updateAuthUrl();
+      }
+
+      if (state.accessToken) {
+        showAuthenticatedState();
+      }
+    }
+
+    // ========================================================================
+    // ENVIRONMENT
+    // ========================================================================
+    function updateEnvironment() {
+      const env = document.getElementById('environment').value;
+      const urls = {
+        local: 'http://localhost:4000',
+        staging: 'https://auth-staging.lanonasis.com',
+        production: 'https://auth.lanonasis.com'
+      };
+      document.getElementById('authBaseUrl').value = urls[env];
+      checkHealth();
+    }
+
+    function getBaseUrl() {
+      return document.getElementById('authBaseUrl').value.replace(/\/$/, '');
+    }
+
+    async function checkHealth() {
+      const badge = document.getElementById('healthStatus');
+      badge.className = 'status-badge pending';
+      badge.textContent = 'Checking...';
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/health`);
+        const data = await res.json();
+
+        if (res.ok && data.status === 'ok') {
+          badge.className = 'status-badge success';
+          badge.textContent = 'Connected';
+          log('Health check passed', 'success');
+        } else {
+          badge.className = 'status-badge pending';
+          badge.textContent = data.status || 'Degraded';
+          log(`Health: ${data.status}`, 'info');
+        }
+      } catch (err) {
+        badge.className = 'status-badge error';
+        badge.textContent = 'Offline';
+        log(`Health check failed: ${err.message}`, 'error');
+      }
+    }
+
+    // ========================================================================
+    // STEP 1: REGISTER CLIENT
+    // ========================================================================
+    async function registerClient() {
+      const btn = document.getElementById('registerBtn');
+      btn.disabled = true;
+      btn.textContent = 'Registering...';
+
+      log('Registering OAuth client (RFC 7591)...', 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            client_name: document.getElementById('clientName').value,
+            redirect_uris: [document.getElementById('redirectUri').value],
+            grant_types: ['authorization_code'],
+            response_types: ['code'],
+            scope: document.getElementById('scopes').value,
+            token_endpoint_auth_method: 'none'
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error_description || data.error || 'Registration failed');
+        }
+
+        state.clientId = data.client_id;
+        state.clientSecret = data.client_secret;
+        saveState();
+
+        document.getElementById('clientIdDisplay').textContent = data.client_id;
+        document.getElementById('clientInfo').classList.remove('hidden');
+        document.getElementById('clientInfo').classList.add('success');
+        document.getElementById('step1-status').classList.add('completed');
+        document.getElementById('step1-status').textContent = '✓';
+        document.getElementById('pkceBtn').disabled = false;
+        document.getElementById('flow-client').classList.add('completed');
+
+        log(`Client registered: ${data.client_id}`, 'success');
+        btn.textContent = 'Registered ✓';
+
+      } catch (err) {
+        log(`Registration failed: ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Register Client';
+        alert(`Registration failed: ${err.message}`);
+      }
+    }
+
+    // ========================================================================
+    // STEP 2: GENERATE PKCE
+    // ========================================================================
+    async function generatePKCE() {
+      log('Generating PKCE code_verifier and code_challenge (S256)...', 'info');
+
+      // Generate code_verifier (43-128 chars, URL-safe)
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      const codeVerifier = base64UrlEncode(array);
+
+      // Generate code_challenge = SHA256(code_verifier)
+      const encoder = new TextEncoder();
+      const data = encoder.encode(codeVerifier);
+      const digest = await crypto.subtle.digest('SHA-256', data);
+      const codeChallenge = base64UrlEncode(new Uint8Array(digest));
+
+      state.codeVerifier = codeVerifier;
+      state.codeChallenge = codeChallenge;
+      state.authState = generateRandomState();
+      saveState();
+
+      document.getElementById('codeVerifierDisplay').textContent = codeVerifier;
+      document.getElementById('codeChallengeDisplay').textContent = codeChallenge;
+      document.getElementById('pkceInfo').classList.remove('hidden');
+      document.getElementById('pkceInfo').classList.add('success');
+      document.getElementById('step2-status').classList.add('completed');
+      document.getElementById('step2-status').textContent = '✓';
+      document.getElementById('startAuthBtn').disabled = false;
+
+      log(`PKCE generated. code_verifier stored in sessionStorage.`, 'success');
+
+      updateAuthUrl();
+    }
+
+    function base64UrlEncode(buffer) {
+      return btoa(String.fromCharCode.apply(null, buffer))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    }
+
+    function generateRandomState() {
+      const array = new Uint8Array(16);
+      crypto.getRandomValues(array);
+      return base64UrlEncode(array);
+    }
+
+    function updateAuthUrl() {
+      const url = new URL(`${getBaseUrl()}/oauth/authorize`);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('client_id', state.clientId);
+      url.searchParams.set('redirect_uri', document.getElementById('redirectUri').value);
+      url.searchParams.set('scope', document.getElementById('scopes').value);
+      url.searchParams.set('state', state.authState);
+      url.searchParams.set('code_challenge', state.codeChallenge);
+      url.searchParams.set('code_challenge_method', 'S256');
+
+      document.getElementById('authUrlDisplay').textContent = url.toString();
+      document.getElementById('authUrlPreview').classList.remove('pending');
+      document.getElementById('authUrlPreview').classList.add('success');
+    }
+
+    // ========================================================================
+    // STEP 3: START OAUTH FLOW
+    // ========================================================================
+    function startOAuthFlow() {
+      log('Redirecting to /oauth/authorize...', 'info');
+
+      document.getElementById('flow-authorize').classList.add('active');
+
+      const url = new URL(`${getBaseUrl()}/oauth/authorize`);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('client_id', state.clientId);
+      url.searchParams.set('redirect_uri', document.getElementById('redirectUri').value);
+      url.searchParams.set('scope', document.getElementById('scopes').value);
+      url.searchParams.set('state', state.authState);
+      url.searchParams.set('code_challenge', state.codeChallenge);
+      url.searchParams.set('code_challenge_method', 'S256');
+
+      // Redirect!
+      window.location.href = url.toString();
+    }
+
+    // ========================================================================
+    // STEP 4: HANDLE CALLBACK
+    // ========================================================================
+    async function handleCallback(params) {
+      document.getElementById('preAuthState').classList.add('hidden');
+      document.getElementById('callbackState').classList.remove('hidden');
+
+      const code = params.get('code');
+      const returnedState = params.get('state');
+
+      document.getElementById('authCodeDisplay').textContent = code;
+      document.getElementById('stateDisplay').textContent = returnedState;
+
+      log(`Received callback with authorization code`, 'info');
+
+      // Restore state from storage
+      const savedState = sessionStorage.getItem(STATE_KEY);
+      if (savedState) {
+        state = JSON.parse(savedState);
+      }
+
+      // Verify state
+      if (returnedState !== state.authState) {
+        log('State mismatch! Possible CSRF attack.', 'error');
+        document.getElementById('callbackInfo').classList.add('error');
+        showError('state_mismatch', 'The state parameter does not match. Possible CSRF attack.');
+        return;
+      }
+
+      log('State verified. Exchanging code for tokens...', 'info');
+      document.getElementById('callbackInfo').classList.remove('pending');
+      document.getElementById('callbackInfo').classList.add('success');
+      document.getElementById('step4-status').classList.add('completed');
+      document.getElementById('step4-status').textContent = '✓';
+      document.getElementById('flow-callback').classList.add('completed');
+      document.getElementById('flow-exchange').classList.add('active');
+
+      // Exchange code for tokens
+      try {
+        const baseUrl = getBaseUrl();
+        const tokenUrl = `${baseUrl}/oauth/token`;
+
+        log(`POST ${tokenUrl}`, 'info');
+
+        const body = new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code,
+          redirect_uri: document.getElementById('redirectUri').value,
+          client_id: state.clientId,
+          code_verifier: state.codeVerifier
+        });
+
+        const res = await fetch(tokenUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: body.toString()
+        });
+
+        const data = await res.json();
+
+        document.getElementById('exchangeResult').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        if (!res.ok) {
+          throw new Error(data.error_description || data.error || 'Token exchange failed');
+        }
+
+        state.accessToken = data.access_token;
+        state.refreshToken = data.refresh_token;
+        state.user = data.user || { email: 'Unknown' };
+        saveState();
+
+        log('Token exchange successful!', 'success');
+        document.getElementById('flow-exchange').classList.remove('active');
+        document.getElementById('flow-exchange').classList.add('completed');
+        document.getElementById('flow-authenticated').classList.add('completed');
+
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // Show authenticated state
+        setTimeout(() => showAuthenticatedState(), 500);
+
+      } catch (err) {
+        log(`Token exchange failed: ${err.message}`, 'error');
+        document.getElementById('exchangeResult').classList.add('error');
+        document.getElementById('exchangeResult').innerHTML = `<div style="color: var(--error);">Error: ${err.message}</div>`;
+      }
+    }
+
+    // ========================================================================
+    // AUTHENTICATED STATE
+    // ========================================================================
+    function showAuthenticatedState() {
+      document.getElementById('preAuthState').classList.add('hidden');
+      document.getElementById('callbackState').classList.add('hidden');
+      document.getElementById('errorState').classList.add('hidden');
+      document.getElementById('authenticatedState').classList.remove('hidden');
+
+      document.getElementById('accessTokenDisplay').value = state.accessToken || '';
+      document.getElementById('refreshTokenDisplay').value = state.refreshToken || '';
+
+      if (state.user) {
+        const email = state.user.email || 'Unknown';
+        document.getElementById('userEmail').textContent = email;
+        document.getElementById('userRole').textContent = `Role: ${state.user.role || 'authenticated'}`;
+        document.getElementById('userAvatar').textContent = email.charAt(0).toUpperCase();
+      }
+
+      // Decode JWT to show expiry
+      try {
+        const payload = JSON.parse(atob(state.accessToken.split('.')[1]));
+        const expiresIn = payload.exp ? Math.round(payload.exp - Date.now() / 1000) : 'N/A';
+        document.getElementById('expiresInDisplay').textContent = `${expiresIn}s`;
+        document.getElementById('tokenTypeDisplay').textContent = 'Bearer';
+
+        if (payload.email) {
+          document.getElementById('userEmail').textContent = payload.email;
+          document.getElementById('userAvatar').textContent = payload.email.charAt(0).toUpperCase();
+        }
+      } catch (e) {
+        document.getElementById('expiresInDisplay').textContent = 'N/A';
+      }
+
+      // Update all flow steps to completed
+      ['flow-client', 'flow-authorize', 'flow-login', 'flow-callback', 'flow-exchange', 'flow-authenticated'].forEach(id => {
+        document.getElementById(id).classList.add('completed');
+        document.getElementById(id).classList.remove('active');
+      });
+    }
+
+    // ========================================================================
+    // POST-AUTH ACTIONS
+    // ========================================================================
+    async function verifyToken() {
+      log('Verifying token via /v1/auth/verify...', 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/v1/auth/verify`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${state.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await res.json();
+        const resultEl = document.getElementById('verifyResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
+        resultEl.innerHTML = `<div class="info-label">Verify Result (${res.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        log(res.ok ? 'Token verified successfully' : `Token verification failed: ${data.error}`, res.ok ? 'success' : 'error');
+      } catch (err) {
+        log(`Verify error: ${err.message}`, 'error');
+      }
+    }
+
+    async function getSession() {
+      log('Getting session via /v1/auth/session...', 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/v1/auth/session`, {
+          headers: { 'Authorization': `Bearer ${state.accessToken}` }
+        });
+
+        const data = await res.json();
+        const resultEl = document.getElementById('verifyResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
+        resultEl.innerHTML = `<div class="info-label">Session (${res.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        log(res.ok ? 'Session retrieved' : `Session error: ${data.error}`, res.ok ? 'success' : 'error');
+      } catch (err) {
+        log(`Session error: ${err.message}`, 'error');
+      }
+    }
+
+    async function introspectToken() {
+      log('Introspecting token via /oauth/introspect...', 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/oauth/introspect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: state.accessToken })
+        });
+
+        const data = await res.json();
+        const resultEl = document.getElementById('verifyResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
+        resultEl.innerHTML = `<div class="info-label">Introspection (${res.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        log(res.ok ? 'Token introspected' : `Introspection error: ${data.error}`, res.ok ? 'success' : 'error');
+      } catch (err) {
+        log(`Introspect error: ${err.message}`, 'error');
+      }
+    }
+
+    async function logout() {
+      log('Logging out via /v1/auth/logout...', 'info');
+
+      try {
+        await fetch(`${getBaseUrl()}/v1/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${state.accessToken}` }
+        });
+
+        log('Logged out successfully', 'success');
+      } catch (err) {
+        log(`Logout error: ${err.message}`, 'error');
+      }
+
+      resetFlow();
+    }
+
+    // ========================================================================
+    // ERROR HANDLING
+    // ========================================================================
+    function showError(error, description) {
+      document.getElementById('preAuthState').classList.add('hidden');
+      document.getElementById('callbackState').classList.add('hidden');
+      document.getElementById('authenticatedState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+
+      document.getElementById('errorDisplay').innerHTML = `
+        <strong>${error}</strong><br/>
+        ${description || 'An error occurred during authentication.'}
+      `;
+
+      log(`Error: ${error} - ${description}`, 'error');
+    }
+
+    // ========================================================================
+    // RESET
+    // ========================================================================
+    function resetFlow() {
+      sessionStorage.removeItem(STATE_KEY);
+      state = {
+        clientId: null,
+        clientSecret: null,
+        codeVerifier: null,
+        codeChallenge: null,
+        authState: null,
+        accessToken: null,
+        refreshToken: null,
+        user: null
+      };
+
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Reload
+      window.location.reload();
+    }
+
+    // ========================================================================
+    // LOGGING
+    // ========================================================================
+    function log(message, type = 'info') {
+      const panel = document.getElementById('logPanel');
+      const time = new Date().toLocaleTimeString();
+      const typeClass = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
+
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-time">${time}</span><span class="${typeClass}">${message}</span>`;
+
+      if (panel.querySelector('.log-entry').textContent.includes('Waiting')) {
+        panel.innerHTML = '';
+      }
+
+      panel.insertBefore(entry, panel.firstChild);
+    }
+
+    function clearLog() {
+      document.getElementById('logPanel').innerHTML = '<div class="log-entry" style="color: var(--text-secondary);">Log cleared</div>';
+    }
+
+    // ========================================================================
+    // OTP FLOW
+    // ========================================================================
+    async function sendOtp() {
+      const email = document.getElementById('otpEmail').value;
+      const type = document.getElementById('otpType').value;
+
+      if (!email) {
+        alert('Please enter an email address');
+        return;
+      }
+
+      const btn = document.getElementById('sendOtpBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      log(`Sending ${type === 'magiclink' ? 'magic link' : 'OTP code'} to ${email}...`, 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/otp/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, type })
+        });
+
+        const data = await res.json();
+        const resultEl = document.getElementById('otpSendResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
+        resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        if (res.ok) {
+          log(`OTP sent successfully to ${email}`, 'success');
+          document.getElementById('otpVerifySection').classList.remove('hidden');
+          btn.textContent = 'Resend OTP';
+        } else {
+          log(`OTP send failed: ${data.error || data.message}`, 'error');
+          btn.textContent = 'Send OTP';
+        }
+
+        btn.disabled = false;
+      } catch (err) {
+        log(`OTP send error: ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Send OTP';
+      }
+    }
+
+    async function verifyOtp() {
+      const email = document.getElementById('otpEmail').value;
+      const token = document.getElementById('otpCode').value;
+      const type = document.getElementById('otpType').value;
+
+      if (!token) {
+        alert('Please enter the OTP code');
+        return;
+      }
+
+      log(`Verifying OTP code for ${email}...`, 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/otp/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, token, type })
+        });
+
+        const data = await res.json();
+        const resultEl = document.getElementById('otpVerifyResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
+        resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        if (res.ok) {
+          log('OTP verified successfully! Tokens received.', 'success');
+
+          // Store tokens and show authenticated state
+          if (data.access_token) {
+            state.accessToken = data.access_token;
+            state.refreshToken = data.refresh_token;
+            state.user = data.user;
+            saveState();
+
+            // Update the main authenticated display
+            document.getElementById('accessTokenDisplay').value = data.access_token;
+            document.getElementById('refreshTokenDisplay').value = data.refresh_token || '';
+          }
+        } else {
+          log(`OTP verification failed: ${data.error || data.message}`, 'error');
+        }
+      } catch (err) {
+        log(`OTP verify error: ${err.message}`, 'error');
+      }
+    }
+
+    // ========================================================================
+    // API KEY VALIDATION
+    // ========================================================================
+    async function testApiKeyValidation() {
+      const apiKey = document.getElementById('testApiKey').value;
+
+      if (!apiKey) {
+        alert('Please enter an API key');
+        return;
+      }
+
+      log(`Validating API key: ${apiKey.substring(0, 10)}...`, 'info');
+
+      try {
+        const res = await fetch(`${getBaseUrl()}/v1/auth/verify-api-key`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey
+          },
+          body: JSON.stringify({ api_key: apiKey })
+        });
+
+        const data = await res.json();
+        const resultEl = document.getElementById('apiKeyResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
+        resultEl.innerHTML = `<div class="info-label">Status: ${res.status}</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
+
+        log(res.ok ? 'API key is valid!' : `API key validation failed: ${data.error}`, res.ok ? 'success' : 'error');
+      } catch (err) {
+        log(`API key validation error: ${err.message}`, 'error');
+        const resultEl = document.getElementById('apiKeyResult');
+        resultEl.classList.remove('hidden');
+        resultEl.className = 'info-box error';
+        resultEl.innerHTML = `<div style="color: var(--error);">Error: ${err.message}</div>`;
+      }
+    }
+
+    // ========================================================================
+    // INIT
+    // ========================================================================
+    init();
+  </script>
+</body>
+</html>

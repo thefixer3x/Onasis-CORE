@@ -4,8 +4,14 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
 import crypto from 'crypto'
+import path from 'path'
+import { fileURLToPath } from 'url'
 // Removed vulnerable csurf package - using custom CSRF middleware instead
 import { xssSanitizer } from './middleware/xss-sanitizer.js'
+
+// ESM __dirname equivalent
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
@@ -23,6 +29,7 @@ import oauthRoutes from './routes/oauth.routes.js'
 import oauthConsentRoutes from './routes/oauth-consent.routes.js'
 import webRoutes from './routes/web.routes.js'
 import syncRoutes from './routes/sync.routes.js'
+import otpRoutes from './routes/otp.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
@@ -64,6 +71,19 @@ app.get("/health", async (_req, res) => {
     outbox: outboxStatus,
     timestamp: new Date().toISOString()
   });
+});
+
+// E2E Test Client - serves before security middleware to allow inline scripts/styles
+// Available at /test-client for real OAuth/PKCE flow testing
+// Access in production via: https://auth.lanonasis.com/test-client
+app.get('/test-client', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'test-dashboard', 'index.html'));
+});
+app.use('/test-client', express.static(path.join(__dirname, 'test-dashboard')));
+
+// Legacy alias for backward compatibility
+app.get('/test-dashboard', (_req, res) => {
+  res.redirect('/test-client');
 });
 
 // Security middleware
@@ -157,6 +177,8 @@ app.use('/admin', adminRoutes)
 app.use('/oauth', oauthRoutes)
 app.use('/oauth', oauthConsentRoutes)  // Supabase OAuth 2.1 Provider consent page
 app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallback)
+app.use('/v1/auth/otp', otpRoutes)  // OTP (passwordless) authentication
+app.use('/otp', otpRoutes)  // Shorthand for test dashboard
 
 // Map /auth/login to /web/login for backward compatibility and CLI
 app.get('/auth/login', (req, res) => {
@@ -320,6 +342,7 @@ app.listen(env.PORT, async () => {
 
   console.log(`🚀 Auth gateway running on port ${env.PORT} in ${env.NODE_ENV} mode`)
   console.log(`📍 Health check: http://localhost:${env.PORT}/health`)
+  console.log(`🧪 E2E Test Client: http://localhost:${env.PORT}/test-client`)
   console.log(`🔐 Auth endpoints:`)
   console.log(`   - POST /v1/auth/login`)
   console.log(`   - POST /v1/auth/logout`)
@@ -335,6 +358,10 @@ app.listen(env.PORT, async () => {
   console.log(`   - GET  /mcp/health`)
   console.log(`💻 CLI endpoints:`)
   console.log(`   - POST /auth/cli-login`)
+  console.log(`📧 OTP endpoints (passwordless):`)
+  console.log(`   - POST /v1/auth/otp/send`)
+  console.log(`   - POST /v1/auth/otp/verify`)
+  console.log(`   - POST /v1/auth/otp/resend`)
   console.log(`🔑 OAuth endpoints:`)
   console.log(`   - GET  /oauth/authorize (also /api/v1/oauth/authorize)`)
   console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
