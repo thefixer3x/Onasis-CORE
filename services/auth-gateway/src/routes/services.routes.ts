@@ -101,11 +101,11 @@ router.get('/services', generalRateLimit, (req: RouterRequest, res: Response) =>
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * ALL /api/v1/services/:service/*
+ * ALL /api/v1/services/:service/*path
  * Dynamic routing to Supabase edge functions
  */
 router.all(
-  '/api/v1/services/:service/*',
+  '/api/v1/services/:service/*path',
   privacyProtection,
   async (req: RouterRequest, res: Response) => {
     const serviceName = req.params.service

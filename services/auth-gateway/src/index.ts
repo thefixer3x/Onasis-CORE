@@ -4,8 +4,14 @@ import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
 import crypto from 'crypto'
+import path from 'path'
+import { fileURLToPath } from 'url'
 // Removed vulnerable csurf package - using custom CSRF middleware instead
 import { xssSanitizer } from './middleware/xss-sanitizer.js'
+
+// ESM __dirname equivalent
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
@@ -69,6 +75,15 @@ app.get("/health", async (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// E2E Test Client - serves before security middleware to allow inline scripts/styles
+// Available at /test-client for real OAuth/PKCE flow testing
+// Access: http://localhost:4000/test-client or https://auth.lanonasis.com/test-client
+const testDashboardPath = path.join(__dirname, '..', 'test-dashboard');
+app.get('/test-client', (_req, res) => {
+  res.sendFile(path.join(testDashboardPath, 'index.html'));
+});
+app.use('/test-client', express.static(testDashboardPath));
 
 // Security middleware - skip CSP for web routes (login forms need relaxed policy)
 app.use((req, res, next) => {
@@ -190,6 +205,7 @@ app.use(validateSessionCookie)
 // Mount routes
 app.use('/v1/auth', authRoutes)
 app.use('/v1/auth/otp', otpRoutes)  // OTP passwordless auth for CLI
+app.use('/otp', otpRoutes)  // Shorthand for test client
 app.use('/api/v1/auth/api-keys', apiKeysRoutes)
 app.use('/api/v1/projects', projectsRoutes)
 app.use('/web', webRoutes)
@@ -375,6 +391,7 @@ if (process.env.NODE_ENV !== 'test') {
 
     console.log(`🚀 Auth gateway running on port ${env.PORT} in ${env.NODE_ENV} mode`)
     console.log(`📍 Health check: http://localhost:${env.PORT}/health`)
+    console.log(`🧪 E2E Test Client: http://localhost:${env.PORT}/test-client`)
     console.log(`🔐 Auth endpoints:`)
     console.log(`   - POST /v1/auth/login`)
     console.log(`   - POST /v1/auth/logout`)
