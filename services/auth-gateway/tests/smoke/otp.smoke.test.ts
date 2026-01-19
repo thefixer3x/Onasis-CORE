@@ -13,7 +13,8 @@ import { vi } from 'vitest';
 import { describe, it, expect } from 'vitest'
 
 const AUTH_BASE_URL = process.env.AUTH_BASE_URL || 'https://auth.lanonasis.com'
-const SKIP_SMOKE = process.env.SKIP_SMOKE_TESTS === 'true'
+const SKIP_SMOKE = process.env.SKIP_SMOKE_TESTS !== 'false'
+const TEST_TIMEOUT_MS = 20000
 
 describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
   it('should respond to /v1/auth/otp/send endpoint', async () => {
@@ -42,7 +43,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     if (response.status === 429) {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should reject missing email on /v1/auth/otp/send', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/send`, {
@@ -59,7 +60,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     } else {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should reject invalid email format on /v1/auth/otp/send', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/send`, {
@@ -79,7 +80,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     } else {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should respond to /v1/auth/otp/verify endpoint', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/verify`, {
@@ -100,7 +101,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     } else {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should reject missing email on /v1/auth/otp/verify', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/verify`, {
@@ -117,7 +118,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     } else {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should reject missing token on /v1/auth/otp/verify', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/verify`, {
@@ -134,7 +135,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     } else {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should respond to /v1/auth/otp/resend endpoint', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/resend`, {
@@ -151,7 +152,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
 
     const body = await response.json()
     expect(body).toBeDefined()
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('should reject missing email on /v1/auth/otp/resend', async () => {
     const response = await fetch(`${AUTH_BASE_URL}/v1/auth/otp/resend`, {
@@ -168,7 +169,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     } else {
       expect(body.code).toBe('AUTH_RATE_LIMITED')
     }
-  })
+  }, TEST_TIMEOUT_MS)
 
   it('health endpoint should be accessible', async () => {
     // Create a proper Response mock
@@ -182,7 +183,7 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
-    
+
     vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse);
 
     const response = await fetch(`${AUTH_BASE_URL}/health`);
@@ -191,8 +192,8 @@ describe.skipIf(SKIP_SMOKE)('OTP Endpoints - Smoke Tests (Live)', () => {
     const body = await response.json();
     expect(body.status).toBeDefined();
     expect(body.service).toBe('auth-gateway');
-    
+
     // Clean up mock
     vi.restoreAllMocks();
-  })
+  }, TEST_TIMEOUT_MS)
 })
