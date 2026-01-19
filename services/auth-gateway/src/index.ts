@@ -1,5 +1,4 @@
 import express from 'express'
-import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
@@ -35,6 +34,7 @@ import servicesRoutes from './routes/services.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
+import { standardCors } from './middleware/cors.js'
 
 const app = express()
 const isTestEnv = process.env.NODE_ENV === 'test'
@@ -176,20 +176,7 @@ app.use(express.urlencoded({ extended: true }))
 app.use(xssSanitizer)
 
 // CORS configuration
-app.use(
-  cors({
-    origin: env.CORS_ORIGIN.split(',').map((origin) => origin.trim()),
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type', 
-      'Authorization', 
-      'x-project-scope',
-      'X-Project-Scope', // Support both cases
-      'X-Requested-With'
-    ],
-  })
-)
+app.use(standardCors)
 
 // CSRF Protection is now handled per-route using custom middleware
 // - OAuth routes: Use custom CSRF in routes/oauth.routes.ts (setCSRFCookie, generateAuthorizeCSRF, etc.)

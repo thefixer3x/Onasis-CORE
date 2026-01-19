@@ -25,6 +25,15 @@ const getAllowedOrigins = (): (string | RegExp)[] => {
             // Convert wildcard domains to regex
             const domain = origin.slice(2) // Remove *.
             result.push(new RegExp(`^https?://([a-z0-9-]+\\.)?${domain.replace(/\./g, '\\.')}$`))
+        } else if (origin.endsWith(':*')) {
+            // Allow any port on a specific origin (e.g., http://localhost:*)
+            const base = origin.slice(0, -2)
+            const escaped = base.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            result.push(new RegExp(`^${escaped}(?::\\d+)?$`))
+        } else if (origin.includes('*')) {
+            // Generic wildcard handling (e.g., https://*.lanonasis.com)
+            const escaped = origin.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            result.push(new RegExp(`^${escaped.replace(/\\\*/g, '[^/]+')}$`))
         } else {
             result.push(origin)
         }
@@ -56,6 +65,7 @@ export const standardCors = cors({
         'Content-Type',
         'Authorization',
         'x-project-scope',
+        'X-Project-Scope',
         'X-Requested-With'
     ],
     exposedHeaders: [
