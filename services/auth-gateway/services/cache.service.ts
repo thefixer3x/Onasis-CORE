@@ -2,27 +2,69 @@ import { Redis } from 'ioredis'
 import { logger } from '../utils/logger.js'
 
 /**
- * Redis-based caching layer for OAuth2 PKCE implementation
- * Replaces in-memory stores for production scalability
+ * Redis-based caching layer with graceful degradation
+ * Falls back to no-op mode if Redis is unavailable
  */
 
-// Redis client configuration
-const redisClient = new Redis({
-    host: process.env.REDIS_HOST || 'localhost',
-    port: Number(process.env.REDIS_PORT) || 6379,
-    password: process.env.REDIS_PASSWORD,
-    db: Number(process.env.REDIS_DB) || 0,
-    maxRetriesPerRequest: 3,
-    lazyConnect: true,
-})
+let redisClient: Redis | null = null
+let redisAvailable = false
 
-redisClient.on('connect', () => {
-    logger.info('Redis connected successfully')
-})
+// Initialize Redis with graceful fallback
+async function initializeRedis() {
+    try {
+        const client = new Redis({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: Number(process.env.REDIS_PORT) || 6379,
+            password: process.env.REDIS_PASSWORD,
+            db: Number(process.env.REDIS_DB) || 0,
+            maxRetriesPerRequest: 1,
+            lazyConnect: true,
+            retryStrategy: () => null,
+            connectTimeout: 5000,
+        })
 
-redisClient.on('error', (error: Error) => {
-    logger.error('Redis connection error:', error)
-})/**
+        client.on('connect', () => {
+            logger.info('Redis connected successfully')
+            redisAvailable = true
+        })
+
+        client.on('error', (error: Error) => {
+            logger.warn('Redis unavailable:', error.message)
+            redisAvailable = false
+        })
+
+        client.on('close', () => {
+            logger.warn('Redis connection closed')
+            redisAvailable = false
+        })
+
+        await client.connect().catch(() => {
+            logger.warn('Redis unavailable - caching disabled')
+            redisAvailable = false
+        })
+
+        redisClient = client
+    } catch (error) {
+        logger.warn('Redis init failed:', error instanceof Error ? error.message : 'Unknown error')
+        redisAvailable = false
+    }
+}
+
+if (process.env.REDIS_HOST || process.env.REDIS_PASSWORD) {
+    initializeRedis().catch(() => {})
+}
+
+async function safeRedis<T>(op: () => Promise<T>, fallback: T): Promise<T> {
+    if (!redisAvailable || !redisClient) return fallback
+    try {
+        return await op()
+    } catch {
+        redisAvailable = false
+        return fallback
+    }
+}
+
+/**
  * Cache keys with consistent prefixing
  */
 const CACHE_KEYS = {
@@ -39,33 +81,28 @@ const CACHE_KEYS = {
  */
 export class OAuthClientCache {
     static async get(clientId: string) {
-        try {
-            const cached = await redisClient.get(CACHE_KEYS.OAUTH_CLIENT(clientId))
-            return cached ? JSON.parse(cached) : null
-        } catch (error) {
-            logger.error('OAuth client cache get error:', error)
-            return null
-        }
+        return safeRedis(
+            () => redisClient!.get(CACHE_KEYS.OAUTH_CLIENT(clientId)).then(cached => cached ? JSON.parse(cached) : null),
+            null
+        )
     }
 
     static async set(clientId: string, client: Record<string, unknown>, ttl: number = 3600) {
-        try {
-            await redisClient.setex(
+        return safeRedis(
+            () => redisClient!.setex(
                 CACHE_KEYS.OAUTH_CLIENT(clientId),
                 ttl,
                 JSON.stringify(client)
-            )
-        } catch (error) {
-            logger.error('OAuth client cache set error:', error)
-        }
+            ),
+            undefined as any
+        )
     }
 
     static async invalidate(clientId: string) {
-        try {
-            await redisClient.del(CACHE_KEYS.OAUTH_CLIENT(clientId))
-        } catch (error) {
-            logger.error('OAuth client cache invalidate error:', error)
-        }
+        return safeRedis(
+            () => redisClient!.del(CACHE_KEYS.OAUTH_CLIENT(clientId)),
+            undefined as any
+        )
     }
 }
 
@@ -74,36 +111,32 @@ export class OAuthClientCache {
  */
 export class AuthCodeCache {
     static async set(codeHash: string, codeData: Record<string, unknown>, ttl: number = 600) {
-        try {
-            await redisClient.setex(
+        return safeRedis(
+            () => redisClient!.setex(
                 CACHE_KEYS.AUTH_CODE(codeHash),
                 ttl,
                 JSON.stringify(codeData)
-            )
-        } catch (error) {
-            logger.error('Auth code cache set error:', error)
-        }
+            ),
+            undefined as any
+        )
     }
 
     static async get(codeHash: string) {
-        try {
-            const cached = await redisClient.get(CACHE_KEYS.AUTH_CODE(codeHash))
-            return cached ? JSON.parse(cached) : null
-        } catch (error) {
-            logger.error('Auth code cache get error:', error)
-            return null
-        }
+        return safeRedis(
+            () => redisClient!.get(CACHE_KEYS.AUTH_CODE(codeHash)).then(cached => cached ? JSON.parse(cached) : null),
+            null
+        )
     }
 
     static async consume(codeHash: string) {
-        try {
-            const cached = await redisClient.get(CACHE_KEYS.AUTH_CODE(codeHash))
-            await redisClient.del(CACHE_KEYS.AUTH_CODE(codeHash))
-            return cached ? JSON.parse(cached) : null
-        } catch (error) {
-            logger.error('Auth code cache consume error:', error)
-            return null
-        }
+        return safeRedis(
+            async () => {
+                const cached = await redisClient!.get(CACHE_KEYS.AUTH_CODE(codeHash))
+                await redisClient!.del(CACHE_KEYS.AUTH_CODE(codeHash))
+                return cached ? JSON.parse(cached) : null
+            },
+            null
+        )
     }
 }
 
@@ -117,44 +150,34 @@ export class RedisRateLimit {
         remaining: number
         resetTime: number
     }> {
-        try {
-            const now = Date.now()
-            const windowStart = now - windowMs
+        return safeRedis(
+            async () => {
+                const now = Date.now()
+                const windowStart = now - windowMs
 
-            // Use Redis sorted set for sliding window
-            const pipe = redisClient.pipeline()
+                const pipe = redisClient!.pipeline()
+                pipe.zremrangebyscore(CACHE_KEYS.RATE_LIMIT(key), 0, windowStart)
+                pipe.zcard(CACHE_KEYS.RATE_LIMIT(key))
+                pipe.zadd(CACHE_KEYS.RATE_LIMIT(key), now, `${now}-${Math.random()}`)
+                pipe.expire(CACHE_KEYS.RATE_LIMIT(key), Math.ceil(windowMs / 1000))
 
-            // Remove expired entries
-            pipe.zremrangebyscore(CACHE_KEYS.RATE_LIMIT(key), 0, windowStart)
+                const results = await pipe.exec()
+                const count = (results?.[1]?.[1] as number) || 0
 
-            // Count current requests
-            pipe.zcard(CACHE_KEYS.RATE_LIMIT(key))
-
-            // Add current request
-            pipe.zadd(CACHE_KEYS.RATE_LIMIT(key), now, `${now}-${Math.random()}`)
-
-            // Set expiry
-            pipe.expire(CACHE_KEYS.RATE_LIMIT(key), Math.ceil(windowMs / 1000))
-
-            const results = await pipe.exec()
-            const count = (results?.[1]?.[1] as number) || 0
-
-            return {
-                allowed: count < limit,
-                count: count + 1,
-                remaining: Math.max(0, limit - count - 1),
-                resetTime: now + windowMs
-            }
-        } catch (error) {
-            logger.error('Redis rate limit check error:', error)
-            // Fail open for availability
-            return {
+                return {
+                    allowed: count < limit,
+                    count: count + 1,
+                    remaining: Math.max(0, limit - count - 1),
+                    resetTime: now + windowMs
+                }
+            },
+            {
                 allowed: true,
                 count: 0,
                 remaining: limit,
                 resetTime: Date.now() + windowMs
             }
-        }
+        )
     }
 }
 
@@ -163,26 +186,25 @@ export class RedisRateLimit {
  */
 export class CSRFTokenCache {
     static async set(token: string, data: Record<string, unknown>, ttl: number = 900) {
-        try {
-            await redisClient.setex(
+        return safeRedis(
+            () => redisClient!.setex(
                 CACHE_KEYS.CSRF_TOKEN(token),
                 ttl,
                 JSON.stringify(data)
-            )
-        } catch (error) {
-            logger.error('CSRF token cache set error:', error)
-        }
+            ),
+            undefined as any
+        )
     }
 
     static async consume(token: string) {
-        try {
-            const cached = await redisClient.get(CACHE_KEYS.CSRF_TOKEN(token))
-            await redisClient.del(CACHE_KEYS.CSRF_TOKEN(token))
-            return cached ? JSON.parse(cached) : null
-        } catch (error) {
-            logger.error('CSRF token cache consume error:', error)
-            return null
-        }
+        return safeRedis(
+            async () => {
+                const cached = await redisClient!.get(CACHE_KEYS.CSRF_TOKEN(token))
+                await redisClient!.del(CACHE_KEYS.CSRF_TOKEN(token))
+                return cached ? JSON.parse(cached) : null
+            },
+            null
+        )
     }
 }
 
@@ -191,55 +213,46 @@ export class CSRFTokenCache {
  */
 export class TokenCache {
     static async setRefreshToken(tokenHash: string, tokenData: Record<string, unknown>, ttl: number) {
-        try {
-            await redisClient.setex(
+        return safeRedis(
+            () => redisClient!.setex(
                 CACHE_KEYS.REFRESH_TOKEN(tokenHash),
                 ttl,
                 JSON.stringify(tokenData)
-            )
-        } catch (error) {
-            logger.error('Refresh token cache set error:', error)
-        }
+            ),
+            undefined as any
+        )
     }
 
     static async getRefreshToken(tokenHash: string) {
-        try {
-            const cached = await redisClient.get(CACHE_KEYS.REFRESH_TOKEN(tokenHash))
-            return cached ? JSON.parse(cached) : null
-        } catch (error) {
-            logger.error('Refresh token cache get error:', error)
-            return null
-        }
+        return safeRedis(
+            () => redisClient!.get(CACHE_KEYS.REFRESH_TOKEN(tokenHash)).then(cached => cached ? JSON.parse(cached) : null),
+            null
+        )
     }
 
     static async invalidateRefreshToken(tokenHash: string) {
-        try {
-            await redisClient.del(CACHE_KEYS.REFRESH_TOKEN(tokenHash))
-        } catch (error) {
-            logger.error('Refresh token cache invalidate error:', error)
-        }
+        return safeRedis(
+            () => redisClient!.del(CACHE_KEYS.REFRESH_TOKEN(tokenHash)),
+            undefined as any
+        )
     }
 
     static async setAccessToken(tokenHash: string, tokenData: Record<string, unknown>, ttl: number) {
-        try {
-            await redisClient.setex(
+        return safeRedis(
+            () => redisClient!.setex(
                 CACHE_KEYS.ACCESS_TOKEN(tokenHash),
                 ttl,
                 JSON.stringify(tokenData)
-            )
-        } catch (error) {
-            logger.error('Access token cache set error:', error)
-        }
+            ),
+            undefined as any
+        )
     }
 
     static async getAccessToken(tokenHash: string) {
-        try {
-            const cached = await redisClient.get(CACHE_KEYS.ACCESS_TOKEN(tokenHash))
-            return cached ? JSON.parse(cached) : null
-        } catch (error) {
-            logger.error('Access token cache get error:', error)
-            return null
-        }
+        return safeRedis(
+            () => redisClient!.get(CACHE_KEYS.ACCESS_TOKEN(tokenHash)).then(cached => cached ? JSON.parse(cached) : null),
+            null
+        )
     }
 }
 
@@ -247,6 +260,14 @@ export class TokenCache {
  * Health check for Redis
  */
 export async function checkRedisHealth() {
+    if (!redisClient) {
+        return {
+            healthy: false,
+            error: 'Redis client not initialized',
+            connected: false
+        }
+    }
+
     try {
         const start = Date.now()
         await redisClient.ping()
@@ -270,6 +291,8 @@ export async function checkRedisHealth() {
  * Graceful shutdown
  */
 export async function closeRedis() {
+    if (!redisClient) return
+
     try {
         await redisClient.quit()
         logger.info('Redis connection closed gracefully')
