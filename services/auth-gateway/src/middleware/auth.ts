@@ -1,15 +1,58 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
+import type { UnifiedUser } from '../../../security/middleware/auth.js'
 import { validateAPIKey } from '../services/api-key.service.js'
 
 // Extend Express Request type to include user and scopes
-declare global {
-  namespace Express {
-    interface Request {
-      user?: JWTPayload
-      scopes?: string[]  // API key scopes/permissions
-    }
+declare module 'express' {
+  interface Request {
+    user?: UnifiedUser
+    scopes?: string[]  // API key scopes/permissions
   }
+}
+
+const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
+  userId: payload.sub,
+  organizationId: payload.project_scope ?? 'unknown',
+  role: payload.role,
+  // Extract plan from JWT claims: check user_metadata, app_metadata, or direct claim
+  plan: payload.user_metadata?.plan || payload.app_metadata?.plan || payload.plan || 'free',
+  id: payload.sub,
+  email: payload.email,
+  app_metadata: {
+    project_scope: payload.project_scope,
+    platform: payload.platform,
+  },
+})
+
+const buildUnifiedUserFromApiKey = (options: {
+  userId: string
+  email: string
+  role: string
+  plan: string
+  projectScope?: string
+  permissions?: string[]
+  userMetadata?: Record<string, unknown>
+}): UnifiedUser => ({
+  userId: options.userId,
+  organizationId: options.projectScope ?? 'unknown',
+  role: options.role,
+  plan: options.plan,
+  id: options.userId,
+  email: options.email,
+  user_metadata: options.userMetadata ?? {},
+  app_metadata: {
+    project_scope: options.projectScope,
+    permissions: options.permissions,
+  },
+})
+
+const getProjectScope = (user?: UnifiedUser): string | undefined => {
+  if (!user) return undefined
+  const appMeta = user.app_metadata as Record<string, unknown> | undefined
+  const projectScope = appMeta?.project_scope
+  if (typeof projectScope === 'string') return projectScope
+  return user.organizationId
 }
 
 /**
@@ -25,7 +68,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (token) {
     try {
       const payload = verifyToken(token)
-      req.user = payload
+      req.user = buildUnifiedUserFromJwt(payload)
       // JWT tokens get full access by default
       req.scopes = ['*']
       return next()
@@ -47,26 +90,35 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         const { supabaseAdmin } = await import('../../db/client.js')
         const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(validation.userId)
 
+        const projectScope = validation.projectScope || 'unknown'
+        const plan = typeof userData?.user?.user_metadata?.plan === 'string'
+          ? userData.user.user_metadata.plan
+          : 'free'
+        const role = typeof userData?.user?.user_metadata?.role === 'string'
+          ? userData.user.user_metadata.role
+          : 'authenticated'
+
         if (userError || !userData?.user) {
           // Fallback: use minimal payload if user lookup fails
-          req.user = {
-            sub: validation.userId,
+          req.user = buildUnifiedUserFromApiKey({
+            userId: validation.userId,
             email: `${validation.userId}@api-key.local`,
-            role: 'authenticated',
-            project_scope: validation.projectScope || 'lanonasis-maas',
-            iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + 3600,
-          }
+            role,
+            plan,
+            projectScope,
+            permissions: validation.permissions,
+          })
         } else {
           // Create full user payload from API key validation and user data
-          req.user = {
-            sub: validation.userId,
+          req.user = buildUnifiedUserFromApiKey({
+            userId: validation.userId,
             email: userData.user.email || `${validation.userId}@api-key.local`,
-            role: userData.user.user_metadata?.role || 'authenticated',
-            project_scope: validation.projectScope || 'lanonasis-maas',
-            iat: Math.floor(Date.now() / 1000),
-            exp: Math.floor(Date.now() / 1000) + 3600,
-          }
+            role,
+            plan,
+            projectScope,
+            permissions: validation.permissions,
+            userMetadata: userData.user.user_metadata ?? {},
+          })
         }
         return next()
       }
@@ -101,12 +153,13 @@ export function requireScope(requiredScope: string) {
       })
     }
 
-    if (req.user.project_scope !== requiredScope) {
+    const projectScope = getProjectScope(req.user)
+    if (projectScope !== requiredScope) {
       return res.status(403).json({
         error: 'Insufficient scope',
         code: 'SCOPE_INSUFFICIENT',
         required: requiredScope,
-        provided: req.user.project_scope,
+        provided: projectScope,
       })
     }
 
@@ -253,7 +306,7 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   if (token) {
     try {
       const payload = verifyToken(token)
-      req.user = payload
+      req.user = buildUnifiedUserFromJwt(payload)
       req.scopes = ['*']
       return next()
     } catch {
@@ -272,14 +325,23 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
         const { supabaseAdmin } = await import('../../db/client.js')
         const { data: userData } = await supabaseAdmin.auth.admin.getUserById(validation.userId)
 
-        req.user = {
-          sub: validation.userId,
+        const projectScope = validation.projectScope || 'unknown'
+        const plan = typeof userData?.user?.user_metadata?.plan === 'string'
+          ? userData.user.user_metadata.plan
+          : 'free'
+        const role = typeof userData?.user?.user_metadata?.role === 'string'
+          ? userData.user.user_metadata.role
+          : 'authenticated'
+
+        req.user = buildUnifiedUserFromApiKey({
+          userId: validation.userId,
           email: userData?.user?.email || `${validation.userId}@api-key.local`,
-          role: userData?.user?.user_metadata?.role || 'authenticated',
-          project_scope: validation.projectScope || 'lanonasis-maas',
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + 3600,
-        }
+          role,
+          plan,
+          projectScope,
+          permissions: validation.permissions,
+          userMetadata: userData?.user?.user_metadata ?? {},
+        })
       }
     } catch {
       // Invalid API key, but we don't fail the request

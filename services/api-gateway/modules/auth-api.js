@@ -96,25 +96,76 @@ const auditLog = (action) => async (req, res, next) => {
   next();
 };
 
+// Auth-gateway introspection helper
+const introspectViaAuthGateway = async (token) => {
+  const authGatewayUrl = process.env.AUTH_GATEWAY_URL || 'https://auth.lanonasis.com';
+
+  try {
+    const response = await fetch(`${authGatewayUrl}/oauth/introspect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `token=${encodeURIComponent(token)}`,
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!data.active) return null;
+
+    const userId = data.sub || data.user_id;
+    if (!userId) return null;
+
+    return {
+      id: userId,
+      email: data.email,
+      user_metadata: {
+        role: data.scope?.includes('admin') ? 'admin' : 'user',
+        project_scope: data.scope?.split(' ')[0]
+      },
+      authSource: 'auth_gateway'
+    };
+  } catch (error) {
+    logger.debug('Auth-gateway introspect failed', { error: error.message });
+    return null;
+  }
+};
+
 // Session validation middleware
+// Supports: auth-gateway tokens (via introspection) and Supabase tokens
 const validateSession = async (req, res, next) => {
   try {
     // Extract session token from cookies or Authorization header
-    const sessionToken = req.cookies?.session_token || 
+    const sessionToken = req.cookies?.session_token ||
                         req.headers.authorization?.replace('Bearer ', '');
-    
+
     if (!sessionToken) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'No session token provided',
         code: 'AUTH_REQUIRED'
       });
     }
 
-    // Verify session with Supabase
+    // Try auth-gateway introspection first (prevents bad_jwt errors)
+    const authGatewayUser = await introspectViaAuthGateway(sessionToken);
+    if (authGatewayUser) {
+      req.user = authGatewayUser;
+      req.userId = authGatewayUser.id;
+      req.userRole = authGatewayUser.user_metadata?.role || 'user';
+      req.authSource = 'auth_gateway';
+      logger.debug('Validated via auth-gateway', { userId: authGatewayUser.id });
+      return next();
+    }
+
+    // Fall back to Supabase JWT validation
     const { data: { user }, error } = await supabase.auth.getUser(sessionToken);
-    
+
     if (error || !user) {
-      return res.status(401).json({ 
+      // Don't expose which validation method failed
+      logger.debug('Session validation failed', {
+        authGatewayFailed: !authGatewayUser,
+        supabaseFailed: true
+      });
+      return res.status(401).json({
         error: 'Invalid session token',
         code: 'AUTH_INVALID'
       });
@@ -124,14 +175,15 @@ const validateSession = async (req, res, next) => {
     req.user = user;
     req.userId = user.id;
     req.userRole = user.user_metadata?.role || 'user';
-    
+    req.authSource = 'supabase';
+
     next();
   } catch (error) {
     logger.error('Session validation failed', {
       error: error.message,
       correlationId: req.correlationId
     });
-    return res.status(401).json({ 
+    return res.status(401).json({
       error: 'Authentication failed',
       code: 'AUTH_FAILED'
     });

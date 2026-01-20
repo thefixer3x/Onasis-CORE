@@ -4,7 +4,7 @@
  */
 
 import type { Request } from 'express'
-import type { JWTPayload } from '../utils/jwt.js'
+import type { UnifiedUser } from '../../../security/middleware/auth.js'
 
 // Rate limit tiers
 export type RateLimitTier = 'general' | 'ai' | 'media' | 'webhook'
@@ -32,7 +32,7 @@ export type ServiceRegistry = Record<string, ServiceConfig>
 
 // Extended request with router metadata
 export interface RouterRequest extends Request {
-  user?: JWTPayload
+  user?: UnifiedUser
   scopes?: string[]
   /** Anonymous request ID for tracking */
   anonymousId?: string

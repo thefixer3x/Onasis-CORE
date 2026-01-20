@@ -8,6 +8,12 @@ export interface JWTPayload {
   role: string
   project_scope?: string
   platform?: 'mcp' | 'cli' | 'web' | 'api'
+  /** User's subscription plan (extracted from metadata or direct claim) */
+  plan?: string
+  /** Supabase user_metadata - may contain plan info */
+  user_metadata?: Record<string, unknown>
+  /** Supabase app_metadata - may contain plan info */
+  app_metadata?: Record<string, unknown>
   iat?: number
   exp?: number
 }

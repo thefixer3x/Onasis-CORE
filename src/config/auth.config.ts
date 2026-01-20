@@ -5,15 +5,17 @@
  * Lanonasis infrastructure, NOT external platforms.
  */
 
+const env = import.meta.env
+
 export const authConfig = {
   // Base URLs - FIXED: Stable production-ready endpoints
-  authBaseUrl: (import.meta as any).env?.VITE_AUTH_BASE_URL || 'https://auth.lanonasis.com',
-  apiBaseUrl: (import.meta as any).env?.VITE_API_BASE_URL || 'https://auth.lanonasis.com',
+  authBaseUrl: env.VITE_AUTH_BASE_URL || 'https://auth.lanonasis.com',
+  apiBaseUrl: env.VITE_API_BASE_URL || 'https://auth.lanonasis.com',
   
   // OAuth Configuration - FIXED: Proper Lanonasis endpoints
   oauth: {
-    clientId: (import.meta as any).env?.VITE_AUTH_CLIENT_ID || 'lanonasis-api-dashboard',
-    redirectUri: (import.meta as any).env?.VITE_AUTH_REDIRECT_URI || `${window.location.origin}/v1/auth/callback`,
+    clientId: env.VITE_AUTH_CLIENT_ID || 'lanonasis-api-dashboard',
+    redirectUri: env.VITE_AUTH_REDIRECT_URI || `${window.location.origin}/v1/auth/callback`,
     scope: 'api:read api:write user:profile dashboard:access',
     
     // Authorization endpoints - FIXED: Internal Lanonasis auth
@@ -36,8 +38,8 @@ export const authConfig = {
   
   // JWT Configuration
   jwt: {
-    secret: (import.meta as any).env?.VITE_JWT_SECRET=REDACTED_JWT_SECRET
-    expiresIn: (import.meta as any).env?.VITE_JWT_EXPIRY || '7d',
+    secret: env.VITE_JWT_SECRET=REDACTED_JWT_SECRET
+    expiresIn: env.VITE_JWT_EXPIRY || '7d',
   },
   
   // Route Configuration - FIXED: Internal dashboard routes
@@ -52,9 +54,9 @@ export const authConfig = {
   
   // Feature Flags
   features: {
-    enableOAuth: (import.meta as any).env?.VITE_ENABLE_OAUTH === 'true',
-    enableMCP: (import.meta as any).env?.VITE_ENABLE_MCP === 'true',
-    enableAnalytics: (import.meta as any).env?.VITE_ENABLE_ANALYTICS === 'true',
+    enableOAuth: env.VITE_ENABLE_OAUTH === 'true',
+    enableMCP: env.VITE_ENABLE_MCP === 'true',
+    enableAnalytics: env.VITE_ENABLE_ANALYTICS === 'true',
   },
 }
 

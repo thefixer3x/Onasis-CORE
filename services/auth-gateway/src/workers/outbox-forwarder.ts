@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
-import { supabaseAdmin } from '../../db/client.js'
+import { supabaseUsers } from '../../db/client.js'
+import { env } from '../../config/env.js'
 import {
   fetchPendingOutbox,
   markOutboxFailed,
@@ -10,8 +11,43 @@ import {
 const MAX_BATCH_SIZE = 50
 const MAX_RETRIES = 5
 
+/**
+ * Validate required credentials before starting
+ */
+function validateCredentials(): void {
+  if (!env.MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+    console.error('═══════════════════════════════════════════════════════════════')
+    console.error('❌ OUTBOX FORWARDER MISCONFIGURED')
+    console.error('═══════════════════════════════════════════════════════════════')
+    console.error('')
+    console.error('Missing required environment variables:')
+    console.error('  - MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+    console.error('  - MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    console.error('')
+    console.error('The outbox forwarder needs Main DB credentials to project events.')
+    console.error('Without these, events will be written to the wrong database!')
+    console.error('')
+    console.error('Add to your .env:')
+    console.error('  MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+    console.error('  MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    console.error('═══════════════════════════════════════════════════════════════')
+    process.exit(1)
+  }
+
+  console.log('✓ Outbox forwarder credentials validated')
+  console.log('  Target: Main DB (MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+}
+
+/**
+ * Forward event to Main DB (mxtsdgkwzjzlttpotole.supabase.co)
+ *
+ * This projects auth events from Auth-Gateway DB to Main DB's auth_events table
+ * for consumption by dashboards, Netlify functions, and other read-side consumers.
+ *
+ * IMPORTANT: Uses supabaseUsers (Main DB), NOT supabaseAdmin (Auth-Gateway DB)
+ */
 async function deliverToSupabase(row: PendingOutboxRow) {
-  const { error } = await supabaseAdmin.from('auth_events').upsert({
+  const { error } = await supabaseUsers.from('auth_events').upsert({
     event_id: row.event_id,
     aggregate_type: row.aggregate_type,
     aggregate_id: row.aggregate_id,
@@ -70,6 +106,9 @@ async function processBatch() {
 }
 
 async function main() {
+  // Validate credentials before processing
+  validateCredentials()
+
   try {
     await processBatch()
   } catch (error) {

@@ -13,7 +13,7 @@ export interface AuditLogEntry {
   action: string;
   target?: string;
   status: 'allowed' | 'denied' | 'error';
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
   projectScope?: string;
@@ -68,7 +68,7 @@ export class AuditLogger {
   /**
    * Log successful authentication
    */
-  async logAuth(userId: string, meta?: Record<string, any>): Promise<void> {
+  async logAuth(userId: string, meta?: Record<string, unknown>): Promise<void> {
     await this.log({
       userId,
       action: 'auth_success',
@@ -80,7 +80,7 @@ export class AuditLogger {
   /**
    * Log failed authentication attempt
    */
-  async logAuthFailure(reason: string, meta?: Record<string, any>): Promise<void> {
+  async logAuthFailure(reason: string, meta?: Record<string, unknown>): Promise<void> {
     await this.log({
       action: 'auth_failure',
       status: 'denied',
@@ -95,7 +95,7 @@ export class AuditLogger {
     functionName: string, 
     userId?: string, 
     status: 'allowed' | 'denied' = 'allowed',
-    meta?: Record<string, any>
+    meta?: Record<string, unknown>
   ): Promise<void> {
     await this.log({
       userId,
@@ -114,7 +114,7 @@ export class AuditLogger {
     operation: string,
     userId?: string,
     status: 'allowed' | 'denied' = 'allowed',
-    meta?: Record<string, any>
+    meta?: Record<string, unknown>
   ): Promise<void> {
     await this.log({
       userId,
@@ -132,7 +132,7 @@ export class AuditLogger {
     requestedProject: string,
     actualScope: string,
     userId?: string,
-    meta?: Record<string, any>
+    meta?: Record<string, unknown>
   ): Promise<void> {
     await this.log({
       userId,

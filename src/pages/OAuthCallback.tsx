@@ -3,62 +3,67 @@
  * Handles OAuth redirect and token exchange
  */
 
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { authService } from '@/services/auth.service'
-import { authConfig } from '@/config/auth.config'
-import { Loader2, AlertCircle } from 'lucide-react'
-import toast from 'react-hot-toast'
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { authService } from "@/services/auth.service";
+import { authConfig } from "@/config/auth.config";
+import { Loader2, AlertCircle } from "lucide-react";
+import toast from "react-hot-toast";
 
 export const OAuthCallback: React.FC = () => {
-  const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
-  const [error, setError] = useState<string | null>(null)
-  
-  useEffect(() => {
-    handleCallback()
-  }, [searchParams])
-  
-  const handleCallback = async () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCallback = useCallback(async () => {
     try {
-      const code = searchParams.get('code')
-      const state = searchParams.get('state')
-      const error = searchParams.get('error')
-      const errorDescription = searchParams.get('error_description')
-      
+      const code = searchParams.get("code");
+      const state = searchParams.get("state");
+      const error = searchParams.get("error");
+      const errorDescription = searchParams.get("error_description");
+
       if (error) {
-        throw new Error(errorDescription || error)
+        throw new Error(errorDescription || error);
       }
-      
+
       if (!code || !state) {
-        throw new Error('Missing authorization code or state')
+        throw new Error("Missing authorization code or state");
       }
-      
+
       // Exchange code for token
-      const response = await authService.handleOAuthCallback(code, state)
-      
+      const response = await authService.handleOAuthCallback(code, state);
+
       // Ensure user data is stored
       if (response && response.user) {
-        localStorage.setItem(authConfig.session.userKey, JSON.stringify(response.user))
+        localStorage.setItem(
+          authConfig.session.userKey,
+          JSON.stringify(response.user),
+        );
       }
-      
-      toast.success('Login successful!')
-      
+
+      toast.success("Login successful!");
+
       // Small delay to ensure state is updated
       setTimeout(() => {
-        navigate(authConfig.routes.dashboard)
-      }, 100)
+        navigate(authConfig.routes.dashboard);
+      }, 100);
     } catch (error) {
-      console.error('OAuth callback error:', error)
-      setError(error instanceof Error ? error.message : 'Authentication failed')
-      
+      console.error("OAuth callback error:", error);
+      setError(
+        error instanceof Error ? error.message : "Authentication failed",
+      );
+
       // Redirect to login after showing error
       setTimeout(() => {
-        navigate(authConfig.routes.login)
-      }, 3000)
+        navigate(authConfig.routes.login);
+      }, 3000);
     }
-  }
-  
+  }, [navigate, searchParams]);
+
+  useEffect(() => {
+    handleCallback();
+  }, [handleCallback]);
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -79,9 +84,9 @@ export const OAuthCallback: React.FC = () => {
           </div>
         </div>
       </div>
-    )
+    );
   }
-  
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="max-w-md w-full p-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
@@ -96,5 +101,5 @@ export const OAuthCallback: React.FC = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};

@@ -52,9 +52,10 @@ export const corsHeaders = {
 };
 
 // Authenticate request and get user ID
+// Supports: API keys, auth-gateway JWTs, and Supabase JWTs
 export async function authenticateRequest(
   req: Request
-): Promise<{ userId: string } | { error: string; status: number }> {
+): Promise<{ userId: string; authSource?: string } | { error: string; status: number }> {
   const authHeader = req.headers.get("Authorization");
   const apiKey = req.headers.get("X-API-Key");
 
@@ -80,29 +81,72 @@ export async function authenticateRequest(
     return null;
   };
 
-  // Try Bearer token first (Supabase auth)
+  // Helper to authenticate via auth-gateway introspection
+  const authenticateViaAuthGateway = async (token: string): Promise<{ userId: string } | null> => {
+    const authGatewayUrl = Deno.env.get("AUTH_GATEWAY_URL") || "https://auth.lanonasis.com";
+
+    try {
+      const response = await fetch(`${authGatewayUrl}/oauth/introspect`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `token=${encodeURIComponent(token)}`,
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      if (!data.active) return null;
+
+      const userId = data.sub || data.user_id;
+      if (userId) {
+        console.log(`[auth] Auth-gateway validation successful: ${userId}`);
+        return { userId };
+      }
+      return null;
+    } catch (error) {
+      console.log("[auth] Auth-gateway introspect failed:", error);
+      return null;
+    }
+  };
+
+  // Helper to authenticate via Supabase JWT
+  const authenticateViaSupabase = async (token: string): Promise<{ userId: string } | null> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        console.log(`[auth] Supabase validation successful: ${user.id}`);
+        return { userId: user.id };
+      }
+      return null;
+    } catch (error) {
+      console.log("[auth] Supabase validation failed:", error);
+      return null;
+    }
+  };
+
+  // Try Bearer token
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "");
 
-    // Check if it's an API key format
+    // 1. Check if it's an API key format
     if (isApiKeyFormat(token)) {
       const result = await authenticateApiKey(token);
-      if (result) return result;
+      if (result) return { ...result, authSource: "api_key" };
     }
 
-    // Try as JWT
-    const {
-      data: { user },
-    } = await supabase.auth.getUser(token);
-    if (user) {
-      return { userId: user.id };
-    }
+    // 2. Try auth-gateway introspection first (prevents bad_jwt errors)
+    const authGatewayResult = await authenticateViaAuthGateway(token);
+    if (authGatewayResult) return { ...authGatewayResult, authSource: "auth_gateway" };
+
+    // 3. Fall back to Supabase JWT validation
+    const supabaseResult = await authenticateViaSupabase(token);
+    if (supabaseResult) return { ...supabaseResult, authSource: "supabase" };
   }
 
   // Try X-API-Key header
   if (apiKey && isApiKeyFormat(apiKey)) {
     const result = await authenticateApiKey(apiKey);
-    if (result) return result;
+    if (result) return { ...result, authSource: "api_key" };
   }
 
   return { error: "Unauthorized", status: 401 };
