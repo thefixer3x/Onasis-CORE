@@ -522,5 +522,224 @@ export function isRedisCachingEnabled(): boolean {
     return REDIS_ENABLED
 }
 
+/**
+ * Device Code Storage with Database Fallback (RFC 8628)
+ * Used for CLI device authorization flow
+ * This class ALWAYS works - uses Redis if available, otherwise PostgreSQL
+ */
+export class DeviceCodeCache {
+    private static async isRedisAvailable(): Promise<boolean> {
+        const client = getRedisClient()
+        if (!client) return false
+        try {
+            await client.ping()
+            return client.status === 'ready'
+        } catch {
+            return false
+        }
+    }
+
+    static async set(key: string, data: Record<string, unknown>, ttlSeconds: number): Promise<void> {
+        const client = getRedisClient()
+
+        // Try Redis first (if configured and available)
+        if (client) {
+            try {
+                if (await this.isRedisAvailable()) {
+                    await client.setex(key, ttlSeconds, JSON.stringify(data))
+                    return
+                }
+            } catch {
+                // Redis failed, fall through to database
+            }
+        }
+
+        // Fallback to database
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            const expiresAt = new Date(Date.now() + ttlSeconds * 1000)
+            await dbPool.query(`
+                INSERT INTO auth_gateway.oauth_states (state_key, state_data, expires_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (state_key) DO UPDATE SET
+                    state_data = $2,
+                    expires_at = $3,
+                    updated_at = NOW()
+            `, [key, JSON.stringify(data), expiresAt])
+        } catch (dbError) {
+            logger.error('Failed to store device code in database', { key, error: dbError })
+            throw new Error('Failed to store device code')
+        }
+    }
+
+    static async get(key: string): Promise<Record<string, unknown> | null> {
+        const client = getRedisClient()
+
+        // Try Redis first (if configured and available)
+        if (client) {
+            try {
+                if (await this.isRedisAvailable()) {
+                    const cached = await client.get(key)
+                    if (cached) {
+                        return JSON.parse(cached)
+                    }
+                }
+            } catch {
+                // Redis failed, fall through to database
+            }
+        }
+
+        // Fallback to database
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            const result = await dbPool.query(`
+                SELECT state_data FROM auth_gateway.oauth_states
+                WHERE state_key = $1 AND expires_at > NOW()
+            `, [key])
+            if (result.rows.length > 0) {
+                const data = result.rows[0] as { state_data: string }
+                return typeof data.state_data === 'string'
+                    ? JSON.parse(data.state_data)
+                    : data.state_data
+            }
+        } catch (dbError) {
+            logger.error('Failed to get device code from database', { key, error: dbError })
+        }
+
+        return null
+    }
+
+    static async delete(key: string): Promise<void> {
+        const client = getRedisClient()
+
+        // Delete from Redis if available
+        if (client) {
+            try {
+                if (await this.isRedisAvailable()) {
+                    await client.del(key)
+                }
+            } catch {
+                // Redis failed, continue to database cleanup
+            }
+        }
+
+        // Always delete from database
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            await dbPool.query('DELETE FROM auth_gateway.oauth_states WHERE state_key = $1', [key])
+        } catch (dbError) {
+            logger.warn('Failed to delete device code from database', { key, error: dbError })
+        }
+    }
+}
+
+/**
+ * OTP State Storage with Database Fallback
+ * Used for passwordless OTP authentication
+ * This class ALWAYS works - uses Redis if available, otherwise PostgreSQL
+ */
+export class OtpStateCache {
+    private static async isRedisAvailable(): Promise<boolean> {
+        const client = getRedisClient()
+        if (!client) return false
+        try {
+            await client.ping()
+            return client.status === 'ready'
+        } catch {
+            return false
+        }
+    }
+
+    static async set(key: string, data: Record<string, unknown>, ttlSeconds: number): Promise<void> {
+        const client = getRedisClient()
+
+        if (client) {
+            try {
+                if (await this.isRedisAvailable()) {
+                    await client.setex(key, ttlSeconds, JSON.stringify(data))
+                    return
+                }
+            } catch {
+                // Redis failed, fall through to database
+            }
+        }
+
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            const expiresAt = new Date(Date.now() + ttlSeconds * 1000)
+            await dbPool.query(`
+                INSERT INTO auth_gateway.oauth_states (state_key, state_data, expires_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (state_key) DO UPDATE SET
+                    state_data = $2,
+                    expires_at = $3,
+                    updated_at = NOW()
+            `, [key, JSON.stringify(data), expiresAt])
+        } catch (dbError) {
+            logger.error('Failed to store OTP state in database', { key, error: dbError })
+            throw new Error('Failed to store OTP state')
+        }
+    }
+
+    static async get(key: string): Promise<Record<string, unknown> | null> {
+        const client = getRedisClient()
+
+        if (client) {
+            try {
+                if (await this.isRedisAvailable()) {
+                    const cached = await client.get(key)
+                    if (cached) {
+                        return JSON.parse(cached)
+                    }
+                }
+            } catch {
+                // Redis failed, fall through to database
+            }
+        }
+
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            const result = await dbPool.query(`
+                SELECT state_data FROM auth_gateway.oauth_states
+                WHERE state_key = $1 AND expires_at > NOW()
+            `, [key])
+            if (result.rows.length > 0) {
+                const data = result.rows[0] as { state_data: string }
+                return typeof data.state_data === 'string'
+                    ? JSON.parse(data.state_data)
+                    : data.state_data
+            }
+        } catch (dbError) {
+            logger.error('Failed to get OTP state from database', { key, error: dbError })
+        }
+
+        return null
+    }
+
+    static async delete(key: string): Promise<void> {
+        const client = getRedisClient()
+
+        if (client) {
+            try {
+                if (await this.isRedisAvailable()) {
+                    await client.del(key)
+                }
+            } catch {
+                // Redis failed, continue to database cleanup
+            }
+        }
+
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            await dbPool.query('DELETE FROM auth_gateway.oauth_states WHERE state_key = $1', [key])
+        } catch (dbError) {
+            logger.warn('Failed to delete OTP state from database', { key, error: dbError })
+        }
+    }
+}
+
+// Export getRedisClient for direct Redis access where needed
+export { getRedisClient }
+
 // Export for backward compatibility (may be null if Redis not configured)
 export { redisClient, REDIS_ENABLED }

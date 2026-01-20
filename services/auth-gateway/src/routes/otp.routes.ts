@@ -19,7 +19,7 @@ import { generateTokenPair } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
-import { redisClient } from '../services/cache.service.js'
+import { OtpStateCache } from '../services/cache.service.js'
 import { logger } from '../utils/logger.js'
 
 const router = express.Router()
@@ -127,7 +127,7 @@ router.post('/send', async (req: Request, res: Response): Promise<void> => {
       created_at: Date.now()
     }
 
-    await redisClient.setex(stateKey, OTP_STATE_TTL_SECONDS, JSON.stringify(stateData))
+    await OtpStateCache.set(stateKey, stateData as unknown as Record<string, unknown>, OTP_STATE_TTL_SECONDS)
 
     // Send OTP via Supabase
     // For magic link, we set emailRedirectTo so user gets a clickable link
@@ -262,9 +262,9 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
   let stateData: OtpStateData | null = null
 
   try {
-    const stored = await redisClient.get(stateKey)
+    const stored = await OtpStateCache.get(stateKey)
     if (stored) {
-      stateData = JSON.parse(stored) as OtpStateData
+      stateData = stored as unknown as OtpStateData
     }
   } catch (error) {
     logger.error('Failed to read OTP state', { error, email: email.substring(0, 3) + '***' })
@@ -313,7 +313,7 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Clear the OTP state
-    await redisClient.del(stateKey)
+    await OtpStateCache.delete(stateKey)
 
     // Upsert user in our database
     await upsertUserAccount({
