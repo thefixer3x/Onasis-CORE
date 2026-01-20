@@ -4,7 +4,7 @@
  */
 
 import type { Request } from 'express'
-import type { UnifiedUser } from '../../../security/middleware/auth.js'
+import type { UnifiedUser } from '../middleware/auth.js'
 
 // Rate limit tiers
 export type RateLimitTier = 'general' | 'ai' | 'media' | 'webhook'
