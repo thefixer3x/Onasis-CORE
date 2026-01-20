@@ -116,7 +116,8 @@ export function requireScope(requiredScope: string) {
 
 /**
  * Check if a scope matches a required scope pattern
- * Supports wildcards: 'memories.*' matches 'memories.read', 'memories.write'
+ * Supports both colon notation (standard: 'memories:read') and dot notation (legacy: 'memories.read')
+ * Wildcards: 'memories:*' matches 'memories:read', 'memories:write'
  * '*' matches everything
  */
 function scopeMatches(userScope: string, requiredScope: string): boolean {
@@ -126,19 +127,34 @@ function scopeMatches(userScope: string, requiredScope: string): boolean {
   // Full wildcard
   if (userScope === '*') return true
 
-  // Legacy full access
-  if (userScope === 'legacy.full_access') return true
+  // Legacy full access (supports both notations)
+  if (userScope === 'legacy:full_access' || userScope === 'legacy.full_access') return true
 
-  // Resource wildcard (e.g., 'memories.*' matches 'memories.read')
+  // Normalize both scopes to colon notation for comparison
+  const normalizedUser = userScope.replace('.', ':')
+  const normalizedRequired = requiredScope.replace('.', ':')
+
+  // Exact match after normalization
+  if (normalizedUser === normalizedRequired) return true
+
+  // Resource wildcard with colon notation (e.g., 'memories:*' matches 'memories:read')
+  if (normalizedUser.endsWith(':*')) {
+    const resource = normalizedUser.slice(0, -2)
+    return normalizedRequired.startsWith(resource + ':')
+  }
+
+  // Resource wildcard with dot notation (legacy: 'memories.*' matches 'memories.read')
   if (userScope.endsWith('.*')) {
     const resource = userScope.slice(0, -2)
-    return requiredScope.startsWith(resource + '.')
+    if (requiredScope.startsWith(resource + '.') || normalizedRequired.startsWith(resource + ':')) {
+      return true
+    }
   }
 
   // Check if required scope is a wildcard and user has specific permission
-  if (requiredScope.endsWith('.*')) {
-    const resource = requiredScope.slice(0, -2)
-    return userScope.startsWith(resource + '.')
+  if (normalizedRequired.endsWith(':*')) {
+    const resource = normalizedRequired.slice(0, -2)
+    return normalizedUser.startsWith(resource + ':')
   }
 
   return false

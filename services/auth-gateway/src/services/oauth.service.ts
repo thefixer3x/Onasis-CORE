@@ -206,8 +206,59 @@ export function resolveScopes(client: OAuthClient, requested?: string[]): string
     return normalizedRequested
 }
 
+/**
+ * Check if a redirect URI is allowed for a client
+ * Supports:
+ * - Exact match: 'http://localhost:3000/callback'
+ * - Wildcard port: 'http://localhost:*/callback' matches any port
+ * - Wildcard path: 'http://localhost:3000/*' matches any path
+ * - Wildcard subdomain: 'https://*.lanonasis.com/callback'
+ * - Custom schemes: 'myapp://callback'
+ */
 export function isRedirectUriAllowed(client: OAuthClient, redirectUri: string): boolean {
-    return client.allowed_redirect_uris?.includes(redirectUri) ?? false
+    if (!client.allowed_redirect_uris || client.allowed_redirect_uris.length === 0) {
+        return false
+    }
+
+    return client.allowed_redirect_uris.some(pattern => {
+        // Exact match
+        if (pattern === redirectUri) return true
+
+        // Wildcard port pattern: http://localhost:*/callback
+        if (pattern.includes(':*')) {
+            // Escape special regex chars except our wildcard
+            const regexPattern = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special chars
+                .replace(':\\*', ':\\d+')  // Replace :* with port number pattern
+            try {
+                const regex = new RegExp(`^${regexPattern}$`)
+                if (regex.test(redirectUri)) return true
+            } catch {
+                // Invalid regex, skip this pattern
+            }
+        }
+
+        // Wildcard path pattern: http://localhost:3000/*
+        if (pattern.endsWith('/*')) {
+            const basePattern = pattern.slice(0, -2)
+            if (redirectUri.startsWith(basePattern)) return true
+        }
+
+        // Wildcard subdomain: https://*.lanonasis.com/callback
+        if (pattern.includes('://*.')) {
+            const regexPattern = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                .replace('\\*\\.', '[a-zA-Z0-9-]+\\.')
+            try {
+                const regex = new RegExp(`^${regexPattern}$`)
+                if (regex.test(redirectUri)) return true
+            } catch {
+                // Invalid regex, skip this pattern
+            }
+        }
+
+        return false
+    })
 }
 
 export function isChallengeMethodAllowed(

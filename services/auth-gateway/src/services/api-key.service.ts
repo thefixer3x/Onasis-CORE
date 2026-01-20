@@ -28,24 +28,32 @@ interface ApiKeyRecord {
   is_active: boolean
 }
 
-// Valid scopes for API keys
+// Valid scopes for API keys (using colon notation to match services.config.ts)
 export const VALID_SCOPES = new Set([
   // Memory scopes
-  'memories.read', 'memories.write', 'memories.*',
+  'memories:read', 'memories:write', 'memories:delete', 'memories:*',
   // Secret vault scopes
-  'secrets.read', 'secrets.write', 'secrets.*',
+  'secrets:read', 'secrets:write', 'secrets:*',
   // MCP scopes
-  'mcp.read', 'mcp.write', 'mcp.*',
+  'mcp:read', 'mcp:write', 'mcp:connect', 'mcp:full', 'mcp:tools', 'mcp:resources', 'mcp:prompts', 'mcp:*',
   // Profile scopes
-  'profile.read', 'profile.write', 'profile.*',
+  'profile:read', 'profile:write', 'profile:*',
   // Project scopes
-  'projects.read', 'projects.write', 'projects.*',
+  'projects:read', 'projects:write', 'projects:*',
   // Analytics scopes
-  'analytics.read', 'analytics.*',
+  'analytics:read', 'analytics:*',
+  // AI scopes
+  'ai:chat', 'ai:*',
+  // Media scopes
+  'media:tts', 'media:stt', 'media:transcribe', 'media:*',
+  // Content scopes
+  'content:tags', 'content:summary', 'content:embedding', 'content:*',
+  // API access
+  'api:access',
   // Admin scopes
-  'admin.*',
+  'admin:*',
   // Legacy full access (for backward compatibility)
-  'legacy.full_access',
+  'legacy:full_access',
   // Wildcard (all permissions)
   '*'
 ])
@@ -92,29 +100,46 @@ export async function verifyApiKeyHash(apiKey: string, hash: string, isPreHashed
  */
 export function normalizeScopes(scopes?: string[]): string[] {
   if (!scopes || !Array.isArray(scopes) || scopes.length === 0) {
-    return ['legacy.full_access']
+    return ['legacy:full_access']
   }
 
-  // Filter valid scopes (either in VALID_SCOPES set or matches pattern like "resource.action")
-  const validPattern = /^[a-z_]+\.(read|write|\*)$/
-  const normalizedScopes = scopes.filter(scope => {
-    if (typeof scope !== 'string') return false
-    const s = scope.trim().toLowerCase()
-    return VALID_SCOPES.has(s) || validPattern.test(s)
-  })
+  // Filter valid scopes (either in VALID_SCOPES set or matches pattern like "resource:action")
+  // Supports both colon notation (standard) and dot notation (legacy, auto-converted)
+  const colonPattern = /^[a-z_]+:(read|write|delete|connect|full|\*)$/
+  const dotPattern = /^[a-z_]+\.(read|write|delete|connect|full|\*)$/
+
+  const normalizedScopes = scopes.map(scope => {
+    if (typeof scope !== 'string') return null
+    let s = scope.trim().toLowerCase()
+
+    // Convert legacy dot notation to colon notation
+    if (dotPattern.test(s)) {
+      s = s.replace('.', ':')
+      console.warn(`[api-key.service] Auto-converting legacy dot scope "${scope}" to "${s}"`)
+    }
+
+    // Validate the scope
+    if (VALID_SCOPES.has(s) || colonPattern.test(s)) {
+      return s
+    }
+    return null
+  }).filter((s): s is string => s !== null)
 
   // Warn about invalid scopes
   const invalidScopes = scopes.filter(s => {
     if (typeof s !== 'string') return true
     const scope = s.trim().toLowerCase()
-    return !VALID_SCOPES.has(scope) && !validPattern.test(scope)
+    const converted = scope.replace('.', ':')
+    return !VALID_SCOPES.has(scope) && !VALID_SCOPES.has(converted) &&
+           !colonPattern.test(scope) && !colonPattern.test(converted) &&
+           !dotPattern.test(scope)
   })
   if (invalidScopes.length > 0) {
     console.warn(`[api-key.service] Ignoring invalid scopes: ${invalidScopes.join(', ')}`)
   }
 
   // Ensure at least one valid scope
-  return normalizedScopes.length > 0 ? normalizedScopes : ['legacy.full_access']
+  return normalizedScopes.length > 0 ? normalizedScopes : ['legacy:full_access']
 }
 
 /**

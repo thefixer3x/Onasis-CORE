@@ -244,6 +244,109 @@ export class TokenCache {
 }
 
 /**
+ * OAuth State Storage with Database Fallback
+ * Used for OAuth and Magic Link state that MUST persist even if Redis is down
+ */
+export class OAuthStateCache {
+    private static async isRedisAvailable(): Promise<boolean> {
+        try {
+            await redisClient.ping()
+            return redisClient.status === 'ready'
+        } catch {
+            return false
+        }
+    }
+
+    static async set(key: string, data: Record<string, unknown>, ttlSeconds: number): Promise<void> {
+        try {
+            // Try Redis first
+            if (await this.isRedisAvailable()) {
+                await redisClient.setex(key, ttlSeconds, JSON.stringify(data))
+                return
+            }
+        } catch (error) {
+            logger.warn('Redis unavailable for OAuth state, falling back to database', { key, error })
+        }
+
+        // Fallback to database
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            const expiresAt = new Date(Date.now() + ttlSeconds * 1000)
+            await dbPool.query(`
+                INSERT INTO auth_gateway.oauth_states (state_key, state_data, expires_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (state_key) DO UPDATE SET
+                    state_data = $2,
+                    expires_at = $3,
+                    updated_at = NOW()
+            `, [key, JSON.stringify(data), expiresAt])
+        } catch (dbError) {
+            logger.error('Failed to store OAuth state in database fallback', { key, error: dbError })
+            throw new Error('Failed to store OAuth state')
+        }
+    }
+
+    static async get(key: string): Promise<Record<string, unknown> | null> {
+        try {
+            // Try Redis first
+            if (await this.isRedisAvailable()) {
+                const cached = await redisClient.get(key)
+                if (cached) {
+                    return JSON.parse(cached)
+                }
+            }
+        } catch (error) {
+            logger.warn('Redis unavailable for OAuth state get, checking database', { key, error })
+        }
+
+        // Fallback to database
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            const result = await dbPool.query(`
+                SELECT state_data FROM auth_gateway.oauth_states
+                WHERE state_key = $1 AND expires_at > NOW()
+            `, [key])
+            if (result.rows.length > 0) {
+                const data = result.rows[0] as { state_data: string }
+                return typeof data.state_data === 'string'
+                    ? JSON.parse(data.state_data)
+                    : data.state_data
+            }
+        } catch (dbError) {
+            logger.error('Failed to get OAuth state from database fallback', { key, error: dbError })
+        }
+
+        return null
+    }
+
+    static async delete(key: string): Promise<void> {
+        // Delete from both Redis and database to ensure cleanup
+        try {
+            if (await this.isRedisAvailable()) {
+                await redisClient.del(key)
+            }
+        } catch (error) {
+            logger.warn('Failed to delete OAuth state from Redis', { key, error })
+        }
+
+        try {
+            const { dbPool } = await import('../../db/client.js')
+            await dbPool.query('DELETE FROM auth_gateway.oauth_states WHERE state_key = $1', [key])
+        } catch (dbError) {
+            logger.warn('Failed to delete OAuth state from database', { key, error: dbError })
+        }
+    }
+
+    static async consume(key: string): Promise<Record<string, unknown> | null> {
+        const data = await this.get(key)
+        if (data) {
+            await this.delete(key)
+        }
+        return data
+    }
+}
+
+/**
  * Health check for Redis
  */
 export async function checkRedisHealth() {
