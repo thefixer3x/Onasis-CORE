@@ -16,7 +16,7 @@ export interface User {
 export type UserRole = 'admin' | 'user' | 'service';
 
 // API Response Types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

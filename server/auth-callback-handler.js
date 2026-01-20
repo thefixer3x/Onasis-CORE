@@ -3,23 +3,25 @@
  * Handles redirects from auth.lanonasis.com to dashboard.lanonasis.com
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 // Handle authentication callback
-router.get('/auth/callback', (req, res) => {
+router.get("/auth/callback", (req, res) => {
   const { token, platform, error } = req.query;
-  
+
   if (error) {
     // Redirect to login with error
-    return res.redirect(`https://auth.lanonasis.com/auth/login?error=${encodeURIComponent(error)}`);
+    return res.redirect(
+      `https://auth.lanonasis.com/auth/login?error=${encodeURIComponent(error)}`,
+    );
   }
-  
+
   if (!token) {
     // No token, redirect to login
-    return res.redirect('https://auth.lanonasis.com/auth/login?error=no_token');
+    return res.redirect("https://auth.lanonasis.com/auth/login?error=no_token");
   }
-  
+
   // Return HTML that stores the token and redirects
   res.send(`
     <!DOCTYPE html>
@@ -59,13 +61,13 @@ router.get('/auth/callback', (req, res) => {
       <div class="container">
         <h1>✓ Authentication Successful</h1>
         <div class="spinner"></div>
-        <p>Redirecting to ${platform || 'dashboard'}...</p>
+        <p>Redirecting to ${platform || "dashboard"}...</p>
       </div>
       
       <script>
         // Store the token in localStorage
         const token = '${token}';
-        const platform = '${platform || 'dashboard'}';
+        const platform = '${platform || "dashboard"}';
         
         if (token) {
           // Store token for the dashboard
@@ -110,24 +112,27 @@ router.get('/auth/callback', (req, res) => {
 });
 
 // Verify token endpoint
-router.post('/auth/verify', (req, res) => {
+router.post("/auth/verify", (req, res) => {
   const { token } = req.body;
-  
+
   if (!token) {
-    return res.status(401).json({ valid: false, error: 'No token provided' });
+    return res.status(401).json({ valid: false, error: "No token provided" });
   }
-  
+
   try {
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'lanonasis-secret-key-change-in-production');
-    
+    const jwt = require("jsonwebtoken");
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "lanonasis-secret-key-change-in-production",
+    );
+
     res.json({
       valid: true,
       userId: decoded.userId,
-      timestamp: decoded.timestamp
+      timestamp: decoded.timestamp,
     });
-  } catch (error) {
-    res.status(401).json({ valid: false, error: 'Invalid token' });
+  } catch (_error) {
+    res.status(401).json({ valid: false, error: "Invalid token" });
   }
 });
 

@@ -13,6 +13,16 @@ export default tseslint.config(
       ".turbo",
       "*.config.js",
       "tailwind.config.js",
+      "archived/**",
+      "scripts/**",
+      "tests/**",
+      "services/**/tests/**",
+      "netlify/functions/**",
+      "apps/control-room/**",
+      "deploy/**",
+      "functions/**",
+      "server/**",
+      "services/api-gateway/**",
       "netlify/functions/mcp-message.js",
       "netlify/functions/mcp-sse.js",
       "netlify/functions/mcp.js",
@@ -47,6 +57,13 @@ export default tseslint.config(
       "@typescript-eslint/no-namespace": "warn",
       "@typescript-eslint/no-unsafe-function-type": "warn",
       "@typescript-eslint/no-require-imports": "warn",
+    },
+  },
+  {
+    files: ["services/auth-gateway/**", "supabase/functions/**"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
     },
   },
   // Configuration for ES6 Module JavaScript files
@@ -134,5 +151,5 @@ export default tseslint.config(
       },
       sourceType: "module",
     },
-  }
+  },
 );

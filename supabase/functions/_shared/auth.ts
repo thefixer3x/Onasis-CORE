@@ -1,6 +1,11 @@
 /**
  * Authentication middleware for Supabase Edge Functions
  * Supports: Bearer tokens (JWT/API keys), X-API-Key header
+ *
+ * Token validation priority:
+ * 1. API key format (lano_*, vibe_*, sk_*, pk_*, master_*)
+ * 2. Auth-gateway JWT (via /oauth/introspect)
+ * 3. Supabase JWT (via supabase.auth.getUser)
  */
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -12,6 +17,7 @@ export interface AuthContext {
   email: string;
   is_master: boolean;
   api_key_id?: string;
+  auth_source?: 'api_key' | 'auth_gateway' | 'supabase';
 }
 
 /**
@@ -28,8 +34,9 @@ export function createSupabaseClient(): SupabaseClient {
  * Authenticate an incoming request
  * Supports:
  * 1. Bearer token (API key format: lano_*, vibe_*, sk_*, pk_*)
- * 2. Bearer token (JWT from Supabase Auth)
- * 3. X-API-Key header
+ * 2. Bearer token (auth-gateway JWT via /oauth/introspect)
+ * 3. Bearer token (Supabase JWT via supabase.auth.getUser)
+ * 4. X-API-Key header
  */
 export async function authenticate(req: Request): Promise<AuthContext | null> {
   const supabase = createSupabaseClient();
@@ -41,37 +48,142 @@ export async function authenticate(req: Request): Promise<AuthContext | null> {
 
     // Check if it's an API key format
     if (isApiKeyFormat(token)) {
-      return await authenticateApiKey(supabase, token);
+      const result = await authenticateApiKey(supabase, token);
+      if (result) {
+        result.auth_source = 'api_key';
+        return result;
+      }
     }
 
-    // Try as Supabase JWT
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (!error && user) {
-      const { data: userData } = await supabase
-        .from('users')
-        .select('organization_id, email')
-        .eq('id', user.id)
-        .single();
+    // Try auth-gateway introspection first (prevents bad_jwt errors)
+    const authGatewayResult = await authenticateViaAuthGateway(supabase, token);
+    if (authGatewayResult) {
+      return authGatewayResult;
+    }
 
-      if (userData) {
-        return {
-          user_id: user.id,
-          organization_id: userData.organization_id,
-          access_level: 'authenticated',
-          email: userData.email || user.email || '',
-          is_master: false
-        };
-      }
+    // Fall back to Supabase JWT validation
+    const supabaseResult = await authenticateViaSupabase(supabase, token);
+    if (supabaseResult) {
+      return supabaseResult;
     }
   }
 
   // Try X-API-Key header
   const apiKey = req.headers.get('X-API-Key');
   if (apiKey) {
-    return await authenticateApiKey(supabase, apiKey);
+    const result = await authenticateApiKey(supabase, apiKey);
+    if (result) {
+      result.auth_source = 'api_key';
+      return result;
+    }
   }
 
   return null;
+}
+
+/**
+ * Authenticate via auth-gateway's /oauth/introspect endpoint
+ * This handles auth-gateway issued JWTs (from OAuth flows, OTP, etc.)
+ */
+async function authenticateViaAuthGateway(
+  supabase: SupabaseClient,
+  token: string
+): Promise<AuthContext | null> {
+  const authGatewayUrl = Deno.env.get('AUTH_GATEWAY_URL') || 'https://auth.lanonasis.com';
+
+  try {
+    const response = await fetch(`${authGatewayUrl}/oauth/introspect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `token=${encodeURIComponent(token)}`,
+    });
+
+    if (!response.ok) {
+      console.log('[auth] Auth-gateway introspect returned non-OK status:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+
+    // RFC 7662: inactive tokens return { active: false }
+    if (!data.active) {
+      console.log('[auth] Token not active according to auth-gateway');
+      return null;
+    }
+
+    // Token is valid - extract user info
+    const userId = data.sub || data.user_id;
+    if (!userId) {
+      console.log('[auth] No user ID in introspection response');
+      return null;
+    }
+
+    // Fetch organization from users table
+    const { data: userData } = await supabase
+      .from('users')
+      .select('organization_id, email')
+      .eq('id', userId)
+      .single();
+
+    console.log(`[auth] Auth-gateway validation successful for user: ${userId}`);
+
+    return {
+      user_id: userId,
+      organization_id: userData?.organization_id || userId,
+      access_level: data.scope?.split(' ')[0] || 'authenticated',
+      email: userData?.email || data.email || '',
+      is_master: data.scope?.includes('admin') || false,
+      auth_source: 'auth_gateway',
+    };
+  } catch (error) {
+    // Auth-gateway unavailable or network error - fall back to Supabase
+    console.log('[auth] Auth-gateway introspect failed, will try Supabase:', error);
+    return null;
+  }
+}
+
+/**
+ * Authenticate via Supabase's auth.getUser()
+ * This handles native Supabase JWTs
+ */
+async function authenticateViaSupabase(
+  supabase: SupabaseClient,
+  token: string
+): Promise<AuthContext | null> {
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      // Don't log this as an error - it's expected for non-Supabase tokens
+      console.log('[auth] Supabase JWT validation failed:', error?.message || 'No user');
+      return null;
+    }
+
+    const { data: userData } = await supabase
+      .from('users')
+      .select('organization_id, email')
+      .eq('id', user.id)
+      .single();
+
+    if (userData) {
+      console.log(`[auth] Supabase validation successful for user: ${user.id}`);
+      return {
+        user_id: user.id,
+        organization_id: userData.organization_id,
+        access_level: 'authenticated',
+        email: userData.email || user.email || '',
+        is_master: false,
+        auth_source: 'supabase',
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.log('[auth] Supabase validation error:', error);
+    return null;
+  }
 }
 
 /**
