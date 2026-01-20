@@ -2,12 +2,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import express from 'express'
 
-// Mocks
+// Mock storage for OtpStateCache
+const mockOtpStore = new Map<string, { data: string; ttl: number }>()
+
+// Mocks - use OtpStateCache class instead of redisClient
 vi.mock('../../src/services/cache.service.js', () => ({
-  redisClient: {
-    setex: vi.fn(),
-    get: vi.fn(),
-    del: vi.fn()
+  OtpStateCache: {
+    set: vi.fn(async (key: string, data: Record<string, unknown>, ttl: number) => {
+      mockOtpStore.set(key, { data: JSON.stringify(data), ttl })
+    }),
+    get: vi.fn(async (key: string) => {
+      const stored = mockOtpStore.get(key)
+      return stored ? JSON.parse(stored.data) : null
+    }),
+    delete: vi.fn(async (key: string) => {
+      mockOtpStore.delete(key)
+    })
   }
 }))
 
@@ -33,7 +43,7 @@ vi.mock('../../src/utils/jwt.js', () => ({
 }))
 
 import otpRoutes from '../../src/routes/otp.routes.js'
-import { redisClient } from '../../src/services/cache.service.js'
+import { OtpStateCache } from '../../src/services/cache.service.js'
 import { supabaseAuth } from '../../db/client.js'
 import { logAuthEvent } from '../../src/services/audit.service.js'
 
@@ -92,7 +102,7 @@ describe('OTP Routes - unit', () => {
   })
 
   it('POST /verify - invalid otp returns 400 OTP_INVALID', async () => {
-    ;(redisClient.get as any).mockResolvedValue(null)
+    ;(OtpStateCache.get as any).mockResolvedValue(null)
     ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({ data: {}, error: { message: 'Invalid' } })
     const app = createApp()
     const res = await request(app).post('/otp/verify').send({ email: 'user@example.com', token: '000000' })
@@ -105,7 +115,7 @@ describe('OTP Routes - unit', () => {
     const user = { id: 'uid123', email: 'user@example.com', role: 'authenticated', user_metadata: {} }
     const session = { } // minimal
     ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({ data: { user, session }, error: null })
-    ;(redisClient.get as any).mockResolvedValue(JSON.stringify({ email: 'user@example.com', type: 'email', platform: 'cli' }))
+    ;(OtpStateCache.get as any).mockResolvedValue({ email: 'user@example.com', type: 'email', platform: 'cli' })
 
     const app = createApp()
     const res = await request(app).post('/otp/verify').send({ email: 'user@example.com', token: '000000' })

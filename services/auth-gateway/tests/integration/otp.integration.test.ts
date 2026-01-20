@@ -1,18 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import request from 'supertest'
 import type { RequestHandler } from 'express';
-import type { Redis } from 'ioredis';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// NOTE: Integration tests are skipped due to ESM module loading issues with vi.mock()
-// The mocks don't apply before the module graph resolves, causing "Cannot access before initialization" errors
-// TODO: Refactor to use dynamic imports or convert to proper integration tests with real mocks
+// NOTE: Integration tests use OtpStateCache class (PostgreSQL fallback-capable)
 import express from 'express'
 
-const mockRedisClient = {
-  setex: vi.fn(),
+// Mock OtpStateCache class
+const mockOtpStateCache = {
+  set: vi.fn(),
   get: vi.fn(),
-  del: vi.fn()
+  delete: vi.fn()
 };
 
 const mockSupabaseAuth = {
@@ -34,7 +32,7 @@ const mockGenerateTokenPair = vi.fn((payload) => ({
 }));
 
 vi.mock('../../src/services/cache.service.js', () => ({
-  redisClient: mockRedisClient,
+  OtpStateCache: mockOtpStateCache,
 }))
 
 vi.mock('../../db/client.js', () => ({
@@ -50,7 +48,7 @@ vi.mock('../../src/utils/jwt.js', () => ({
 
 describe('OTP Integration Tests', () => {
   let otpRoutes: RequestHandler;
-  let redisClient: Redis;
+  let OtpStateCache: typeof mockOtpStateCache;
   let supabaseAuth: SupabaseClient;
 
   beforeEach(async () => {
@@ -58,16 +56,16 @@ describe('OTP Integration Tests', () => {
     const otpModule = await import('../../src/routes/otp.routes.js');
     const cacheModule = await import('../../src/services/cache.service.js');
     const dbModule = await import('../../db/client.js');
-    
+
     otpRoutes = otpModule.default;
-    redisClient = cacheModule.redisClient;
+    OtpStateCache = cacheModule.OtpStateCache as typeof mockOtpStateCache;
     supabaseAuth = dbModule.supabaseAuth;
-    
+
     // Type-safe mock implementations
-    (redisClient as any).setex = vi.fn();
-    (redisClient as any).get = vi.fn();
-    (redisClient as any).del = vi.fn();
-    
+    (OtpStateCache as any).set = vi.fn();
+    (OtpStateCache as any).get = vi.fn();
+    (OtpStateCache as any).delete = vi.fn();
+
     vi.clearAllMocks()
   })
 
@@ -91,8 +89,8 @@ describe('OTP Integration Tests', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
-    // state should be stored with setex
-    expect(redisClient.setex).toHaveBeenCalled()
+    // state should be stored with OtpStateCache.set
+    expect(OtpStateCache.set).toHaveBeenCalled()
     // validate supabase called with options including emailRedirectTo
     const called = (supabaseAuth.auth.signInWithOtp as any).mock.calls[0][0]
     expect(called.email).toBe('user@example.com')
@@ -102,7 +100,7 @@ describe('OTP Integration Tests', () => {
   it('magic-link verify uses stored state and returns tokens', async () => {
     const user = { id: 'uid-abc', email: 'user@example.com', role: 'authenticated', user_metadata: {} }
     const session = {}
-    ;(redisClient.get as any).mockResolvedValue(JSON.stringify({ email: 'user@example.com', type: 'magiclink', platform: 'web', redirect_uri: 'https://app.example.com' }))
+    ;(OtpStateCache.get as any).mockResolvedValue({ email: 'user@example.com', type: 'magiclink', platform: 'web', redirect_uri: 'https://app.example.com' })
     ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({ data: { user, session }, error: null })
 
     const app = createApp()
@@ -118,8 +116,8 @@ describe('OTP Integration Tests', () => {
 
   describe('OTP Routes - Edge Cases', () => {
     it('should reject verify with expired/missing state gracefully', async () => {
-      // Simulate expired state (redis returns null)
-      ;(redisClient.get as any).mockResolvedValue(null)
+      // Simulate expired state (cache returns null)
+      ;(OtpStateCache.get as any).mockResolvedValue(null)
       ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({
         data: { user: null, session: null },
         error: { message: 'Token has expired or is invalid' }
@@ -137,12 +135,12 @@ describe('OTP Integration Tests', () => {
 
     it('should reject verify with mismatched email', async () => {
       // State stored for different email
-      ;(redisClient.get as any).mockResolvedValue(JSON.stringify({
+      ;(OtpStateCache.get as any).mockResolvedValue({
         email: 'original@example.com',
         type: 'email',
         platform: 'cli',
         created_at: Date.now()
-      }))
+      })
       ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({
         data: { user: null, session: null },
         error: { message: 'Invalid token for this email' }
@@ -235,8 +233,9 @@ describe('OTP Integration Tests', () => {
         .send({ email: 'user@example.com' })
 
       // Check that state was stored with platform: 'cli'
-      const storeCall = (redisClient.setex as any).mock.calls[0]
-      const storedData = JSON.parse(storeCall[2])
+      // OtpStateCache.set is called with (key, data, ttl) - data is already an object, not JSON string
+      const storeCall = (OtpStateCache.set as any).mock.calls[0]
+      const storedData = storeCall[1] // data is the second argument
       expect(storedData.platform).toBe('cli')
     })
 
@@ -248,8 +247,9 @@ describe('OTP Integration Tests', () => {
         .post('/otp/send')
         .send({ email: 'user@example.com' })
 
-      const storeCall = (redisClient.setex as any).mock.calls[0]
-      const storedData = JSON.parse(storeCall[2])
+      // OtpStateCache.set is called with (key, data, ttl) - data is the second argument
+      const storeCall = (OtpStateCache.set as any).mock.calls[0]
+      const storedData = storeCall[1]
       expect(storedData.type).toBe('email')
     })
   })
