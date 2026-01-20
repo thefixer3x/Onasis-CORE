@@ -1,10 +1,20 @@
 // PM2 Ecosystem Configuration for Hostinger VPS
+//
+// REMOVED CRON JOBS (2026-01):
+// - outbox-forwarder: Run manually when needed: npm run outbox:forward
+// - bootstrap-sync: One-time script, run manually: npm run bootstrap:supabase
+//
+// These were CQRS event sourcing workers that can be replaced with:
+// 1. Supabase Database Triggers (push-based, real-time)
+// 2. Supabase Edge Functions (serverless, on-demand)
+// 3. Manual execution when needed
+//
 module.exports = {
   apps: [
     {
       name: 'auth-gateway',
       script: 'start.js',
-      instances: 2,
+      instances: 1,
       exec_mode: 'cluster',
       autorestart: true,
       watch: false,
@@ -19,50 +29,6 @@ module.exports = {
       error_file: 'logs/pm2-error.log',
       out_file: 'logs/pm2-out.log',
       log_file: 'logs/pm2-combined.log',
-      time: true,
-      merge_logs: true,
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    },
-    {
-      name: 'outbox-forwarder',
-      script: 'node_modules/.bin/tsx',
-      args: 'src/workers/outbox-forwarder.ts',
-      instances: 1,
-      exec_mode: 'fork',
-      autorestart: false,  // Cron mode - don't auto-restart
-      watch: false,
-      cron_restart: '* * * * *',  // Run every minute
-      env: {
-        NODE_ENV: 'production',
-      },
-      env_production: {
-        NODE_ENV: 'production',
-      },
-      error_file: 'logs/outbox-forwarder-error.log',
-      out_file: 'logs/outbox-forwarder-out.log',
-      log_file: 'logs/outbox-forwarder-combined.log',
-      time: true,
-      merge_logs: true,
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-    },
-    {
-      name: 'bootstrap-sync',
-      script: 'node_modules/.bin/tsx',
-      args: 'scripts/bootstrap-from-supabase.ts',
-      instances: 1,
-      exec_mode: 'fork',
-      autorestart: false,  // Cron mode - don't auto-restart
-      watch: false,
-      cron_restart: '*/15 * * * *',  // Run every 15 minutes
-      env: {
-        NODE_ENV: 'production',
-      },
-      env_production: {
-        NODE_ENV: 'production',
-      },
-      error_file: 'logs/bootstrap-sync-error.log',
-      out_file: 'logs/bootstrap-sync-out.log',
-      log_file: 'logs/bootstrap-sync-combined.log',
       time: true,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
