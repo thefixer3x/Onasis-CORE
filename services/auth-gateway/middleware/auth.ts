@@ -1,7 +1,29 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
-import type { UnifiedUser } from '../../security/middleware/auth.js'
 import { validateAPIKey } from '../src/services/api-key.service.js'
+
+/**
+ * Unified user type for auth-gateway middleware
+ * Combines JWT payload fields with internal user model fields
+ */
+export interface UnifiedUser {
+  // Primary identifiers (internal naming)
+  userId: string;
+  organizationId: string;
+  role: string;
+  plan: string;
+
+  // JWT standard claims (aliases)
+  sub?: string;
+  project_scope?: string;
+  platform?: 'mcp' | 'cli' | 'web' | 'api';
+
+  // Optional profile fields
+  id?: string;
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+  app_metadata?: Record<string, unknown>;
+}
 
 // Extend Express Request type to include user and scopes
 declare module 'express' {
@@ -12,11 +34,19 @@ declare module 'express' {
 }
 
 const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
+  // Primary identifiers
   userId: payload.sub,
   organizationId: payload.project_scope ?? 'unknown',
   role: payload.role,
   // Extract plan from JWT claims: check user_metadata, app_metadata, or direct claim
-  plan: payload.user_metadata?.plan || payload.app_metadata?.plan || payload.plan || 'free',
+  plan: (payload.user_metadata?.plan as string) || (payload.app_metadata?.plan as string) || payload.plan || 'free',
+
+  // JWT standard aliases (for code that uses req.user.sub, req.user.project_scope, etc.)
+  sub: payload.sub,
+  project_scope: payload.project_scope,
+  platform: payload.platform,
+
+  // Profile fields
   id: payload.sub,
   email: payload.email,
   app_metadata: {

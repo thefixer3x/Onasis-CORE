@@ -35,8 +35,17 @@ export async function validateSessionCookie(
             return next()
         }
 
-        // Attach user to request
-        req.user = payload
+        // Attach user to request (convert JWTPayload to UnifiedUser)
+        req.user = {
+            userId: payload.sub,
+            organizationId: payload.project_scope ?? 'unknown',
+            role: payload.role,
+            plan: payload.plan || 'free',
+            sub: payload.sub,
+            project_scope: payload.project_scope,
+            platform: payload.platform,
+            email: payload.email,
+        }
         next()
     } catch (error) {
         // Invalid token, clear cookies

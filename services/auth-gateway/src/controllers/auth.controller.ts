@@ -1160,11 +1160,11 @@ export async function getSession(req: Request, res: Response) {
   }
 
   try {
-    const sessions = await getUserSessions(req.user.sub)
+    const sessions = await getUserSessions(req.user.userId)
 
     return res.json({
       user: {
-        id: req.user.sub,
+        id: req.user.userId,
         email: req.user.email,
         role: req.user.role,
         project_scope: req.user.project_scope,
@@ -1328,7 +1328,7 @@ export async function listSessions(req: Request, res: Response) {
   }
 
   try {
-    const sessions = await getUserSessions(req.user.sub)
+    const sessions = await getUserSessions(req.user.userId)
 
     return res.json({
       sessions: sessions.map((s) => ({
@@ -1591,13 +1591,13 @@ export async function getMe(req: Request, res: Response) {
 
   try {
     // Fetch full user account including raw_metadata
-    const userAccount = await findUserAccountById(req.user.sub)
+    const userAccount = await findUserAccountById(req.user.userId)
 
     if (!userAccount) {
       // User exists in JWT but not in user_accounts table
       // Return basic info from JWT
       return res.json({
-        id: req.user.sub,
+        id: req.user.userId,
         email: req.user.email,
         role: req.user.role,
         project_scope: req.user.project_scope,

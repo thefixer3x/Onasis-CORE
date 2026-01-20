@@ -139,10 +139,23 @@ export interface AuthResponse {
 }
 
 export interface JWTPayload {
+  // Primary identifiers (internal naming)
   userId: string;
   organizationId: string;
   role: string;
   plan: string;
+
+  // JWT standard claims (aliases for compatibility with JWT tokens)
+  /** JWT subject claim - alias for userId */
+  sub?: string;
+  /** Project scope - alias for organizationId */
+  project_scope?: string;
+  /** Platform identifier (mcp, cli, web, api) */
+  platform?: 'mcp' | 'cli' | 'web' | 'api';
+  /** User email */
+  email?: string;
+
+  // Standard JWT timing claims
   iat?: number;
   exp?: number;
 }

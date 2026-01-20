@@ -99,7 +99,7 @@ export async function routeToSupabase<T = unknown>(
 
   // Forward auth context if authenticated
   if (req.user) {
-    headers['X-User-Id'] = req.user.sub
+    headers['X-User-Id'] = req.user.userId
     headers['X-User-Role'] = req.user.role || 'authenticated'
     if (req.user.project_scope) {
       headers['X-Project-Scope'] = req.user.project_scope
