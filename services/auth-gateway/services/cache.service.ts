@@ -50,8 +50,11 @@ async function initializeRedis() {
     }
 }
 
-if (process.env.REDIS_HOST || process.env.REDIS_PASSWORD) {
+// Only initialize Redis if explicitly configured
+if (process.env.REDIS_ENABLED === 'true' || process.env.REDIS_HOST || process.env.REDIS_PASSWORD || process.env.REDIS_URL) {
     initializeRedis().catch(() => {})
+} else {
+    logger.info('Redis not configured - caching disabled (graceful degradation mode)')
 }
 
 async function safeRedis<T>(op: () => Promise<T>, fallback: T): Promise<T> {

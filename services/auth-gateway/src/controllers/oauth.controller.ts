@@ -28,8 +28,9 @@ const authorizeRequestSchema = z.object({
     redirect_uri: z.string().url(),
     scope: z.string().optional(),
     state: z.string().optional(),
-    code_challenge: z.string().min(43).max(256),
-    code_challenge_method: z.enum(['S256', 'plain']).default('S256'),
+    // PKCE fields are optional at schema level - validated based on client.require_pkce
+    code_challenge: z.string().min(43).max(256).optional(),
+    code_challenge_method: z.enum(['S256', 'plain']).default('S256').optional(),
 })
 
 const tokenRequestSchema = z.discriminatedUnion('grant_type', [
@@ -39,7 +40,8 @@ const tokenRequestSchema = z.discriminatedUnion('grant_type', [
         // Per RFC 6749 §4.1.3, redirect_uri MUST be included if it was included in the authorization request
         redirect_uri: z.string().url(),
         client_id: z.string().min(1),
-        code_verifier: codeVerifierSchema,
+        // PKCE code_verifier is optional - validated at runtime based on auth code
+        code_verifier: codeVerifierSchema.optional(),
     }),
     z.object({
         grant_type: z.literal('refresh_token'),
@@ -181,8 +183,14 @@ export async function authorize(req: Request, res: Response) {
             throw new OAuthServiceError('Redirect URI not allowed for client', 'invalid_request', 400)
         }
 
-        const method = payload.code_challenge_method as CodeChallengeMethod
-        if (!isChallengeMethodAllowed(client, method)) {
+        // Validate PKCE based on client configuration
+        const requiresPkce = client.require_pkce
+        if (requiresPkce && !payload.code_challenge) {
+            throw new OAuthServiceError('PKCE code_challenge is required for this client', 'invalid_request', 400)
+        }
+
+        const method = (payload.code_challenge_method || 'S256') as CodeChallengeMethod
+        if (payload.code_challenge && !isChallengeMethodAllowed(client, method)) {
             throw new OAuthServiceError('Unsupported code challenge method', 'invalid_request', 400)
         }
 
@@ -194,8 +202,8 @@ export async function authorize(req: Request, res: Response) {
             redirectUri: payload.redirect_uri,
             scope: scopes,
             state: payload.state,
-            codeChallenge: payload.code_challenge,
-            codeChallengeMethod: method,
+            codeChallenge: payload.code_challenge || '', // Empty string for non-PKCE flows
+            codeChallengeMethod: payload.code_challenge ? method : 'S256',
             ipAddress: req.ip,
             userAgent: req.get('user-agent') || undefined,
         })
@@ -268,12 +276,19 @@ export async function token(req: Request, res: Response) {
                 redirectUri: payload.redirect_uri,
             })
 
-            if (!verifyCodeChallenge(
-                payload.code_verifier,
-                authorizationCode.code_challenge,
-                authorizationCode.code_challenge_method
-            )) {
-                throw new OAuthServiceError('Invalid code_verifier', 'invalid_grant', 400)
+            // Validate PKCE only if authorization code was issued with a code_challenge
+            const pkceWasUsed = authorizationCode.code_challenge && authorizationCode.code_challenge.length > 0
+            if (pkceWasUsed) {
+                if (!payload.code_verifier) {
+                    throw new OAuthServiceError('code_verifier is required for PKCE flow', 'invalid_grant', 400)
+                }
+                if (!verifyCodeChallenge(
+                    payload.code_verifier,
+                    authorizationCode.code_challenge,
+                    authorizationCode.code_challenge_method
+                )) {
+                    throw new OAuthServiceError('Invalid code_verifier', 'invalid_grant', 400)
+                }
             }
 
             const tokenPair = await issueTokenPair({

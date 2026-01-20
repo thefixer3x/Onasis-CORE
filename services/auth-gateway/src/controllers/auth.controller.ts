@@ -1,12 +1,12 @@
 import crypto from 'crypto'
 import type { Request, Response } from 'express'
-import { supabaseAdmin } from '../../db/client.js'
+import { supabaseUsers } from '../../db/client.js'
 import { generateTokenPair } from '../utils/jwt.js'
 import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
 import { upsertUserAccount, findUserAccountById } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import * as apiKeyService from '../services/api-key.service.js'
-import { redisClient } from '../services/cache.service.js'
+import { OAuthStateCache } from '../services/cache.service.js'
 import { logger } from '../utils/logger.js'
 
 type Platform = 'mcp' | 'cli' | 'web' | 'api'
@@ -239,10 +239,10 @@ export async function oauthProvider(req: Request, res: Response) {
   }
 
   try {
-    await redisClient.setex(
+    await OAuthStateCache.set(
       `${OAUTH_STATE_PREFIX}${state}`,
-      OAUTH_STATE_TTL_SECONDS,
-      JSON.stringify(stateData)
+      stateData as unknown as Record<string, unknown>,
+      OAUTH_STATE_TTL_SECONDS
     )
   } catch (error) {
     logger.error('Failed to persist OAuth state', { error })
@@ -255,7 +255,7 @@ export async function oauthProvider(req: Request, res: Response) {
   const providerConfig = OAUTH_PROVIDERS[providerKey]
   const callbackUrl = buildCallbackUrl(req)
 
-  const { data, error } = await supabaseAdmin.auth.signInWithOAuth({
+  const { data, error } = await supabaseUsers.auth.signInWithOAuth({
     provider: providerConfig.supabaseProvider as any,
     options: {
       redirectTo: callbackUrl,
@@ -310,11 +310,10 @@ export async function oauthCallback(req: Request, res: Response) {
   const stateKey = `${OAUTH_STATE_PREFIX}${state}`
 
   try {
-    const stored = await redisClient.get(stateKey)
+    const stored = await OAuthStateCache.consume(stateKey)
     if (stored) {
-      stateData = JSON.parse(stored) as OAuthStateData
+      stateData = stored as unknown as OAuthStateData
     }
-    await redisClient.del(stateKey)
   } catch (error) {
     logger.error('Failed to read OAuth state', { error, state })
   }
@@ -332,7 +331,7 @@ export async function oauthCallback(req: Request, res: Response) {
     'https://dashboard.lanonasis.com'
 
   try {
-    const { data, error } = await supabaseAdmin.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabaseUsers.auth.exchangeCodeForSession(code)
 
     if (error || !data?.user || !data?.session) {
       logger.warn('OAuth callback exchange failed', {
@@ -357,7 +356,7 @@ export async function oauthCallback(req: Request, res: Response) {
 
     if (stateData.project_scope) {
       try {
-        await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+        await supabaseUsers.auth.admin.updateUserById(data.user.id, {
           user_metadata: {
             ...data.user.user_metadata,
             project_scope: stateData.project_scope,
@@ -506,10 +505,10 @@ export async function requestMagicLink(req: Request, res: Response) {
   }
 
   try {
-    await redisClient.setex(
+    await OAuthStateCache.set(
       `${MAGIC_LINK_STATE_PREFIX}${state}`,
-      MAGIC_LINK_STATE_TTL_SECONDS,
-      JSON.stringify(stateData)
+      stateData as unknown as Record<string, unknown>,
+      MAGIC_LINK_STATE_TTL_SECONDS
     )
   } catch (error) {
     logger.error('Failed to persist magic link state', { error })
@@ -522,7 +521,7 @@ export async function requestMagicLink(req: Request, res: Response) {
   const callbackUrl = buildMagicLinkCallbackUrl(req, state)
   const shouldCreateUser = req.body.create_user === true
 
-  const { error } = await supabaseAdmin.auth.signInWithOtp({
+  const { error } = await supabaseUsers.auth.signInWithOtp({
     email,
     options: {
       emailRedirectTo: callbackUrl,
@@ -607,11 +606,10 @@ export async function magicLinkExchange(req: Request, res: Response) {
   const stateKey = `${MAGIC_LINK_STATE_PREFIX}${state}`
 
   try {
-    const stored = await redisClient.get(stateKey)
+    const stored = await OAuthStateCache.consume(stateKey)
     if (stored) {
-      stateData = JSON.parse(stored) as MagicLinkStateData
+      stateData = stored as unknown as MagicLinkStateData
     }
-    await redisClient.del(stateKey)
   } catch (error) {
     logger.error('Failed to read magic link state', { error, state })
     return res.status(500).json({
@@ -635,7 +633,7 @@ export async function magicLinkExchange(req: Request, res: Response) {
     : process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com'
 
   try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(supabaseAccessToken)
+    const { data: { user }, error } = await supabaseUsers.auth.getUser(supabaseAccessToken)
 
     if (error || !user) {
       await logAuthEvent({
@@ -682,7 +680,7 @@ export async function magicLinkExchange(req: Request, res: Response) {
 
     if (stateData.project_scope) {
       try {
-        await supabaseAdmin.auth.admin.updateUserById(user.id, {
+        await supabaseUsers.auth.admin.updateUserById(user.id, {
           user_metadata: {
             ...user.user_metadata,
             project_scope: stateData.project_scope,
@@ -830,7 +828,7 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
 
   try {
     // Verify Supabase token and get user
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(supabaseAccessToken)
+    const { data: { user }, error } = await supabaseUsers.auth.getUser(supabaseAccessToken)
 
     if (error || !user) {
       logger.warn('Invalid Supabase token presented for exchange', {
@@ -955,7 +953,7 @@ export async function login(req: Request, res: Response) {
 
   try {
     // Authenticate with Supabase
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    const { data, error } = await supabaseUsers.auth.signInWithPassword({
       email,
       password,
     })
