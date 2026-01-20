@@ -208,12 +208,7 @@ export function resolveScopes(client: OAuthClient, requested?: string[]): string
 
 /**
  * Check if a redirect URI is allowed for a client
- * Supports:
- * - Exact match: 'http://localhost:3000/callback'
- * - Wildcard port: 'http://localhost:*/callback' matches any port
- * - Wildcard path: 'http://localhost:3000/*' matches any path
- * - Wildcard subdomain: 'https://*.lanonasis.com/callback'
- * - Custom schemes: 'myapp://callback'
+ * Supports exact match, wildcard port, path, subdomain, and custom schemes
  */
 export function isRedirectUriAllowed(client: OAuthClient, redirectUri: string): boolean {
     if (!client.allowed_redirect_uris || client.allowed_redirect_uris.length === 0) {
