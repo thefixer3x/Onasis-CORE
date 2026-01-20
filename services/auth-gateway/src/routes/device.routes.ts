@@ -20,7 +20,7 @@
 import express from 'express'
 import type { Request, Response } from 'express'
 import crypto from 'crypto'
-import { redisClient } from '../services/cache.service.js'
+import { DeviceCodeCache } from '../services/cache.service.js'
 import { generateTokenPair } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -110,18 +110,18 @@ router.post('/device', async (req: Request, res: Response): Promise<void> => {
       status: 'pending'
     }
 
-    // Store both codes in Redis
+    // Store both codes (Redis if available, otherwise PostgreSQL fallback)
     // device_code -> full data (for polling)
     // user_code -> device_code reference (for verification page)
-    await redisClient.setex(
+    await DeviceCodeCache.set(
       `${DEVICE_CODE_PREFIX}${deviceCode}`,
-      DEVICE_CODE_EXPIRY,
-      JSON.stringify(deviceData)
+      deviceData as unknown as Record<string, unknown>,
+      DEVICE_CODE_EXPIRY
     )
-    await redisClient.setex(
+    await DeviceCodeCache.set(
       `${USER_CODE_PREFIX}${userCode}`,
-      DEVICE_CODE_EXPIRY,
-      deviceCode
+      { device_code: deviceCode },
+      DEVICE_CODE_EXPIRY
     )
 
     await logAuthEvent({
@@ -176,8 +176,8 @@ router.get('/device', async (req: Request, res: Response): Promise<void> => {
 
   // If code provided in URL, validate it
   if (userCode) {
-    const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${userCode}`)
-    if (!deviceCode) {
+    const userCodeData = await DeviceCodeCache.get(`${USER_CODE_PREFIX}${userCode}`)
+    if (!userCodeData || !userCodeData.device_code) {
       res.status(400).send(getVerificationPageHTML('Invalid or expired code. Please try again.', userCode, nonce))
       return
     }
@@ -205,21 +205,23 @@ router.get('/device/check', async (req: Request, res: Response): Promise<void> =
   const formattedCode = userCode.slice(0, 4) + '-' + userCode.slice(4)
 
   try {
-    const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${formattedCode}`)
+    const userCodeData = await DeviceCodeCache.get(`${USER_CODE_PREFIX}${formattedCode}`)
 
-    if (!deviceCode) {
+    if (!userCodeData || !userCodeData.device_code) {
       res.status(404).json({ valid: false, error: 'Code not found or expired' })
       return
     }
 
+    const deviceCode = userCodeData.device_code as string
+
     // Check if device data exists
-    const deviceDataStr = await redisClient.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
-    if (!deviceDataStr) {
+    const deviceDataRaw = await DeviceCodeCache.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+    if (!deviceDataRaw) {
       res.status(404).json({ valid: false, error: 'Device session expired' })
       return
     }
 
-    const deviceData: DeviceCodeData = JSON.parse(deviceDataStr)
+    const deviceData = deviceDataRaw as unknown as DeviceCodeData
 
     // Check if already authorized or denied
     if (deviceData.status !== 'pending') {
@@ -261,8 +263,8 @@ router.post('/device/verify', async (req: Request, res: Response): Promise<void>
 
   try {
     // Find device code from user code
-    const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${userCode}`)
-    if (!deviceCode) {
+    const userCodeData = await DeviceCodeCache.get(`${USER_CODE_PREFIX}${userCode}`)
+    if (!userCodeData || !userCodeData.device_code) {
       res.status(400).json({
         error: 'invalid_grant',
         error_description: 'Invalid or expired code'
@@ -270,9 +272,11 @@ router.post('/device/verify', async (req: Request, res: Response): Promise<void>
       return
     }
 
+    const deviceCode = userCodeData.device_code as string
+
     // Get device data
-    const deviceDataStr = await redisClient.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
-    if (!deviceDataStr) {
+    const deviceDataRaw = await DeviceCodeCache.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+    if (!deviceDataRaw) {
       res.status(400).json({
         error: 'invalid_grant',
         error_description: 'Device code expired'
@@ -280,18 +284,18 @@ router.post('/device/verify', async (req: Request, res: Response): Promise<void>
       return
     }
 
-    const deviceData: DeviceCodeData = JSON.parse(deviceDataStr)
+    const deviceData = deviceDataRaw as unknown as DeviceCodeData
 
     // Store email with device for OTP verification
     deviceData.email = email.trim().toLowerCase()
-    
-    // Update Redis with email
+
+    // Update with email
     const ttl = Math.floor((deviceData.expires_at - Date.now()) / 1000)
     if (ttl > 0) {
-      await redisClient.setex(
+      await DeviceCodeCache.set(
         `${DEVICE_CODE_PREFIX}${deviceCode}`,
-        ttl,
-        JSON.stringify(deviceData)
+        deviceData as unknown as Record<string, unknown>,
+        ttl
       )
     }
 
@@ -331,8 +335,8 @@ router.post('/device/authorize', async (req: Request, res: Response): Promise<vo
 
   try {
     // Find device code
-    const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${userCode}`)
-    if (!deviceCode) {
+    const userCodeData = await DeviceCodeCache.get(`${USER_CODE_PREFIX}${userCode}`)
+    if (!userCodeData || !userCodeData.device_code) {
       res.status(400).json({
         error: 'invalid_grant',
         error_description: 'Invalid or expired code'
@@ -340,9 +344,11 @@ router.post('/device/authorize', async (req: Request, res: Response): Promise<vo
       return
     }
 
+    const deviceCode = userCodeData.device_code as string
+
     // Get device data
-    const deviceDataStr = await redisClient.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
-    if (!deviceDataStr) {
+    const deviceDataRaw = await DeviceCodeCache.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+    if (!deviceDataRaw) {
       res.status(400).json({
         error: 'invalid_grant',
         error_description: 'Device code expired'
@@ -350,7 +356,7 @@ router.post('/device/authorize', async (req: Request, res: Response): Promise<vo
       return
     }
 
-    const deviceData: DeviceCodeData = JSON.parse(deviceDataStr)
+    const deviceData = deviceDataRaw as unknown as DeviceCodeData
 
     // Verify OTP with Supabase
     const { supabaseAuth } = await import('../../db/client.js')
@@ -386,15 +392,15 @@ router.post('/device/authorize', async (req: Request, res: Response): Promise<vo
 
     const ttl = Math.floor((deviceData.expires_at - Date.now()) / 1000)
     if (ttl > 0) {
-      await redisClient.setex(
+      await DeviceCodeCache.set(
         `${DEVICE_CODE_PREFIX}${deviceCode}`,
-        ttl,
-        JSON.stringify(deviceData)
+        deviceData as unknown as Record<string, unknown>,
+        ttl
       )
     }
 
     // Clean up user code (one-time use)
-    await redisClient.del(`${USER_CODE_PREFIX}${userCode}`)
+    await DeviceCodeCache.delete(`${USER_CODE_PREFIX}${userCode}`)
 
     await logAuthEvent({
       event_type: 'device_authorized',
@@ -442,23 +448,24 @@ router.post('/device/deny', async (req: Request, res: Response): Promise<void> =
   }
 
   try {
-    const deviceCode = await redisClient.get(`${USER_CODE_PREFIX}${userCode}`)
-    if (deviceCode) {
-      const deviceDataStr = await redisClient.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
-      if (deviceDataStr) {
-        const deviceData: DeviceCodeData = JSON.parse(deviceDataStr)
+    const userCodeData = await DeviceCodeCache.get(`${USER_CODE_PREFIX}${userCode}`)
+    if (userCodeData && userCodeData.device_code) {
+      const deviceCode = userCodeData.device_code as string
+      const deviceDataRaw = await DeviceCodeCache.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+      if (deviceDataRaw) {
+        const deviceData = deviceDataRaw as unknown as DeviceCodeData
         deviceData.status = 'denied'
-        
+
         const ttl = Math.floor((deviceData.expires_at - Date.now()) / 1000)
         if (ttl > 0) {
-          await redisClient.setex(
+          await DeviceCodeCache.set(
             `${DEVICE_CODE_PREFIX}${deviceCode}`,
-            ttl,
-            JSON.stringify(deviceData)
+            deviceData as unknown as Record<string, unknown>,
+            ttl
           )
         }
       }
-      await redisClient.del(`${USER_CODE_PREFIX}${userCode}`)
+      await DeviceCodeCache.delete(`${USER_CODE_PREFIX}${userCode}`)
     }
 
     res.json({ success: true, message: 'Authorization denied' })
@@ -485,9 +492,9 @@ export async function handleDeviceCodeGrant(
   clientId: string
 ): Promise<void> {
   try {
-    const deviceDataStr = await redisClient.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
-    
-    if (!deviceDataStr) {
+    const deviceDataRaw = await DeviceCodeCache.get(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+
+    if (!deviceDataRaw) {
       res.status(400).json({
         error: 'expired_token',
         error_description: 'Device code has expired'
@@ -495,7 +502,7 @@ export async function handleDeviceCodeGrant(
       return
     }
 
-    const deviceData: DeviceCodeData = JSON.parse(deviceDataStr)
+    const deviceData = deviceDataRaw as unknown as DeviceCodeData
 
     // Verify client_id matches
     if (deviceData.client_id !== clientId) {
@@ -517,7 +524,7 @@ export async function handleDeviceCodeGrant(
 
       case 'denied':
         // Clean up
-        await redisClient.del(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+        await DeviceCodeCache.delete(`${DEVICE_CODE_PREFIX}${deviceCode}`)
         res.status(400).json({
           error: 'access_denied',
           error_description: 'User denied authorization'
@@ -557,7 +564,7 @@ export async function handleDeviceCodeGrant(
         })
 
         // Clean up device code (one-time use)
-        await redisClient.del(`${DEVICE_CODE_PREFIX}${deviceCode}`)
+        await DeviceCodeCache.delete(`${DEVICE_CODE_PREFIX}${deviceCode}`)
 
         await logAuthEvent({
           event_type: 'device_token_issued',

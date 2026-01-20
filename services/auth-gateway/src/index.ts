@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename)
 import { env } from '../config/env.js'
 import { checkDatabaseHealth } from '../db/client.js'
 import { runAllValidations } from '../config/validation.js'
-import { redisClient, checkRedisHealth, closeRedis } from './services/cache.service.js'
+import { checkRedisHealth, closeRedis, isRedisCachingEnabled } from './services/cache.service.js'
 
 // Import routes
 import authRoutes from './routes/auth.routes.js'
@@ -359,13 +359,16 @@ export default createApp
 if (process.env.NODE_ENV !== 'test') {
   // Start server with validation
   app.listen(env.PORT, async () => {
-    // Initialize Redis connection
-    try {
-      await redisClient.connect()
-      console.log('✅ Redis connected successfully')
-    } catch (error) {
-      console.warn('⚠️  Redis connection failed (non-critical):', error instanceof Error ? error.message : error)
-      console.warn('   Service will continue without caching')
+    // Check Redis status (uses lazy connection - will connect on first use if configured)
+    if (isRedisCachingEnabled()) {
+      const redisStatus = await checkRedisHealth()
+      if (redisStatus.connected) {
+        console.log('✅ Redis caching enabled and connected')
+      } else {
+        console.warn('⚠️  Redis configured but not connected (will use database fallback)')
+      }
+    } else {
+      console.log('ℹ️  Redis not configured - using database fallback for state storage')
     }
 
     // Run OAuth configuration validation
