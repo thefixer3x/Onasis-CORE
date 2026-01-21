@@ -1,5 +1,51 @@
 import { verifyToken, extractBearerToken } from '../utils/jwt.js';
 import { validateAPIKey } from '../services/api-key.service.js';
+import { findSessionByToken } from '../services/session.service.js';
+
+const buildUnifiedUserFromJwt = (payload) => ({
+    // Primary identifiers
+    userId: payload.sub,
+    organizationId: payload.project_scope ?? 'unknown',
+    role: payload.role,
+    // Extract plan from JWT claims: check user_metadata, app_metadata, or direct claim
+    plan: payload.user_metadata?.plan || payload.app_metadata?.plan || payload.plan || 'free',
+    // JWT standard aliases (for code that uses req.user.sub, req.user.project_scope, etc.)
+    sub: payload.sub,
+    project_scope: payload.project_scope,
+    platform: payload.platform,
+    // Profile fields
+    id: payload.sub,
+    email: payload.email,
+    app_metadata: {
+        project_scope: payload.project_scope,
+        platform: payload.platform,
+    },
+});
+
+const buildUnifiedUserFromApiKey = (options) => ({
+    userId: options.userId,
+    organizationId: options.projectScope ?? 'unknown',
+    role: options.role,
+    plan: options.plan,
+    id: options.userId,
+    email: options.email,
+    user_metadata: options.userMetadata ?? {},
+    app_metadata: {
+        project_scope: options.projectScope,
+        permissions: options.permissions,
+    },
+});
+
+const getProjectScope = (user) => {
+    if (!user)
+        return undefined;
+    const appMeta = user.app_metadata;
+    const projectScope = appMeta?.project_scope;
+    if (typeof projectScope === 'string')
+        return projectScope;
+    return user.organizationId;
+};
+
 /**
  * Middleware to verify JWT token or API key and attach user to request
  * Supports both authentication methods:
@@ -10,15 +56,34 @@ export async function requireAuth(req, res, next) {
     // Try JWT token first
     const token = extractBearerToken(req.headers.authorization);
     if (token) {
+        let payload = null;
         try {
-            const payload = verifyToken(token);
-            req.user = payload;
-            // JWT tokens get full access by default
-            req.scopes = ['*'];
-            return next();
+            payload = verifyToken(token);
         }
         catch (error) {
             // JWT invalid, try API key fallback
+        }
+        if (payload) {
+            try {
+                const session = await findSessionByToken(token);
+                if (!session) {
+                    return res.status(401).json({
+                        error: 'Session revoked or expired',
+                        code: 'SESSION_INVALID',
+                    });
+                }
+            }
+            catch (error) {
+                console.error('Session lookup failed', error);
+                return res.status(503).json({
+                    error: 'Session validation unavailable',
+                    code: 'SESSION_UNAVAILABLE',
+                });
+            }
+            req.user = buildUnifiedUserFromJwt(payload);
+            // JWT tokens get full access by default
+            req.scopes = ['*'];
+            return next();
         }
     }
     // Try API key authentication
@@ -30,29 +95,37 @@ export async function requireAuth(req, res, next) {
                 // Attach scopes from API key validation
                 req.scopes = validation.permissions || ['legacy.full_access'];
                 // Fetch user details from Supabase to get email and role
-                const { supabaseAdmin } = await import('../../db/client.js');
-                const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(validation.userId);
+                const { supabaseUsers } = await import('../../db/client.js');
+                const { data: userData, error: userError } = await supabaseUsers.auth.admin.getUserById(validation.userId);
+                const projectScope = validation.projectScope || 'unknown';
+                const plan = typeof userData?.user?.user_metadata?.plan === 'string'
+                    ? userData.user.user_metadata.plan
+                    : 'free';
+                const role = typeof userData?.user?.user_metadata?.role === 'string'
+                    ? userData.user.user_metadata.role
+                    : 'authenticated';
                 if (userError || !userData?.user) {
                     // Fallback: use minimal payload if user lookup fails
-                    req.user = {
-                        sub: validation.userId,
+                    req.user = buildUnifiedUserFromApiKey({
+                        userId: validation.userId,
                         email: `${validation.userId}@api-key.local`,
-                        role: 'authenticated',
-                        project_scope: validation.projectScope || 'lanonasis-maas',
-                        iat: Math.floor(Date.now() / 1000),
-                        exp: Math.floor(Date.now() / 1000) + 3600,
-                    };
+                        role,
+                        plan,
+                        projectScope,
+                        permissions: validation.permissions,
+                    });
                 }
                 else {
                     // Create full user payload from API key validation and user data
-                    req.user = {
-                        sub: validation.userId,
+                    req.user = buildUnifiedUserFromApiKey({
+                        userId: validation.userId,
                         email: userData.user.email || `${validation.userId}@api-key.local`,
-                        role: userData.user.user_metadata?.role || 'authenticated',
-                        project_scope: validation.projectScope || 'lanonasis-maas',
-                        iat: Math.floor(Date.now() / 1000),
-                        exp: Math.floor(Date.now() / 1000) + 3600,
-                    };
+                        role,
+                        plan,
+                        projectScope,
+                        permissions: validation.permissions,
+                        userMetadata: userData.user.user_metadata ?? {},
+                    });
                 }
                 return next();
             }
@@ -84,12 +157,13 @@ export function requireScope(requiredScope) {
                 code: 'AUTH_REQUIRED',
             });
         }
-        if (req.user.project_scope !== requiredScope) {
+        const projectScope = getProjectScope(req.user);
+        if (projectScope !== requiredScope) {
             return res.status(403).json({
                 error: 'Insufficient scope',
                 code: 'SCOPE_INSUFFICIENT',
                 required: requiredScope,
-                provided: req.user.project_scope,
+                provided: projectScope,
             });
         }
         next();
@@ -97,7 +171,8 @@ export function requireScope(requiredScope) {
 }
 /**
  * Check if a scope matches a required scope pattern
- * Supports wildcards: 'memories.*' matches 'memories.read', 'memories.write'
+ * Supports both colon notation (standard: 'memories:read') and dot notation (legacy: 'memories.read')
+ * Wildcards: 'memories:*' matches 'memories:read', 'memories:write'
  * '*' matches everything
  */
 function scopeMatches(userScope, requiredScope) {
@@ -107,18 +182,31 @@ function scopeMatches(userScope, requiredScope) {
     // Full wildcard
     if (userScope === '*')
         return true;
-    // Legacy full access
-    if (userScope === 'legacy.full_access')
+    // Legacy full access (supports both notations)
+    if (userScope === 'legacy:full_access' || userScope === 'legacy.full_access')
         return true;
-    // Resource wildcard (e.g., 'memories.*' matches 'memories.read')
+    // Normalize both scopes to colon notation for comparison
+    const normalizedUser = userScope.replace('.', ':');
+    const normalizedRequired = requiredScope.replace('.', ':');
+    // Exact match after normalization
+    if (normalizedUser === normalizedRequired)
+        return true;
+    // Resource wildcard with colon notation (e.g., 'memories:*' matches 'memories:read')
+    if (normalizedUser.endsWith(':*')) {
+        const resource = normalizedUser.slice(0, -2);
+        return normalizedRequired.startsWith(resource + ':');
+    }
+    // Resource wildcard with dot notation (legacy: 'memories.*' matches 'memories.read')
     if (userScope.endsWith('.*')) {
         const resource = userScope.slice(0, -2);
-        return requiredScope.startsWith(resource + '.');
+        if (requiredScope.startsWith(resource + '.') || normalizedRequired.startsWith(resource + ':')) {
+            return true;
+        }
     }
     // Check if required scope is a wildcard and user has specific permission
-    if (requiredScope.endsWith('.*')) {
-        const resource = requiredScope.slice(0, -2);
-        return userScope.startsWith(resource + '.');
+    if (normalizedRequired.endsWith(':*')) {
+        const resource = normalizedRequired.slice(0, -2);
+        return normalizedUser.startsWith(resource + ':');
     }
     return false;
 }
@@ -200,8 +288,16 @@ export async function optionalAuth(req, res, next) {
     if (token) {
         try {
             const payload = verifyToken(token);
-            req.user = payload;
-            req.scopes = ['*'];
+            try {
+                const session = await findSessionByToken(token);
+                if (session) {
+                    req.user = buildUnifiedUserFromJwt(payload);
+                    req.scopes = ['*'];
+                }
+            }
+            catch {
+                // Skip session validation errors for optional auth
+            }
             return next();
         }
         catch {
@@ -215,16 +311,24 @@ export async function optionalAuth(req, res, next) {
             const validation = await validateAPIKey(apiKey);
             if (validation.valid && validation.userId) {
                 req.scopes = validation.permissions || ['legacy.full_access'];
-                const { supabaseAdmin } = await import('../../db/client.js');
-                const { data: userData } = await supabaseAdmin.auth.admin.getUserById(validation.userId);
-                req.user = {
-                    sub: validation.userId,
+                const { supabaseUsers } = await import('../../db/client.js');
+                const { data: userData } = await supabaseUsers.auth.admin.getUserById(validation.userId);
+                const projectScope = validation.projectScope || 'unknown';
+                const plan = typeof userData?.user?.user_metadata?.plan === 'string'
+                    ? userData.user.user_metadata.plan
+                    : 'free';
+                const role = typeof userData?.user?.user_metadata?.role === 'string'
+                    ? userData.user.user_metadata.role
+                    : 'authenticated';
+                req.user = buildUnifiedUserFromApiKey({
+                    userId: validation.userId,
                     email: userData?.user?.email || `${validation.userId}@api-key.local`,
-                    role: userData?.user?.user_metadata?.role || 'authenticated',
-                    project_scope: validation.projectScope || 'lanonasis-maas',
-                    iat: Math.floor(Date.now() / 1000),
-                    exp: Math.floor(Date.now() / 1000) + 3600,
-                };
+                    role,
+                    plan,
+                    projectScope,
+                    permissions: validation.permissions,
+                    userMetadata: userData?.user?.user_metadata ?? {},
+                });
             }
         }
         catch {

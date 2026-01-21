@@ -144,12 +144,6 @@ export async function createAuthorizationCode(params) {
 export async function consumeAuthorizationCode(params) {
     ensureClientActive(params.client);
     const hashedCode = hashAuthorizationCode(params.code);
-    // Check cache first for fast path validation (non-authoritative)
-    const cached = await AuthCodeCache.get(hashedCode);
-    if (!cached) {
-        // Code not in cache - likely expired or already consumed
-        throw new OAuthServiceError('Authorization code not found or expired', 'invalid_grant', 400);
-    }
     return withTransaction(async (client) => {
         const selectResult = await client.query(`
         SELECT * FROM auth_gateway.oauth_authorization_codes

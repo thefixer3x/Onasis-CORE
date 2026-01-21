@@ -1,4 +1,5 @@
 import { verifyToken } from '../utils/jwt.js';
+import { findSessionByToken } from '../services/session.service.js';
 /**
  * Middleware to validate session cookie
  * Attaches user to request if valid session exists
@@ -11,8 +12,9 @@ export async function validateSessionCookie(req, res, next) {
     try {
         // Verify JWT token
         const payload = verifyToken(sessionToken);
+        const session = await findSessionByToken(sessionToken);
         // Check if token is expired
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
+        if (!session || (payload.exp && payload.exp * 1000 < Date.now())) {
             // Token expired, clear cookies
             const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com';
             res.clearCookie('lanonasis_session', {
@@ -26,7 +28,16 @@ export async function validateSessionCookie(req, res, next) {
             return next();
         }
         // Attach user to request
-        req.user = payload;
+        req.user = {
+            userId: payload.sub,
+            organizationId: payload.project_scope ?? 'unknown',
+            role: payload.role,
+            plan: payload.plan || 'free',
+            sub: payload.sub,
+            project_scope: payload.project_scope,
+            platform: payload.platform,
+            email: payload.email,
+        };
         next();
     }
     catch (error) {

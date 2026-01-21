@@ -49,11 +49,13 @@ const mockVerifyToken = vi.fn();
 const mockCreateSession = vi.fn();
 const mockGetUserSessions = vi.fn();
 const mockRevokeSession = vi.fn();
+const mockFindSessionByToken = vi.fn();
 const mockLogAuthEvent = vi.fn();
 const mockUpsertUserAccount = vi.fn();
 
 vi.mock('../../db/client.js', () => ({
   supabaseAdmin: mockSupabaseAdmin,
+  supabaseUsers: mockSupabaseAdmin,
   dbPool: {
     query: vi.fn(),
   },
@@ -72,6 +74,7 @@ vi.mock('../../src/services/session.service.js', () => ({
   createSession: mockCreateSession,
   revokeSession: mockRevokeSession,
   getUserSessions: mockGetUserSessions,
+  findSessionByToken: mockFindSessionByToken,
 }))
 
 vi.mock('../../src/services/audit.service.js', () => ({
@@ -109,6 +112,7 @@ describe('Auth Gateway Integration Tests', () => {
       platform: 'web',
       expires_at: new Date(Date.now() + 3600000),
     })
+    mockFindSessionByToken.mockResolvedValue({ id: 'session-123' })
     
     mockGetUserSessions.mockResolvedValue([])
     
@@ -343,6 +347,33 @@ describe('Auth Gateway Integration Tests', () => {
           success: true,
         })
       )
+    })
+
+    it('should reject token after logout when session is revoked', async () => {
+      const mockPayload = {
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        iat: Date.now() / 1000,
+        exp: Date.now() / 1000 + 3600,
+      }
+
+      mockVerifyToken.mockReturnValue(mockPayload)
+      mockRevokeSession.mockResolvedValue(true)
+
+      await request(app)
+        .post('/v1/auth/logout')
+        .set('Authorization', 'Bearer valid-token')
+        .expect(200)
+
+      mockFindSessionByToken.mockResolvedValueOnce(null)
+
+      const response = await request(app)
+        .post('/v1/auth/verify')
+        .set('Authorization', 'Bearer valid-token')
+        .expect(401)
+
+      expect(response.body).toHaveProperty('code', 'SESSION_INVALID')
     })
   })
 

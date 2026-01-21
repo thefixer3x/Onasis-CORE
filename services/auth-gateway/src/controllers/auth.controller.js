@@ -1,11 +1,12 @@
 import crypto from 'crypto';
-import { supabaseAdmin } from '../../db/client.js';
+import { supabaseUsers } from '../../db/client.js';
 import { generateTokenPair } from '../utils/jwt.js';
 import { createSession, revokeSession, getUserSessions } from '../services/session.service.js';
 import { upsertUserAccount } from '../services/user.service.js';
 import { logAuthEvent } from '../services/audit.service.js';
 import * as apiKeyService from '../services/api-key.service.js';
-import { redisClient } from '../services/cache.service.js';
+import { OAuthStateCache } from '../services/cache.service.js';
+import { resolveProjectScope } from '../services/project-scope.service.js';
 import { logger } from '../utils/logger.js';
 const SUPPORTED_PLATFORMS = ['cli', 'mcp', 'web', 'api'];
 const OAUTH_STATE_PREFIX = 'oauth_state:';
@@ -207,7 +208,7 @@ export async function oauthProvider(req, res) {
         platform,
     };
     try {
-        await redisClient.setex(`${OAUTH_STATE_PREFIX}${state}`, OAUTH_STATE_TTL_SECONDS, JSON.stringify(stateData));
+        await OAuthStateCache.set(`${OAUTH_STATE_PREFIX}${state}`, stateData, OAUTH_STATE_TTL_SECONDS);
     }
     catch (error) {
         logger.error('Failed to persist OAuth state', { error });
@@ -218,7 +219,7 @@ export async function oauthProvider(req, res) {
     }
     const providerConfig = OAUTH_PROVIDERS[providerKey];
     const callbackUrl = buildCallbackUrl(req);
-    const { data, error } = await supabaseAdmin.auth.signInWithOAuth({
+    const { data, error } = await supabaseUsers.auth.signInWithOAuth({
         provider: providerConfig.supabaseProvider,
         options: {
             redirectTo: callbackUrl,
@@ -265,11 +266,10 @@ export async function oauthCallback(req, res) {
     let stateData = null;
     const stateKey = `${OAUTH_STATE_PREFIX}${state}`;
     try {
-        const stored = await redisClient.get(stateKey);
+        const stored = await OAuthStateCache.consume(stateKey);
         if (stored) {
-            stateData = JSON.parse(stored);
+            stateData = stored;
         }
-        await redisClient.del(stateKey);
     }
     catch (error) {
         logger.error('Failed to read OAuth state', { error, state });
@@ -284,7 +284,7 @@ export async function oauthCallback(req, res) {
         process.env.DASHBOARD_URL ||
         'https://dashboard.lanonasis.com';
     try {
-        const { data, error } = await supabaseAdmin.auth.exchangeCodeForSession(code);
+        const { data, error } = await supabaseUsers.auth.exchangeCodeForSession(code);
         if (error || !data?.user || !data?.session) {
             logger.warn('OAuth callback exchange failed', {
                 state,
@@ -302,19 +302,26 @@ export async function oauthCallback(req, res) {
             raw_metadata: data.user.user_metadata || {},
             last_sign_in_at: data.user.last_sign_in_at || null,
         });
-        if (stateData.project_scope) {
+        const projectScopeResolution = await resolveProjectScope({
+            requestedScope: stateData.project_scope,
+            fallbackScope: data.user.user_metadata?.project_scope || 'lanonasis-maas',
+            userId: data.user.id,
+            context: 'oauth_callback',
+        });
+        const resolvedProjectScope = projectScopeResolution.scope;
+        if (resolvedProjectScope) {
             try {
-                await supabaseAdmin.auth.admin.updateUserById(data.user.id, {
+                await supabaseUsers.auth.admin.updateUserById(data.user.id, {
                     user_metadata: {
                         ...data.user.user_metadata,
-                        project_scope: stateData.project_scope,
+                        project_scope: resolvedProjectScope,
                     },
                 });
             }
             catch (updateError) {
                 logger.warn('Failed to persist project scope to Supabase user', {
                     userId: data.user.id,
-                    project_scope: stateData.project_scope,
+                    project_scope: resolvedProjectScope,
                     error: updateError instanceof Error ? updateError.message : updateError,
                 });
             }
@@ -323,7 +330,7 @@ export async function oauthCallback(req, res) {
             sub: data.user.id,
             email: data.user.email,
             role: data.user.role || 'authenticated',
-            project_scope: stateData.project_scope,
+            project_scope: resolvedProjectScope,
             platform,
         });
         const expiresAt = new Date(Date.now() + tokens.expires_in * 1000);
@@ -332,7 +339,7 @@ export async function oauthCallback(req, res) {
             platform,
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
-            scope: stateData.project_scope ? [stateData.project_scope] : undefined,
+            scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
             ip_address: req.ip,
             user_agent: req.headers['user-agent'],
             expires_at: expiresAt,
@@ -347,7 +354,9 @@ export async function oauthCallback(req, res) {
             success: true,
             metadata: {
                 provider: stateData.provider,
-                project_scope: stateData.project_scope,
+                project_scope: resolvedProjectScope,
+                project_scope_validated: projectScopeResolution.validated,
+                project_scope_reason: projectScopeResolution.reason,
             },
         });
         if (platform === 'web') {
@@ -376,7 +385,7 @@ export async function oauthCallback(req, res) {
             return res.redirect(redirectUri);
         }
         // CLI, MCP, and API consumers receive tokens via redirect URI
-        const redirectWithTokens = appendTokensToRedirect(redirectUri, tokens, stateData.project_scope, stateData.provider);
+        const redirectWithTokens = appendTokensToRedirect(redirectUri, tokens, resolvedProjectScope, stateData.provider);
         return res.redirect(redirectWithTokens);
     }
     catch (error) {
@@ -427,7 +436,7 @@ export async function requestMagicLink(req, res) {
         platform,
     };
     try {
-        await redisClient.setex(`${MAGIC_LINK_STATE_PREFIX}${state}`, MAGIC_LINK_STATE_TTL_SECONDS, JSON.stringify(stateData));
+        await OAuthStateCache.set(`${MAGIC_LINK_STATE_PREFIX}${state}`, stateData, MAGIC_LINK_STATE_TTL_SECONDS);
     }
     catch (error) {
         logger.error('Failed to persist magic link state', { error });
@@ -438,7 +447,7 @@ export async function requestMagicLink(req, res) {
     }
     const callbackUrl = buildMagicLinkCallbackUrl(req, state);
     const shouldCreateUser = req.body.create_user === true;
-    const { error } = await supabaseAdmin.auth.signInWithOtp({
+    const { error } = await supabaseUsers.auth.signInWithOtp({
         email,
         options: {
             emailRedirectTo: callbackUrl,
@@ -513,11 +522,10 @@ export async function magicLinkExchange(req, res) {
     let stateData = null;
     const stateKey = `${MAGIC_LINK_STATE_PREFIX}${state}`;
     try {
-        const stored = await redisClient.get(stateKey);
+        const stored = await OAuthStateCache.consume(stateKey);
         if (stored) {
-            stateData = JSON.parse(stored);
+            stateData = stored;
         }
-        await redisClient.del(stateKey);
     }
     catch (error) {
         logger.error('Failed to read magic link state', { error, state });
@@ -539,7 +547,7 @@ export async function magicLinkExchange(req, res) {
         ? stateData.redirect_uri
         : process.env.DASHBOARD_URL || 'https://dashboard.lanonasis.com';
     try {
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(supabaseAccessToken);
+        const { data: { user }, error } = await supabaseUsers.auth.getUser(supabaseAccessToken);
         if (error || !user) {
             await logAuthEvent({
                 event_type: 'magic_link_exchange_failed',
@@ -578,24 +586,30 @@ export async function magicLinkExchange(req, res) {
             raw_metadata: user.user_metadata || {},
             last_sign_in_at: user.last_sign_in_at || null,
         });
-        if (stateData.project_scope) {
+        const projectScopeResolution = await resolveProjectScope({
+            requestedScope: stateData.project_scope,
+            fallbackScope: user.user_metadata?.project_scope || 'lanonasis-maas',
+            userId: user.id,
+            context: 'magic_link_exchange',
+        });
+        const resolvedProjectScope = projectScopeResolution.scope;
+        if (resolvedProjectScope) {
             try {
-                await supabaseAdmin.auth.admin.updateUserById(user.id, {
+                await supabaseUsers.auth.admin.updateUserById(user.id, {
                     user_metadata: {
                         ...user.user_metadata,
-                        project_scope: stateData.project_scope,
+                        project_scope: resolvedProjectScope,
                     },
                 });
             }
             catch (updateError) {
                 logger.warn('Failed to persist project scope to Supabase user', {
                     userId: user.id,
-                    project_scope: stateData.project_scope,
+                    project_scope: resolvedProjectScope,
                     error: updateError instanceof Error ? updateError.message : updateError,
                 });
             }
         }
-        const resolvedProjectScope = stateData.project_scope || user.user_metadata?.project_scope || 'lanonasis-maas';
         const tokens = generateTokenPair({
             sub: user.id,
             email: user.email,
@@ -625,6 +639,8 @@ export async function magicLinkExchange(req, res) {
             metadata: {
                 email: user.email,
                 project_scope: resolvedProjectScope,
+                project_scope_validated: projectScopeResolution.validated,
+                project_scope_reason: projectScopeResolution.reason,
             },
         });
         if (platform === 'web') {
@@ -705,7 +721,7 @@ export async function exchangeSupabaseToken(req, res) {
     }
     try {
         // Verify Supabase token and get user
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(supabaseAccessToken);
+        const { data: { user }, error } = await supabaseUsers.auth.getUser(supabaseAccessToken);
         if (error || !user) {
             logger.warn('Invalid Supabase token presented for exchange', {
                 error: error?.message,
@@ -725,12 +741,19 @@ export async function exchangeSupabaseToken(req, res) {
             raw_metadata: user.user_metadata || {},
             last_sign_in_at: user.last_sign_in_at || null,
         });
+        const projectScopeResolution = await resolveProjectScope({
+            requestedScope: projectScope,
+            fallbackScope: user.user_metadata?.project_scope || 'lanonasis-maas',
+            userId: user.id,
+            context: 'token_exchange',
+        });
+        const resolvedProjectScope = projectScopeResolution.scope;
         // Generate auth-gateway tokens (SHA-256 hashed opaque tokens)
         const tokens = generateTokenPair({
             sub: user.id,
             email: user.email,
             role: user.role || 'authenticated',
-            project_scope: projectScope || user.user_metadata?.project_scope || 'lanonasis-maas',
+            project_scope: resolvedProjectScope,
             platform,
         });
         // Create session in Neon
@@ -740,7 +763,7 @@ export async function exchangeSupabaseToken(req, res) {
             platform,
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
-            scope: projectScope ? [projectScope] : user.user_metadata?.project_scope ? [user.user_metadata.project_scope] : undefined,
+            scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
             ip_address: req.ip,
             user_agent: req.headers['user-agent'],
             expires_at: expiresAt,
@@ -761,7 +784,9 @@ export async function exchangeSupabaseToken(req, res) {
             metadata: {
                 source: 'supabase',
                 original_provider: user.app_metadata?.provider,
-                project_scope: projectScope,
+                project_scope: resolvedProjectScope,
+                project_scope_validated: projectScopeResolution.validated,
+                project_scope_reason: projectScopeResolution.reason,
             },
         });
         logger.info('Token exchange successful', {
@@ -780,7 +805,7 @@ export async function exchangeSupabaseToken(req, res) {
                 id: user.id,
                 email: user.email,
                 role: user.role,
-                project_scope: projectScope || user.user_metadata?.project_scope,
+                project_scope: resolvedProjectScope,
             },
         });
     }
@@ -819,7 +844,7 @@ export async function login(req, res) {
     }
     try {
         // Authenticate with Supabase
-        const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+        const { data, error } = await supabaseUsers.auth.signInWithPassword({
             email,
             password,
         });
@@ -846,12 +871,19 @@ export async function login(req, res) {
             raw_metadata: data.user.user_metadata || {},
             last_sign_in_at: data.user.last_sign_in_at || null,
         });
+        const projectScopeResolution = await resolveProjectScope({
+            requestedScope: project_scope,
+            fallbackScope: data.user.user_metadata?.project_scope || 'lanonasis-maas',
+            userId: data.user.id,
+            context: 'password_login',
+        });
+        const resolvedProjectScope = projectScopeResolution.scope;
         // Generate custom JWT tokens
         const tokens = generateTokenPair({
             sub: data.user.id,
             email: data.user.email,
             role: data.user.role || 'authenticated',
-            project_scope,
+            project_scope: resolvedProjectScope,
             platform: platform,
         });
         // Create session
@@ -861,7 +893,7 @@ export async function login(req, res) {
             platform: platform,
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
-            scope: project_scope ? [project_scope] : undefined,
+            scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
             ip_address: req.ip,
             user_agent: req.headers['user-agent'],
             expires_at: expiresAt,
@@ -874,7 +906,11 @@ export async function login(req, res) {
             ip_address: req.ip,
             user_agent: req.headers['user-agent'],
             success: true,
-            metadata: { project_scope },
+            metadata: {
+                project_scope: resolvedProjectScope,
+                project_scope_validated: projectScopeResolution.validated,
+                project_scope_reason: projectScopeResolution.reason,
+            },
         });
         // Set HTTP-only session cookie for web platform
         if (platform === 'web') {
@@ -909,6 +945,7 @@ export async function login(req, res) {
                 id: data.user.id,
                 email: data.user.email,
                 role: data.user.role,
+                project_scope: resolvedProjectScope,
             },
             redirect_to: return_to || undefined,
         });

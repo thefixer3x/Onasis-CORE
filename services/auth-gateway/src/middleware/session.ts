@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken } from '../utils/jwt.js'
+import { findSessionByToken } from '../services/session.service.js'
 
 /**
  * Middleware to validate session cookie
@@ -19,9 +20,10 @@ export async function validateSessionCookie(
     try {
         // Verify JWT token
         const payload = verifyToken(sessionToken)
+        const session = await findSessionByToken(sessionToken)
 
         // Check if token is expired
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
+        if (!session || (payload.exp && payload.exp * 1000 < Date.now())) {
             // Token expired, clear cookies
             const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
             res.clearCookie('lanonasis_session', {
@@ -76,4 +78,3 @@ export function requireSessionCookie(req: Request, res: Response, next: NextFunc
     }
     next()
 }
-

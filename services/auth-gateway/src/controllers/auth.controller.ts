@@ -7,6 +7,7 @@ import { upsertUserAccount, findUserAccountById } from '../services/user.service
 import { logAuthEvent } from '../services/audit.service.js'
 import * as apiKeyService from '../services/api-key.service.js'
 import { OAuthStateCache } from '../services/cache.service.js'
+import { resolveProjectScope } from '../services/project-scope.service.js'
 import { logger } from '../utils/logger.js'
 
 type Platform = 'mcp' | 'cli' | 'web' | 'api'
@@ -354,18 +355,26 @@ export async function oauthCallback(req: Request, res: Response) {
       last_sign_in_at: data.user.last_sign_in_at || null,
     })
 
-    if (stateData.project_scope) {
+    const projectScopeResolution = await resolveProjectScope({
+      requestedScope: stateData.project_scope,
+      fallbackScope: data.user.user_metadata?.project_scope || 'lanonasis-maas',
+      userId: data.user.id,
+      context: 'oauth_callback',
+    })
+    const resolvedProjectScope = projectScopeResolution.scope
+
+    if (resolvedProjectScope) {
       try {
         await supabaseUsers.auth.admin.updateUserById(data.user.id, {
           user_metadata: {
             ...data.user.user_metadata,
-            project_scope: stateData.project_scope,
+            project_scope: resolvedProjectScope,
           },
         })
       } catch (updateError) {
         logger.warn('Failed to persist project scope to Supabase user', {
           userId: data.user.id,
-          project_scope: stateData.project_scope,
+          project_scope: resolvedProjectScope,
           error: updateError instanceof Error ? updateError.message : updateError,
         })
       }
@@ -375,7 +384,7 @@ export async function oauthCallback(req: Request, res: Response) {
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
-      project_scope: stateData.project_scope,
+      project_scope: resolvedProjectScope,
       platform,
     })
 
@@ -385,7 +394,7 @@ export async function oauthCallback(req: Request, res: Response) {
       platform,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      scope: stateData.project_scope ? [stateData.project_scope] : undefined,
+      scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       expires_at: expiresAt,
@@ -401,7 +410,9 @@ export async function oauthCallback(req: Request, res: Response) {
       success: true,
       metadata: {
         provider: stateData.provider,
-        project_scope: stateData.project_scope,
+        project_scope: resolvedProjectScope,
+        project_scope_validated: projectScopeResolution.validated,
+        project_scope_reason: projectScopeResolution.reason,
       },
     })
 
@@ -442,7 +453,7 @@ export async function oauthCallback(req: Request, res: Response) {
     const redirectWithTokens = appendTokensToRedirect(
       redirectUri,
       tokens,
-      stateData.project_scope,
+      resolvedProjectScope,
       stateData.provider
     )
     return res.redirect(redirectWithTokens)
@@ -678,25 +689,30 @@ export async function magicLinkExchange(req: Request, res: Response) {
       last_sign_in_at: user.last_sign_in_at || null,
     })
 
-    if (stateData.project_scope) {
+    const projectScopeResolution = await resolveProjectScope({
+      requestedScope: stateData.project_scope,
+      fallbackScope: user.user_metadata?.project_scope || 'lanonasis-maas',
+      userId: user.id,
+      context: 'magic_link_exchange',
+    })
+    const resolvedProjectScope = projectScopeResolution.scope
+
+    if (resolvedProjectScope) {
       try {
         await supabaseUsers.auth.admin.updateUserById(user.id, {
           user_metadata: {
             ...user.user_metadata,
-            project_scope: stateData.project_scope,
+            project_scope: resolvedProjectScope,
           },
         })
       } catch (updateError) {
         logger.warn('Failed to persist project scope to Supabase user', {
           userId: user.id,
-          project_scope: stateData.project_scope,
+          project_scope: resolvedProjectScope,
           error: updateError instanceof Error ? updateError.message : updateError,
         })
       }
     }
-
-    const resolvedProjectScope =
-      stateData.project_scope || user.user_metadata?.project_scope || 'lanonasis-maas'
 
     const tokens = generateTokenPair({
       sub: user.id,
@@ -729,6 +745,8 @@ export async function magicLinkExchange(req: Request, res: Response) {
       metadata: {
         email: user.email,
         project_scope: resolvedProjectScope,
+        project_scope_validated: projectScopeResolution.validated,
+        project_scope_reason: projectScopeResolution.reason,
       },
     })
 
@@ -852,11 +870,19 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
     })
 
     // Generate auth-gateway tokens (SHA-256 hashed opaque tokens)
+    const projectScopeResolution = await resolveProjectScope({
+      requestedScope: projectScope,
+      fallbackScope: user.user_metadata?.project_scope || 'lanonasis-maas',
+      userId: user.id,
+      context: 'token_exchange',
+    })
+    const resolvedProjectScope = projectScopeResolution.scope
+
     const tokens = generateTokenPair({
       sub: user.id,
       email: user.email!,
       role: user.role || 'authenticated',
-      project_scope: projectScope || user.user_metadata?.project_scope || 'lanonasis-maas',
+      project_scope: resolvedProjectScope,
       platform,
     })
 
@@ -867,7 +893,7 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
       platform,
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      scope: projectScope ? [projectScope] : user.user_metadata?.project_scope ? [user.user_metadata.project_scope] : undefined,
+      scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       expires_at: expiresAt,
@@ -889,7 +915,9 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
       metadata: {
         source: 'supabase',
         original_provider: user.app_metadata?.provider,
-        project_scope: projectScope,
+        project_scope: resolvedProjectScope,
+        project_scope_validated: projectScopeResolution.validated,
+        project_scope_reason: projectScopeResolution.reason,
       },
     })
 
@@ -910,7 +938,7 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
         id: user.id,
         email: user.email,
         role: user.role,
-        project_scope: projectScope || user.user_metadata?.project_scope,
+        project_scope: resolvedProjectScope,
       },
     })
   } catch (error) {
@@ -984,12 +1012,20 @@ export async function login(req: Request, res: Response) {
       last_sign_in_at: data.user.last_sign_in_at || null,
     })
 
+    const projectScopeResolution = await resolveProjectScope({
+      requestedScope: project_scope,
+      fallbackScope: data.user.user_metadata?.project_scope || 'lanonasis-maas',
+      userId: data.user.id,
+      context: 'password_login',
+    })
+    const resolvedProjectScope = projectScopeResolution.scope
+
     // Generate custom JWT tokens
     const tokens = generateTokenPair({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
-      project_scope,
+      project_scope: resolvedProjectScope,
       platform: platform as 'mcp' | 'cli' | 'web' | 'api',
     })
 
@@ -1000,7 +1036,7 @@ export async function login(req: Request, res: Response) {
       platform: platform as 'mcp' | 'cli' | 'web' | 'api',
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
-      scope: project_scope ? [project_scope] : undefined,
+      scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       expires_at: expiresAt,
@@ -1014,7 +1050,11 @@ export async function login(req: Request, res: Response) {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
-      metadata: { project_scope },
+      metadata: {
+        project_scope: resolvedProjectScope,
+        project_scope_validated: projectScopeResolution.validated,
+        project_scope_reason: projectScopeResolution.reason,
+      },
     })
 
     // Set HTTP-only session cookie for web platform
@@ -1053,6 +1093,7 @@ export async function login(req: Request, res: Response) {
         id: data.user.id,
         email: data.user.email,
         role: data.user.role,
+        project_scope: resolvedProjectScope,
       },
       redirect_to: return_to || undefined,
     })
