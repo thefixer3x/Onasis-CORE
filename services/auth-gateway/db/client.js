@@ -43,6 +43,9 @@ export const supabaseAuth = createClient(
     }
 );
 
+// Alias for compatibility with newer auth middleware
+export const supabaseUsers = supabaseAuth;
+
 export async function checkDatabaseHealth() {
     try {
         const client = await dbPool.connect();

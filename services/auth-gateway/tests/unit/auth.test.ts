@@ -11,10 +11,14 @@ vi.mock('../../src/services/api-key.service.js', () => ({
   validateAPIKey: vi.fn()
 }))
 
+vi.mock('../../src/services/session.service.js', () => ({
+  findSessionByToken: vi.fn()
+}))
+
 const mockGetUserById = vi.fn()
 
 vi.mock('../../db/client.js', () => ({
-  supabaseAdmin: {
+  supabaseUsers: {
     auth: {
       admin: {
         getUserById: mockGetUserById
@@ -25,6 +29,7 @@ vi.mock('../../db/client.js', () => ({
 
 import { verifyToken, extractBearerToken } from '../../src/utils/jwt.js'
 import { validateAPIKey } from '../../src/services/api-key.service.js'
+import { findSessionByToken } from '../../src/services/session.service.js'
 
 // Import after mocks are set up
 const authModule = await import('../../src/middleware/auth.js')
@@ -60,12 +65,66 @@ describe('Auth Middleware', () => {
 
       ;(extractBearerToken as any).mockReturnValue('valid-token')
       ;(verifyToken as any).mockReturnValue(mockPayload)
+      ;(findSessionByToken as any).mockResolvedValue({ id: 'session-123' })
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
       expect(mockNext).toHaveBeenCalled()
-      expect(mockReq.user).toEqual(mockPayload)
+      expect(mockReq.user).toMatchObject({
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        project_scope: 'lanonasis-maas'
+      })
       expect(mockReq.scopes).toEqual(['*'])
+    })
+
+    it('should return 401 when session is revoked', async () => {
+      const mockPayload = {
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        project_scope: 'lanonasis-maas',
+        iat: Date.now() / 1000,
+        exp: Date.now() / 1000 + 3600
+      }
+
+      ;(extractBearerToken as any).mockReturnValue('valid-token')
+      ;(verifyToken as any).mockReturnValue(mockPayload)
+      ;(findSessionByToken as any).mockResolvedValue(null)
+
+      await requireAuth(mockReq as Request, mockRes as Response, mockNext)
+
+      expect(mockRes.status).toHaveBeenCalledWith(401)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session revoked or expired',
+        code: 'SESSION_INVALID'
+      })
+      expect(mockNext).not.toHaveBeenCalled()
+    })
+
+    it('should return 503 when session lookup fails', async () => {
+      const mockPayload = {
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        project_scope: 'lanonasis-maas',
+        iat: Date.now() / 1000,
+        exp: Date.now() / 1000 + 3600
+      }
+
+      ;(extractBearerToken as any).mockReturnValue('valid-token')
+      ;(verifyToken as any).mockReturnValue(mockPayload)
+      ;(findSessionByToken as any).mockRejectedValue(new Error('db down'))
+
+      await requireAuth(mockReq as Request, mockRes as Response, mockNext)
+
+      expect(mockRes.status).toHaveBeenCalledWith(503)
+      expect(mockRes.json).toHaveBeenCalledWith({
+        error: 'Session validation unavailable',
+        code: 'SESSION_UNAVAILABLE'
+      })
+      expect(mockNext).not.toHaveBeenCalled()
     })
 
     it('should return 401 when no token or API key provided', async () => {
@@ -141,6 +200,7 @@ describe('Auth Middleware', () => {
         email: 'test@example.com',
         role: 'authenticated',
         project_scope: 'lanonasis-maas',
+        organizationId: 'lanonasis-maas',
         iat: Date.now() / 1000,
         exp: Date.now() / 1000 + 3600
       }
@@ -157,6 +217,7 @@ describe('Auth Middleware', () => {
         email: 'test@example.com',
         role: 'authenticated',
         project_scope: 'other-project',
+        organizationId: 'other-project',
         iat: Date.now() / 1000,
         exp: Date.now() / 1000 + 3600
       }
@@ -319,11 +380,37 @@ describe('Auth Middleware', () => {
 
       ;(extractBearerToken as any).mockReturnValue('valid-token')
       ;(verifyToken as any).mockReturnValue(mockPayload)
+      ;(findSessionByToken as any).mockResolvedValue({ id: 'session-123' })
 
       await optionalAuth(mockReq as Request, mockRes as Response, mockNext)
 
       expect(mockNext).toHaveBeenCalled()
-      expect(mockReq.user).toEqual(mockPayload)
+      expect(mockReq.user).toMatchObject({
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        project_scope: 'lanonasis-maas'
+      })
+    })
+
+    it('should skip user attachment when session is missing', async () => {
+      const mockPayload = {
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        project_scope: 'lanonasis-maas',
+        iat: Date.now() / 1000,
+        exp: Date.now() / 1000 + 3600
+      }
+
+      ;(extractBearerToken as any).mockReturnValue('valid-token')
+      ;(verifyToken as any).mockReturnValue(mockPayload)
+      ;(findSessionByToken as any).mockResolvedValue(null)
+
+      await optionalAuth(mockReq as Request, mockRes as Response, mockNext)
+
+      expect(mockNext).toHaveBeenCalled()
+      expect(mockReq.user).toBeUndefined()
     })
 
     it('should continue without user when no token provided', async () => {

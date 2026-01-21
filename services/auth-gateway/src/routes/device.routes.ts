@@ -25,6 +25,7 @@ import { generateTokenPair } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { logger } from '../utils/logger.js'
+import { resolveProjectScope } from '../services/project-scope.service.js'
 import { env } from '../../config/env.js'
 
 const router = express.Router()
@@ -541,11 +542,19 @@ export async function handleDeviceCodeGrant(
           return
         }
 
+        const projectScopeResolution = await resolveProjectScope({
+          requestedScope: deviceData.project_scope,
+          fallbackScope: 'lanonasis-maas',
+          userId: deviceData.user_id,
+          context: 'device_code_exchange',
+        })
+        const resolvedProjectScope = projectScopeResolution.scope
+
         const tokens = generateTokenPair({
           sub: deviceData.user_id,
           email: deviceData.email,
           role: 'authenticated',
-          project_scope: deviceData.project_scope || 'lanonasis-maas',
+          project_scope: resolvedProjectScope,
           platform: 'cli'
         })
 
@@ -556,7 +565,7 @@ export async function handleDeviceCodeGrant(
           platform: 'cli',
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token,
-          scope: deviceData.scope ? [deviceData.scope] : undefined,
+          scope: resolvedProjectScope ? [resolvedProjectScope] : undefined,
           ip_address: req.ip,
           user_agent: req.headers['user-agent'],
           expires_at: expiresAt,
@@ -573,7 +582,12 @@ export async function handleDeviceCodeGrant(
           ip_address: req.ip,
           user_agent: req.headers['user-agent'],
           success: true,
-          metadata: { client_id: clientId }
+          metadata: {
+            client_id: clientId,
+            project_scope: resolvedProjectScope,
+            project_scope_validated: projectScopeResolution.validated,
+            project_scope_reason: projectScopeResolution.reason
+          }
         })
 
         logger.info('Device token issued', { userId: deviceData.user_id, clientId })
@@ -583,7 +597,7 @@ export async function handleDeviceCodeGrant(
           refresh_token: tokens.refresh_token,
           token_type: 'Bearer',
           expires_in: tokens.expires_in,
-          scope: deviceData.scope
+          scope: resolvedProjectScope
         })
         return
       }

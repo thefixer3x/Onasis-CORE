@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
 import { validateAPIKey } from '../services/api-key.service.js'
+import { findSessionByToken } from '../services/session.service.js'
 
 /**
  * Unified user type for auth-gateway middleware
@@ -96,14 +97,32 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = extractBearerToken(req.headers.authorization)
 
   if (token) {
+    let payload: JWTPayload | null = null
     try {
-      const payload = verifyToken(token)
+      payload = verifyToken(token)
+    } catch (error) {
+      // JWT invalid, try API key fallback
+    }
+    if (payload) {
+      try {
+        const session = await findSessionByToken(token)
+        if (!session) {
+          return res.status(401).json({
+            error: 'Session revoked or expired',
+            code: 'SESSION_INVALID',
+          })
+        }
+      } catch (error) {
+        console.error('Session lookup failed', error)
+        return res.status(503).json({
+          error: 'Session validation unavailable',
+          code: 'SESSION_UNAVAILABLE',
+        })
+      }
       req.user = buildUnifiedUserFromJwt(payload)
       // JWT tokens get full access by default
       req.scopes = ['*']
       return next()
-    } catch (error) {
-      // JWT invalid, try API key fallback
     }
   }
 
@@ -117,8 +136,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         req.scopes = validation.permissions || ['legacy.full_access']
 
         // Fetch user details from Supabase to get email and role
-        const { supabaseAdmin } = await import('../../db/client.js')
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(validation.userId)
+        const { supabaseUsers } = await import('../../db/client.js')
+        const { data: userData, error: userError } = await supabaseUsers.auth.admin.getUserById(validation.userId)
 
         const projectScope = validation.projectScope || 'unknown'
         const plan = typeof userData?.user?.user_metadata?.plan === 'string'
@@ -336,8 +355,15 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   if (token) {
     try {
       const payload = verifyToken(token)
-      req.user = buildUnifiedUserFromJwt(payload)
-      req.scopes = ['*']
+      try {
+        const session = await findSessionByToken(token)
+        if (session) {
+          req.user = buildUnifiedUserFromJwt(payload)
+          req.scopes = ['*']
+        }
+      } catch {
+        // Skip session validation errors for optional auth
+      }
       return next()
     } catch {
       // Invalid token, but we don't fail the request
@@ -352,8 +378,8 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
       if (validation.valid && validation.userId) {
         req.scopes = validation.permissions || ['legacy.full_access']
 
-        const { supabaseAdmin } = await import('../../db/client.js')
-        const { data: userData } = await supabaseAdmin.auth.admin.getUserById(validation.userId)
+        const { supabaseUsers } = await import('../../db/client.js')
+        const { data: userData } = await supabaseUsers.auth.admin.getUserById(validation.userId)
 
         const projectScope = validation.projectScope || 'unknown'
         const plan = typeof userData?.user?.user_metadata?.plan === 'string'

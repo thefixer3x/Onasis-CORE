@@ -20,6 +20,7 @@ import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { OtpStateCache } from '../services/cache.service.js'
+import { resolveProjectScope } from '../services/project-scope.service.js'
 import { logger } from '../utils/logger.js'
 
 const router = express.Router()
@@ -325,13 +326,21 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
       last_sign_in_at: data.user.last_sign_in_at || null
     })
 
+    const projectScopeResolution = await resolveProjectScope({
+      requestedScope: projectScope,
+      fallbackScope: data.user.user_metadata?.project_scope || 'lanonasis-maas',
+      userId: data.user.id,
+      context: 'otp_verify',
+    })
+    const resolvedProjectScope = projectScopeResolution.scope
+
     // Update user metadata with project scope if provided
-    if (projectScope) {
+    if (resolvedProjectScope) {
       try {
         await supabaseAuth.auth.admin.updateUserById(data.user.id, {
           user_metadata: {
             ...data.user.user_metadata,
-            project_scope: projectScope
+            project_scope: resolvedProjectScope
           }
         })
       } catch (updateError) {
@@ -341,8 +350,6 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
         })
       }
     }
-
-    const resolvedProjectScope = projectScope || data.user.user_metadata?.project_scope || 'lanonasis-maas'
 
     // Generate auth-gateway tokens
     const tokens = generateTokenPair({
@@ -377,7 +384,9 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
       metadata: {
         email: email.substring(0, 3) + '***',
         type: verifyType,
-        project_scope: resolvedProjectScope
+        project_scope: resolvedProjectScope,
+        project_scope_validated: projectScopeResolution.validated,
+        project_scope_reason: projectScopeResolution.reason
       }
     })
 
@@ -399,7 +408,8 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
       user: {
         id: data.user.id,
         email: data.user.email,
-        role: data.user.role || 'authenticated'
+        role: data.user.role || 'authenticated',
+        project_scope: resolvedProjectScope
       }
     })
   } catch (error) {
