@@ -67,7 +67,9 @@ export const standardCors = cors({
 const TRUSTED_SERVER_ORIGINS = [
     'https://api.lanonasis.com',
     'https://mcp.lanonasis.com',
-    'https://maas.lanonasis.com'
+    'https://mcp1.lanonasis.com',  // Enterprise MCP server
+    'https://maas.lanonasis.com',
+    'https://auth.lanonasis.com'  // Device verification page makes same-origin API calls
 ];
 /**
  * Strict CORS configuration for OAuth endpoints
