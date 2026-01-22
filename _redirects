@@ -162,16 +162,10 @@
 /api/v1/intelligence/extract-insights   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-extract-insights   200!
 /api/v1/intelligence/analyze-patterns   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-analyze-patterns   200!
 
-# ============================================================================
-# BEHAVIOR INTELLIGENCE ROUTES - PROXY TO SUPABASE EDGE FUNCTIONS
-# ============================================================================
-# Behavior pattern learning and recall for AI workflow automation
-# Added: 2026-01-22
-# ============================================================================
-
-/api/v1/behavior/record                 https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-record    200!
-/api/v1/behavior/recall                 https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-recall    200!
-/api/v1/behavior/suggest                https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-suggest   200!
+# Behavior Intelligence (v2.0) - Workflow pattern learning
+/api/v1/intelligence/behavior-record    https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-record    200!
+/api/v1/intelligence/behavior-recall    https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-recall    200!
+/api/v1/intelligence/behavior-suggest   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-suggest   200!
 
 # Health check endpoints
 /health           /.netlify/functions/health                    200
