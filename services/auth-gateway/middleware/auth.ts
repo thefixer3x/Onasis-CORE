@@ -1,13 +1,24 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
 import { validateAPIKey } from '../src/services/api-key.service.js'
+import { resolveToUAI, type AuthMethod, type ResolvedIdentity } from '../services/identity-resolution.service.js'
 
 /**
  * Unified user type for auth-gateway middleware
  * Combines JWT payload fields with internal user model fields
+ *
+ * The `universalId` (UAI - Universal Authentication Identifier) is the canonical
+ * identity that all authentication methods resolve to. This enables:
+ * - Single identity across all auth methods (JWT, API Key, OTP, etc.)
+ * - Identity linking (user can have multiple auth methods)
+ * - Cross-platform SSO without identity fragmentation
  */
 export interface UnifiedUser {
-  // Primary identifiers (internal naming)
+  // Universal Authentication Identifier (UAI) - canonical identity
+  // This is the SINGLE source of truth for user identity
+  universalId?: string;
+
+  // Primary identifiers (internal naming - legacy, use universalId for new code)
   userId: string;
   organizationId: string;
   role: string;
@@ -23,6 +34,10 @@ export interface UnifiedUser {
   email?: string;
   user_metadata?: Record<string, unknown>;
   app_metadata?: Record<string, unknown>;
+
+  // UAI-specific fields
+  authMethod?: 'supabase_jwt' | 'api_key' | 'oauth_pkce' | 'magic_link' | 'otp_email' | 'sso_session' | 'mcp_token';
+  credentialId?: string;
 }
 
 // Extend Express Request type to include user and scopes
@@ -33,10 +48,16 @@ declare module 'express' {
   }
 }
 
-const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
+const buildUnifiedUserFromJwt = (
+  payload: JWTPayload,
+  resolvedIdentity?: ResolvedIdentity | null
+): UnifiedUser => ({
+  // Universal Authentication Identifier (UAI) - the canonical identity
+  universalId: resolvedIdentity?.authId,
+
   // Primary identifiers
   userId: payload.sub,
-  organizationId: payload.project_scope ?? 'unknown',
+  organizationId: resolvedIdentity?.organizationId || payload.project_scope || 'unknown',
   role: payload.role,
   // Extract plan from JWT claims: check user_metadata, app_metadata, or direct claim
   plan: (payload.user_metadata?.plan as string) || (payload.app_metadata?.plan as string) || payload.plan || 'free',
@@ -48,11 +69,15 @@ const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
 
   // Profile fields
   id: payload.sub,
-  email: payload.email,
+  email: resolvedIdentity?.primaryEmail || payload.email,
   app_metadata: {
     project_scope: payload.project_scope,
     platform: payload.platform,
   },
+
+  // UAI tracking fields
+  authMethod: 'supabase_jwt',
+  credentialId: resolvedIdentity?.credentialId,
 })
 
 const buildUnifiedUserFromApiKey = (options: {
@@ -63,18 +88,26 @@ const buildUnifiedUserFromApiKey = (options: {
   projectScope?: string
   permissions?: string[]
   userMetadata?: Record<string, unknown>
+  resolvedIdentity?: ResolvedIdentity | null
 }): UnifiedUser => ({
+  // Universal Authentication Identifier (UAI) - the canonical identity
+  universalId: options.resolvedIdentity?.authId,
+
   userId: options.userId,
-  organizationId: options.projectScope ?? 'unknown',
+  organizationId: options.resolvedIdentity?.organizationId || options.projectScope || 'unknown',
   role: options.role,
   plan: options.plan,
   id: options.userId,
-  email: options.email,
+  email: options.resolvedIdentity?.primaryEmail || options.email,
   user_metadata: options.userMetadata ?? {},
   app_metadata: {
     project_scope: options.projectScope,
     permissions: options.permissions,
   },
+
+  // UAI tracking fields
+  authMethod: 'api_key',
+  credentialId: options.resolvedIdentity?.credentialId,
 })
 
 const getProjectScope = (user?: UnifiedUser): string | undefined => {
@@ -106,18 +139,56 @@ function checkSSOCookie(req: Request): JWTPayload | null {
 }
 
 /**
+ * Resolve identity to UAI (Universal Authentication Identifier)
+ * This is a non-blocking enhancement - authentication proceeds even if UAI resolution fails
+ */
+async function resolveIdentityToUAI(
+  method: AuthMethod,
+  identifier: string,
+  options?: { createIfMissing?: boolean; platform?: 'mcp' | 'cli' | 'web' | 'api'; ipAddress?: string; userAgent?: string }
+): Promise<ResolvedIdentity | null> {
+  try {
+    return await resolveToUAI(method, identifier, {
+      createIfMissing: options?.createIfMissing ?? false,
+      platform: options?.platform,
+      ipAddress: options?.ipAddress,
+      userAgent: options?.userAgent,
+    })
+  } catch (error) {
+    // UAI resolution is non-critical during migration phase
+    // Log warning but don't fail authentication
+    console.warn('UAI resolution failed (non-critical):', error instanceof Error ? error.message : 'Unknown error')
+    return null
+  }
+}
+
+/**
  * Middleware to verify authentication via SSO cookie, JWT token, or API key
  *
  * Authentication priority:
  * 1. SSO cookie (lanonasis_session) - for web browser requests
  * 2. JWT Bearer token (Authorization: Bearer <token>) - for API clients
  * 3. API Key (X-API-Key: <hashed_key>) - for programmatic access
+ *
+ * All auth methods now resolve to a Universal Authentication Identifier (UAI)
+ * for canonical identity tracking across platforms.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip
+  const userAgent = req.headers['user-agent'] as string
+
   // Priority 1: Check SSO session cookie first (web requests)
   const ssoPayload = checkSSOCookie(req)
   if (ssoPayload) {
-    req.user = buildUnifiedUserFromJwt(ssoPayload)
+    // Resolve to UAI (non-blocking)
+    const resolvedIdentity = await resolveIdentityToUAI('sso_session', ssoPayload.sub, {
+      createIfMissing: true,
+      platform: 'web',
+      ipAddress: clientIp,
+      userAgent,
+    })
+
+    req.user = buildUnifiedUserFromJwt(ssoPayload, resolvedIdentity)
     req.scopes = ['*'] // SSO users get full access
     return next()
   }
@@ -128,7 +199,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (token) {
     try {
       const payload = verifyToken(token)
-      req.user = buildUnifiedUserFromJwt(payload)
+
+      // Resolve to UAI (non-blocking)
+      const resolvedIdentity = await resolveIdentityToUAI('supabase_jwt', payload.sub, {
+        createIfMissing: true,
+        platform: payload.platform,
+        ipAddress: clientIp,
+        userAgent,
+      })
+
+      req.user = buildUnifiedUserFromJwt(payload, resolvedIdentity)
       // JWT tokens get full access by default
       req.scopes = ['*']
       return next()
@@ -145,6 +225,14 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       if (validation.valid && validation.userId) {
         // Attach scopes from API key validation
         req.scopes = validation.permissions || ['legacy.full_access']
+
+        // Resolve to UAI using API key hash as identifier (non-blocking)
+        const resolvedIdentity = await resolveIdentityToUAI('api_key', validation.userId, {
+          createIfMissing: true,
+          platform: 'api',
+          ipAddress: clientIp,
+          userAgent,
+        })
 
         // Fetch user details from Supabase to get email and role
         const { supabaseAdmin } = await import('../db/client.js')
@@ -167,6 +255,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             plan,
             projectScope,
             permissions: validation.permissions,
+            resolvedIdentity,
           })
         } else {
           // Create full user payload from API key validation and user data
@@ -178,6 +267,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             projectScope,
             permissions: validation.permissions,
             userMetadata: userData.user.user_metadata ?? {},
+            resolvedIdentity,
           })
         }
         return next()

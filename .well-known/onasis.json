@@ -1,0 +1,35 @@
+{
+  "name": "Lanonasis Memory Service",
+  "version": "3.0.0",
+  "description": "Memory as a Service (MaaS) Platform",
+  "auth": {
+    "base": "https://auth.lanonasis.com",
+    "login": "https://auth.lanonasis.com/web/login",
+    "logout": "https://auth.lanonasis.com/web/logout",
+    "oauth": {
+      "authorize": "https://auth.lanonasis.com/oauth/authorize",
+      "token": "https://auth.lanonasis.com/oauth/token",
+      "revoke": "https://auth.lanonasis.com/oauth/revoke"
+    }
+  },
+  "endpoints": {
+    "http": "https://api.lanonasis.com/api/v1",
+    "websocket": "wss://mcp.lanonasis.com/ws",
+    "sse": "https://mcp.lanonasis.com/api/v1/events"
+  },
+  "services": {
+    "api": "https://api.lanonasis.com",
+    "mcp": "https://mcp.lanonasis.com",
+    "auth": "https://auth.lanonasis.com",
+    "dashboard": "https://dashboard.lanonasis.com",
+    "docs": "https://docs.lanonasis.com"
+  },
+  "capabilities": [
+    "memories",
+    "api-keys",
+    "projects",
+    "organizations",
+    "mcp",
+    "oauth2-pkce"
+  ]
+}
