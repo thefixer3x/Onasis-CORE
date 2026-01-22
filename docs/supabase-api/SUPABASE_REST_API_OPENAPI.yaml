@@ -534,6 +534,93 @@ paths:
         '403':
           $ref: '#/components/responses/PremiumRequiredError'
 
+  /intelligence/behavior-record:
+    post:
+      tags:
+        - Intelligence
+      summary: Record Behavior Pattern
+      description: |
+        Record a behavior/workflow pattern with embedding generation and deduplication.
+        If a near-duplicate is found, the existing pattern is updated instead of creating a new one.
+      operationId: recordBehaviorPattern
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BehaviorRecordRequest'
+      responses:
+        '200':
+          description: Pattern updated (duplicate detected)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehaviorRecordResponse'
+        '201':
+          description: Pattern created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehaviorRecordResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /intelligence/behavior-recall:
+    post:
+      tags:
+        - Intelligence
+      summary: Recall Behavior Patterns
+      description: |
+        Recall relevant behavior patterns using vector similarity search.
+        Useful for surfacing likely next steps based on current task context.
+      operationId: recallBehaviorPatterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BehaviorRecallRequest'
+      responses:
+        '200':
+          description: Behavior pattern recall results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehaviorRecallResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /intelligence/behavior-suggest:
+    post:
+      tags:
+        - Intelligence
+      summary: Suggest Next Actions
+      description: |
+        Generate action suggestions based on recalled behavior patterns.
+        Useful for proposing the next likely tools or steps.
+      operationId: suggestBehaviorActions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BehaviorSuggestRequest'
+      responses:
+        '200':
+          description: Suggested actions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BehaviorSuggestResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   # ============================================================================
   # API KEY MANAGEMENT
   # ============================================================================
