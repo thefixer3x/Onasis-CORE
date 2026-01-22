@@ -392,35 +392,182 @@ $$ LANGUAGE plpgsql;
 -- MIGRATE EXISTING USER ACCOUNTS
 -- =============================================================================
 -- Create UAI for existing users in user_accounts who don't have one
+-- Handles duplicate emails by:
+--   1. Creating one auth_identity per unique email (using the oldest account)
+--   2. Linking all accounts with the same email to the same auth_id
 
 DO $$
 DECLARE
   v_user RECORD;
   v_auth_id UUID;
+  v_existing_auth_id UUID;
 BEGIN
+  -- First pass: Create auth_identities for unique emails (oldest account per email)
+  FOR v_user IN
+    SELECT DISTINCT ON (LOWER(email)) user_id, email, role, provider, raw_metadata, created_at
+    FROM auth_gateway.user_accounts
+    WHERE auth_id IS NULL AND email IS NOT NULL
+    ORDER BY LOWER(email), created_at ASC
+  LOOP
+    -- Check if identity already exists for this email (case-insensitive)
+    SELECT auth_id INTO v_existing_auth_id
+    FROM auth_gateway.auth_identities
+    WHERE LOWER(primary_email) = LOWER(v_user.email);
+
+    IF v_existing_auth_id IS NULL THEN
+      -- Create auth_identity for existing user
+      INSERT INTO auth_gateway.auth_identities (
+        primary_email,
+        status,
+        email_verified,
+        metadata,
+        created_at
+      ) VALUES (
+        v_user.email,
+        'active',
+        true,  -- Assume existing users are verified
+        COALESCE(v_user.raw_metadata, '{}'::jsonb) ||
+          jsonb_build_object('migrated_from', 'user_accounts', 'original_user_id', v_user.user_id),
+        v_user.created_at
+      )
+      RETURNING auth_id INTO v_auth_id;
+
+      -- Create primary credential for this auth method
+      INSERT INTO auth_gateway.auth_credentials (
+        auth_id,
+        method,
+        identifier,
+        provider,
+        is_primary,
+        is_active,
+        metadata,
+        created_at
+      ) VALUES (
+        v_auth_id,
+        CASE
+          WHEN v_user.provider IS NOT NULL THEN 'oauth_token'
+          ELSE 'supabase_jwt'
+        END,
+        v_user.email,
+        v_user.provider,
+        true,
+        true,
+        jsonb_build_object('migrated_from', 'user_accounts', 'role', v_user.role),
+        v_user.created_at
+      );
+
+      -- Log provenance
+      INSERT INTO auth_gateway.identity_provenance (
+        auth_id,
+        event_type,
+        actor_type,
+        details
+      ) VALUES (
+        v_auth_id,
+        'identity_created',
+        'system',
+        jsonb_build_object(
+          'source', 'migration_015',
+          'original_user_id', v_user.user_id,
+          'email', v_user.email
+        )
+      );
+    ELSE
+      v_auth_id := v_existing_auth_id;
+    END IF;
+
+    -- Link user_account to UAI
+    UPDATE auth_gateway.user_accounts
+    SET auth_id = v_auth_id
+    WHERE user_id = v_user.user_id;
+  END LOOP;
+
+  -- Second pass: Link remaining duplicate accounts to existing auth_identities
   FOR v_user IN
     SELECT user_id, email, role, provider, raw_metadata, created_at
     FROM auth_gateway.user_accounts
-    WHERE auth_id IS NULL
+    WHERE auth_id IS NULL AND email IS NOT NULL
   LOOP
-    -- Create auth_identity for existing user
+    -- Find existing identity for this email
+    SELECT auth_id INTO v_auth_id
+    FROM auth_gateway.auth_identities
+    WHERE LOWER(primary_email) = LOWER(v_user.email);
+
+    IF v_auth_id IS NOT NULL THEN
+      -- Link this duplicate account to the existing identity
+      UPDATE auth_gateway.user_accounts
+      SET auth_id = v_auth_id
+      WHERE user_id = v_user.user_id;
+
+      -- Create a non-primary credential for this duplicate (if identifier is unique)
+      INSERT INTO auth_gateway.auth_credentials (
+        auth_id,
+        method,
+        identifier,
+        provider,
+        is_primary,
+        is_active,
+        metadata,
+        created_at
+      ) VALUES (
+        v_auth_id,
+        CASE
+          WHEN v_user.provider IS NOT NULL THEN 'oauth_token'
+          ELSE 'supabase_jwt'
+        END,
+        v_user.user_id::text,  -- Use user_id as identifier to ensure uniqueness
+        v_user.provider,
+        false,  -- Not primary
+        true,
+        jsonb_build_object(
+          'migrated_from', 'user_accounts_duplicate',
+          'role', v_user.role,
+          'original_email', v_user.email
+        ),
+        v_user.created_at
+      )
+      ON CONFLICT DO NOTHING;  -- Skip if credential already exists
+
+      -- Log provenance for linked duplicate
+      INSERT INTO auth_gateway.identity_provenance (
+        auth_id,
+        event_type,
+        actor_type,
+        details
+      ) VALUES (
+        v_auth_id,
+        'credential_added',
+        'system',
+        jsonb_build_object(
+          'source', 'migration_015_duplicate_link',
+          'original_user_id', v_user.user_id,
+          'email', v_user.email,
+          'note', 'Duplicate email account linked to existing identity'
+        )
+      );
+    END IF;
+  END LOOP;
+
+  -- Third pass: Handle accounts with NULL emails
+  FOR v_user IN
+    SELECT user_id, email, role, provider, raw_metadata, created_at
+    FROM auth_gateway.user_accounts
+    WHERE auth_id IS NULL AND email IS NULL
+  LOOP
+    -- Create identity without email
     INSERT INTO auth_gateway.auth_identities (
-      primary_email,
       status,
-      email_verified,
       metadata,
       created_at
     ) VALUES (
-      v_user.email,
       'active',
-      true,  -- Assume existing users are verified
       COALESCE(v_user.raw_metadata, '{}'::jsonb) ||
-        jsonb_build_object('migrated_from', 'user_accounts', 'original_user_id', v_user.user_id),
+        jsonb_build_object('migrated_from', 'user_accounts', 'original_user_id', v_user.user_id, 'no_email', true),
       v_user.created_at
     )
     RETURNING auth_id INTO v_auth_id;
 
-    -- Create credential for existing auth method
+    -- Create credential
     INSERT INTO auth_gateway.auth_credentials (
       auth_id,
       method,
@@ -436,7 +583,7 @@ BEGIN
         WHEN v_user.provider IS NOT NULL THEN 'oauth_token'
         ELSE 'supabase_jwt'
       END,
-      v_user.email,
+      v_user.user_id::text,
       v_user.provider,
       true,
       true,
@@ -444,27 +591,10 @@ BEGIN
       v_user.created_at
     );
 
-    -- Link user_account to new UAI
+    -- Link user_account
     UPDATE auth_gateway.user_accounts
     SET auth_id = v_auth_id
     WHERE user_id = v_user.user_id;
-
-    -- Log provenance
-    INSERT INTO auth_gateway.identity_provenance (
-      auth_id,
-      event_type,
-      actor_type,
-      details
-    ) VALUES (
-      v_auth_id,
-      'identity_created',
-      'system',
-      jsonb_build_object(
-        'source', 'migration_015',
-        'original_user_id', v_user.user_id,
-        'email', v_user.email
-      )
-    );
   END LOOP;
 END;
 $$;
