@@ -11,7 +11,7 @@
  * 4. If not found and auto-create enabled, create new identity + credential
  */
 
-import { Pool } from 'pg'
+import { Pool, PoolClient } from 'pg'
 
 // Types for identity resolution
 export interface ResolvedIdentity {
@@ -160,7 +160,7 @@ export class IdentityResolutionService {
    * Create a new identity with initial credential
    */
   private async createIdentityWithCredential(
-    client: ReturnType<Pool['connect']> extends Promise<infer T> ? T : never,
+    client: PoolClient,
     method: AuthMethod,
     identifier: string,
     options: IdentityResolutionOptions

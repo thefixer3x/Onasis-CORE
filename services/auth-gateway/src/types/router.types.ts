@@ -5,6 +5,7 @@
 
 import type { Request } from 'express'
 import type { UnifiedUser } from '../middleware/auth.js'
+import type { UAIContext } from '../middleware/uai-router.middleware.js'
 
 // Rate limit tiers
 export type RateLimitTier = 'general' | 'ai' | 'media' | 'webhook'
@@ -32,6 +33,9 @@ export type ServiceRegistry = Record<string, ServiceConfig>
 
 // Extended request with router metadata
 export interface RouterRequest extends Request {
+  /** UAI Context - THE canonical identity (preferred) */
+  uai?: UAIContext
+  /** Legacy user context (for backward compatibility) */
   user?: UnifiedUser
   scopes?: string[]
   /** Anonymous request ID for tracking */
@@ -47,6 +51,9 @@ export interface RouterRequest extends Request {
     service: string
     startTime: number
     authenticated: boolean
+    /** UAI - Universal Auth Identifier (preferred) */
+    uaiAuthId?: string
+    /** Legacy userId (for backward compatibility) */
     userId?: string
     projectScope?: string
   }
