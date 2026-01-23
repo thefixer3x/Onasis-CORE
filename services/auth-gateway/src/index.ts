@@ -31,10 +31,13 @@ import webRoutes from './routes/web.routes.js'
 import syncRoutes from './routes/sync.routes.js'
 import deviceRoutes from './routes/device.routes.js'
 import servicesRoutes from './routes/services.routes.js'
+import resolveRoutes from './routes/resolve.routes.js'
 
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
 import { standardCors } from './middleware/cors.js'
+import { uaiRouter, requireUAI } from './middleware/uai-router.middleware.js'
+import { startCacheCleanup, getCacheStats } from './services/uai-session-cache.service.js'
 
 const app = express()
 const isTestEnv = process.env.NODE_ENV === 'test'
@@ -62,15 +65,22 @@ app.get("/health", async (_req, res) => {
   const { checkDatabaseHealth } = await import("../db/client.js");
   const { checkRedisHealth } = await import("./services/cache.service.js");
   const { getOutboxStats } = await import("./services/event.service.js");
+  const { getCacheStats } = await import("./services/uai-session-cache.service.js");
   const dbStatus = await checkDatabaseHealth();
   const redisStatus = await checkRedisHealth();
   const outboxStatus = await getOutboxStats();
+  const uaiCacheStats = await getCacheStats();
   const overallStatus = dbStatus.healthy ? (redisStatus.healthy ? "ok" : "degraded") : "unhealthy";
   res.json({
     status: overallStatus,
     service: "auth-gateway",
     database: dbStatus,
     cache: redisStatus,
+    uaiCache: {
+      layers: uaiCacheStats.layers,
+      memoryCacheSize: uaiCacheStats.memoryCacheSize,
+      postgresCacheSize: uaiCacheStats.postgresCacheSize,
+    },
     outbox: outboxStatus,
     timestamp: new Date().toISOString()
   });
@@ -191,6 +201,7 @@ app.use(validateSessionCookie)
 
 // Mount routes
 app.use('/v1/auth', authRoutes)
+app.use('/v1/auth/resolve', resolveRoutes)  // UAI resolution for Nginx auth_request
 app.use('/v1/auth/otp', otpRoutes)  // OTP passwordless auth for CLI
 app.use('/otp', otpRoutes)  // Shorthand for test client
 app.use('/api/v1/auth/api-keys', apiKeysRoutes)
@@ -205,8 +216,17 @@ app.use('/v1/sync', syncRoutes)  // Bidirectional sync webhooks (Option 1 fallba
 app.use('/oauth', deviceRoutes)   // Device code flow for CLI (GitHub-style passwordless)
 
 // ============================================================================
+// UAI CONVERGENCE POINT
+// All auth methods (JWT, API key, cookie, PKCE, MCP token) converge here.
+// The UAI router resolves any auth to a single Universal Authentication Identifier.
+// Services downstream only see the UAI - not the original auth method.
+// ============================================================================
+app.use('/api/v1/services', requireUAI)  // Service routes REQUIRE auth + UAI
+
+// ============================================================================
 // UNIFIED SERVICE ROUTER (ported from unified-router.cjs)
 // Routes authenticated requests to Supabase edge functions
+// By this point, req.uai contains the resolved Universal Auth Identifier
 // ============================================================================
 app.use(servicesRoutes)
 
@@ -406,11 +426,21 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`   - POST /oauth/token (also /api/v1/oauth/token)`)
     console.log(`   - POST /oauth/revoke (also /api/v1/oauth/revoke)`)
     console.log(`   - POST /oauth/introspect (also /api/v1/oauth/introspect)`)
-    console.log(`🔀 Service Router endpoints:`)
+    console.log(`🔀 Service Router endpoints (UAI-enabled):`)
     console.log(`   - GET  /services (discovery)`)
-    console.log(`   - ALL  /api/v1/services/:name/* (authenticated routing)`)
+    console.log(`   - ALL  /api/v1/services/:name/* (authenticated + UAI routing)`)
     console.log(`   - POST /api/v1/chat/completions (legacy)`)
     console.log(`   - POST /webhook/:service`)
+    // Start UAI cache cleanup interval
+    const cleanupInterval = startCacheCleanup(5 * 60 * 1000) // Every 5 minutes
+
+    // Log cache configuration
+    const cacheStats = await getCacheStats()
+    console.log(`🆔 UAI (Universal Auth Identifier):`)
+    console.log(`   - GET  /v1/auth/resolve (resolve any auth to UAI)`)
+    console.log(`   - All /api/v1/services/* routes resolve to UAI automatically`)
+    console.log(`   - Cache TTL: ${process.env.UAI_CACHE_TTL || 300}s`)
+    console.log(`   - Cache layers: [${cacheStats.layers.join(' → ')}]`)
     console.log(`🔌 MCP OAuth Discovery (RFC 8414 + RFC 7591):`)
     console.log(`   - GET  /.well-known/oauth-authorization-server`)
     console.log(`   - POST /register (Dynamic Client Registration)`)
@@ -424,13 +454,21 @@ if (process.env.NODE_ENV !== 'test') {
   // Graceful shutdown handlers
   process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully...')
-    await closeRedis()
+    const { getUAISessionCache } = await import('./services/uai-session-cache.service.js')
+    await Promise.all([
+      closeRedis(),
+      getUAISessionCache().close(),
+    ])
     process.exit(0)
   })
 
   process.on('SIGINT', async () => {
     console.log('SIGINT received, shutting down gracefully...')
-    await closeRedis()
+    const { getUAISessionCache } = await import('./services/uai-session-cache.service.js')
+    await Promise.all([
+      closeRedis(),
+      getUAISessionCache().close(),
+    ])
     process.exit(0)
   })
 }
