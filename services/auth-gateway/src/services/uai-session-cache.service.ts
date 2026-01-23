@@ -117,11 +117,19 @@ export class UAISessionCacheService {
         max: 5, // Small pool for cache operations
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
+        ssl: {
+          rejectUnauthorized: false // Accept self-signed certificates for Supabase
+        }
       })
 
       // Verify connection and ensure cache table exists
       const client = await this.pgPool.connect()
       try {
+        // Create schema if it doesn't exist
+        await client.query(`
+          CREATE SCHEMA IF NOT EXISTS auth_gateway
+        `)
+
         await client.query(`
           CREATE TABLE IF NOT EXISTS auth_gateway.uai_session_cache (
             cache_key VARCHAR(255) PRIMARY KEY,
@@ -220,7 +228,7 @@ export class UAISessionCacheService {
           if (this.redis) {
             const remainingTtl = Math.floor((session.expiresAt - now) / 1000)
             if (remainingTtl > 0) {
-              this.redis.set(key, JSON.stringify(session), { EX: remainingTtl }).catch(() => {})
+              this.redis.set(key, JSON.stringify(session), { EX: remainingTtl }).catch(() => { })
             }
           }
 
@@ -254,7 +262,7 @@ export class UAISessionCacheService {
     if (this.redis) {
       promises.push(
         this.redis.set(key, JSON.stringify(session), { EX: this.ttlSeconds })
-          .then(() => {})
+          .then(() => { })
           .catch((err: Error) => console.warn('Redis cache set error:', err))
       )
     }
@@ -284,7 +292,7 @@ export class UAISessionCacheService {
           session.resolvedAt,
           session.expiresAt,
         ])
-          .then(() => {})
+          .then(() => { })
           .catch((err: Error) => console.warn('Postgres cache set error:', err))
       )
     }
@@ -316,7 +324,7 @@ export class UAISessionCacheService {
     if (this.redis) {
       promises.push(
         this.redis.del(key)
-          .then(() => {})
+          .then(() => { })
           .catch((err: Error) => console.warn('Redis invalidate error:', err))
       )
     }
@@ -325,7 +333,7 @@ export class UAISessionCacheService {
     if (this.pgPool) {
       promises.push(
         this.pgPool.query('DELETE FROM auth_gateway.uai_session_cache WHERE cache_key = $1', [key])
-          .then(() => {})
+          .then(() => { })
           .catch((err: Error) => console.warn('Postgres invalidate error:', err))
       )
     }
@@ -471,7 +479,7 @@ export class UAISessionCacheService {
     const promises: Promise<void>[] = []
 
     if (this.redis) {
-      promises.push(this.redis.quit().then(() => {}))
+      promises.push(this.redis.quit().then(() => { }))
     }
 
     if (this.pgPool) {
@@ -534,7 +542,7 @@ export function startCacheCleanup(intervalMs: number = 5 * 60 * 1000): NodeJS.Ti
     if (count > 0) {
       console.log(`UAI Cache: Cleaned up ${count} expired entries`)
     }
-  }).catch(() => {})
+  }).catch(() => { })
 
   // Then run periodically
   return setInterval(async () => {
