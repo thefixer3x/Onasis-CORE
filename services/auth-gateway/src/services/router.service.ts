@@ -97,8 +97,19 @@ export async function routeToSupabase<T = unknown>(
     headers['X-Project-Scope'] = req.headers['x-project-scope'] as string
   }
 
-  // Forward auth context if authenticated
-  if (req.user) {
+  // Forward UAI context (preferred - universal auth identifier)
+  // UAI is the SINGLE canonical identity that all auth methods resolve to
+  if (req.uai) {
+    headers['X-UAI-Auth-Id'] = req.uai.authId  // THE canonical identity
+    headers['X-UAI-Organization'] = req.uai.organizationId || ''
+    headers['X-UAI-Auth-Method'] = req.uai.authMethod
+    headers['X-UAI-Email'] = req.uai.email || ''
+    // Also set X-User-Id for backward compatibility during migration
+    headers['X-User-Id'] = req.uai.authId
+    headers['X-User-Role'] = 'authenticated'
+  }
+  // Legacy fallback: Forward old user context if UAI not available
+  else if (req.user) {
     headers['X-User-Id'] = req.user.userId
     headers['X-User-Role'] = req.user.role || 'authenticated'
     if (req.user.project_scope) {
@@ -112,7 +123,9 @@ export async function routeToSupabase<T = unknown>(
     url,
     method: req.method,
     bodySize: JSON.stringify(sanitizedBody).length,
-    authenticated: !!req.user,
+    authenticated: !!req.uai || !!req.user,
+    uaiResolved: !!req.uai,
+    fromCache: req.uai?.fromCache,
   })
 
   // Create AbortController for timeout

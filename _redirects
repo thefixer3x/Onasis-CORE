@@ -1,6 +1,9 @@
 # ============================================================================
 # SERVICE DISCOVERY - CLI and SDK endpoint discovery
 # ============================================================================
+# Served from both locations for maximum compatibility:
+# - Root: /.well-known/onasis.json (direct access)
+# - Public: /public/.well-known/onasis.json (via redirect)
 /.well-known/onasis.json    /public/.well-known/onasis.json    200
 
 # ============================================================================
