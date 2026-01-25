@@ -16,6 +16,20 @@ interface CreateApiKeyRequest {
   scopes?: string[];
   description?: string;
   project_id?: string;
+  // Service scoping - which external services this key can access
+  service_type?: 'all' | 'specific';
+  service_keys?: string[];
+  rate_limits?: {
+    max_calls_per_minute?: number;
+    max_calls_per_day?: number;
+  };
+}
+
+interface ServiceScope {
+  service_key: string;
+  allowed_actions?: string[];
+  max_calls_per_minute?: number;
+  max_calls_per_day?: number;
 }
 
 const VALID_ACCESS_LEVELS = ['public', 'authenticated', 'team', 'admin', 'enterprise'];
@@ -152,6 +166,40 @@ serve(async (req: Request) => {
     // Normalize scopes
     const permissions = normalizeScopes(body.scopes);
 
+    // Validate service scoping
+    const serviceType = body.service_type || 'all';
+    let validatedServiceKeys: string[] = [];
+
+    if (serviceType === 'specific') {
+      if (!body.service_keys || body.service_keys.length === 0) {
+        return createErrorResponse(
+          ErrorCode.VALIDATION_ERROR,
+          'service_keys is required when service_type is "specific"',
+          400
+        );
+      }
+
+      // Validate service keys against user's configured services
+      const { data: userServices } = await supabase
+        .from('user_mcp_services')
+        .select('service_key')
+        .eq('user_id', auth.user_id)
+        .eq('is_enabled', true);
+
+      const validServiceKeys = new Set(userServices?.map(s => s.service_key) || []);
+      const invalidKeys = body.service_keys.filter(k => !validServiceKeys.has(k));
+
+      if (invalidKeys.length > 0) {
+        return createErrorResponse(
+          ErrorCode.VALIDATION_ERROR,
+          `Invalid service keys: ${invalidKeys.join(', ')}. These services are not configured for your account.`,
+          400
+        );
+      }
+
+      validatedServiceKeys = body.service_keys;
+    }
+
     // Insert API key - let Supabase auto-generate UUID for id
     // Note: The `key` column is NOT NULL in the schema (legacy requirement)
     // We store the key for backward compatibility, but authentication uses key_hash
@@ -163,6 +211,7 @@ serve(async (req: Request) => {
       access_level: body.access_level || 'authenticated',
       permissions,
       is_active: true,
+      service: serviceType,  // 'all' or 'specific' - controls external service access
     };
 
     // Only add expires_at if specified
@@ -186,6 +235,36 @@ serve(async (req: Request) => {
       return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to create API key', 500);
     }
 
+    // Insert service scopes if specific services are selected
+    let serviceScopes: ServiceScope[] = [];
+    if (serviceType === 'specific' && validatedServiceKeys.length > 0) {
+      const scopeRecords = validatedServiceKeys.map(serviceKey => ({
+        api_key_id: newKey.id,
+        service_key: serviceKey,
+        allowed_actions: null, // Allow all actions by default
+        max_calls_per_minute: body.rate_limits?.max_calls_per_minute || null,
+        max_calls_per_day: body.rate_limits?.max_calls_per_day || null,
+        is_active: true,
+      }));
+
+      const { data: scopesData, error: scopesError } = await supabase
+        .from('api_key_scopes')
+        .insert(scopeRecords)
+        .select();
+
+      if (scopesError) {
+        console.error('Insert scopes error:', scopesError);
+        // Don't fail the request - key is created, just log the scope issue
+      } else if (scopesData) {
+        serviceScopes = scopesData.map(s => ({
+          service_key: s.service_key,
+          allowed_actions: s.allowed_actions,
+          max_calls_per_minute: s.max_calls_per_minute,
+          max_calls_per_day: s.max_calls_per_day,
+        }));
+      }
+    }
+
     // Audit log (fire and forget)
     supabase.from('audit_log').insert({
       user_id: auth.user_id,
@@ -196,6 +275,8 @@ serve(async (req: Request) => {
         name: body.name,
         access_level: newKey.access_level,
         has_expiration: !!expiresAt,
+        service_type: serviceType,
+        service_keys: serviceType === 'specific' ? validatedServiceKeys : undefined,
       }
     }).then(() => {});
 
@@ -207,6 +288,8 @@ serve(async (req: Request) => {
         user_id: newKey.user_id,
         access_level: newKey.access_level,
         permissions: newKey.permissions,
+        service: serviceType,
+        service_scopes: serviceType === 'specific' ? serviceScopes : undefined,
         expires_at: newKey.expires_at,
         created_at: newKey.created_at,
         is_active: newKey.is_active,

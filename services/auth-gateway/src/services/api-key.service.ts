@@ -9,11 +9,30 @@ export interface ApiKey {
   user_id: string
   access_level: string
   permissions: string[]
+  service: string // 'all' or 'specific' - controls external service access
+  service_scopes?: ServiceScope[] // Populated when service = 'specific'
   expires_at?: string
   last_used_at?: string
   created_at: string
   is_active: boolean
 }
+
+export interface ServiceScope {
+  service_key: string
+  allowed_actions?: string[]
+  max_calls_per_minute?: number
+  max_calls_per_day?: number
+}
+
+export interface ConfiguredService {
+  service_key: string
+  display_name: string
+  category: string
+  is_enabled: boolean
+}
+
+// Rate limits can be specified per service_key or globally
+export type ServiceScopeRateLimit = Record<string, { per_minute?: number; per_day?: number }>
 
 interface ApiKeyRecord {
   id: string
@@ -22,6 +41,7 @@ interface ApiKeyRecord {
   user_id: string
   access_level: string
   permissions?: string[]
+  service?: string // 'all' or 'specific'
   expires_at?: string
   last_used_at?: string
   created_at: string
@@ -253,6 +273,7 @@ export async function createApiKey(
       user_id: data.user_id,
       access_level: data.access_level,
       permissions: data.permissions || permissions,
+      service: data.service || 'all',
       expires_at: data.expires_at,
       created_at: data.created_at,
       is_active: data.is_active,
@@ -264,8 +285,9 @@ export async function createApiKey(
 
 /**
  * List all API keys for a user
+ * Includes service scope information
  */
-export async function listApiKeys(user_id: string, params?: { active_only?: boolean }): Promise<ApiKey[]> {
+export async function listApiKeys(user_id: string, params?: { active_only?: boolean; include_scopes?: boolean }): Promise<ApiKey[]> {
   try {
     let query = supabaseAdmin.from('api_keys').select('*').eq('user_id', user_id)
 
@@ -280,17 +302,31 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
       throw new Error(`Failed to list API keys: ${error.message}`)
     }
 
-    return data.map((record: ApiKeyRecord) => ({
-      id: record.id,
-      name: record.name,
-      user_id: record.user_id,
-      access_level: record.access_level,
-      permissions: record.permissions || [],
-      expires_at: record.expires_at,
-      last_used_at: record.last_used_at,
-      created_at: record.created_at,
-      is_active: record.is_active,
-    }))
+    // Fetch service scopes if requested
+    const keys: ApiKey[] = await Promise.all(
+      data.map(async (record: ApiKeyRecord) => {
+        let serviceScopes: ServiceScope[] | undefined
+        if (params?.include_scopes && record.service === 'specific') {
+          serviceScopes = await getApiKeyServiceScopes(record.id)
+        }
+
+        return {
+          id: record.id,
+          name: record.name,
+          user_id: record.user_id,
+          access_level: record.access_level,
+          permissions: record.permissions || [],
+          service: record.service || 'all',
+          service_scopes: serviceScopes,
+          expires_at: record.expires_at,
+          last_used_at: record.last_used_at,
+          created_at: record.created_at,
+          is_active: record.is_active,
+        }
+      })
+    )
+
+    return keys
   } catch (error) {
     throw new Error(`List API keys failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
@@ -298,6 +334,7 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
 
 /**
  * Get a single API key by ID
+ * Includes service scope information
  */
 export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey> {
   try {
@@ -312,12 +349,20 @@ export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey
       throw new Error('API key not found')
     }
 
+    // Fetch service scopes if key has specific service access
+    let serviceScopes: ServiceScope[] | undefined
+    if (data.service === 'specific') {
+      serviceScopes = await getApiKeyServiceScopes(key_id)
+    }
+
     return {
       id: data.id,
       name: data.name,
       user_id: data.user_id,
       access_level: data.access_level,
       permissions: data.permissions || [],
+      service: data.service || 'all',
+      service_scopes: serviceScopes,
       expires_at: data.expires_at,
       last_used_at: data.last_used_at,
       created_at: data.created_at,
@@ -381,6 +426,7 @@ export async function updateApiKeyScopes(key_id: string, user_id: string, scopes
       user_id: updatedKey.user_id,
       access_level: updatedKey.access_level,
       permissions: updatedKey.permissions || permissions,
+      service: updatedKey.service || 'all',
       expires_at: updatedKey.expires_at,
       last_used_at: updatedKey.last_used_at,
       created_at: updatedKey.created_at,
@@ -449,6 +495,7 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
       user_id: updatedKey.user_id,
       access_level: updatedKey.access_level,
       permissions: updatedKey.permissions || [],
+      service: updatedKey.service || 'all',
       expires_at: updatedKey.expires_at,
       created_at: updatedKey.created_at,
       is_active: updatedKey.is_active,
@@ -724,5 +771,267 @@ export async function validateAPIKey(apiKey: string): Promise<{
   } catch (error) {
     console.error('API key validation error:', error)
     return { valid: false, reason: 'Validation error' }
+  }
+}
+
+// ============================================================================
+// SERVICE SCOPING METHODS
+// These methods manage which external services (Stripe, GitHub, etc.) an API key can access
+// ============================================================================
+
+/**
+ * Get user's configured external services
+ * Returns services the user has set up in their profile
+ */
+export async function getUserConfiguredServices(user_id: string): Promise<ConfiguredService[]> {
+  try {
+    // Try to get from user_mcp_services table (primary source)
+    const { data: userServices, error } = await supabaseAdmin
+      .from('user_mcp_services')
+      .select(`
+        service_key,
+        is_enabled,
+        mcp_service_catalog (
+          display_name,
+          category
+        )
+      `)
+      .eq('user_id', user_id)
+
+    if (error) {
+      // Table might not exist in this deployment
+      if (error.code === '42P01' || error.message.includes('does not exist')) {
+        console.warn('[api-key.service] user_mcp_services table not found, returning empty list')
+        return []
+      }
+      throw error
+    }
+
+    return (userServices || []).map((s: any) => ({
+      service_key: s.service_key,
+      display_name: s.mcp_service_catalog?.display_name || s.service_key,
+      category: s.mcp_service_catalog?.category || 'other',
+      is_enabled: s.is_enabled ?? true,
+    }))
+  } catch (error) {
+    console.error('[api-key.service] getUserConfiguredServices error:', error)
+    return []
+  }
+}
+
+/**
+ * Get service scopes for an API key
+ * Returns the list of external services this key can access
+ */
+export async function getApiKeyServiceScopes(key_id: string): Promise<ServiceScope[]> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('api_key_scopes')
+      .select('service_key, allowed_actions, max_calls_per_minute, max_calls_per_day')
+      .eq('api_key_id', key_id)
+
+    if (error) {
+      // Table might not exist
+      if (error.code === '42P01' || error.message.includes('does not exist')) {
+        return []
+      }
+      throw error
+    }
+
+    return (data || []).map((s: any) => ({
+      service_key: s.service_key,
+      allowed_actions: s.allowed_actions || undefined,
+      max_calls_per_minute: s.max_calls_per_minute || undefined,
+      max_calls_per_day: s.max_calls_per_day || undefined,
+    }))
+  } catch (error) {
+    console.error('[api-key.service] getApiKeyServiceScopes error:', error)
+    return []
+  }
+}
+
+/**
+ * Set service scopes for an API key
+ * Replaces all existing scopes with the new list
+ * @param key_id - API key ID
+ * @param user_id - User ID (for ownership verification)
+ * @param service_keys - Array of service keys to allow
+ * @param rate_limits - Optional per-service rate limits
+ */
+export async function setApiKeyServiceScopes(
+  key_id: string,
+  user_id: string,
+  service_keys: string[],
+  rate_limits?: Record<string, { per_minute?: number; per_day?: number }>
+): Promise<ServiceScope[]> {
+  try {
+    // Verify key ownership
+    const { data: keyData, error: keyError } = await supabaseAdmin
+      .from('api_keys')
+      .select('id, user_id, service')
+      .eq('id', key_id)
+      .eq('user_id', user_id)
+      .single()
+
+    if (keyError || !keyData) {
+      throw new Error('API key not found or access denied')
+    }
+
+    // Validate service_keys against user's configured services
+    const userServices = await getUserConfiguredServices(user_id)
+    const validServiceKeys = new Set(userServices.filter(s => s.is_enabled).map(s => s.service_key))
+
+    const invalidKeys = service_keys.filter(k => !validServiceKeys.has(k))
+    if (invalidKeys.length > 0) {
+      throw new Error(`Invalid or unconfigured services: ${invalidKeys.join(', ')}`)
+    }
+
+    // Delete existing scopes
+    await supabaseAdmin
+      .from('api_key_scopes')
+      .delete()
+      .eq('api_key_id', key_id)
+
+    // Insert new scopes
+    if (service_keys.length > 0) {
+      const scopeRecords = service_keys.map(service_key => ({
+        api_key_id: key_id,
+        service_key,
+        allowed_actions: [], // Allow all actions by default
+        max_calls_per_minute: rate_limits?.[service_key]?.per_minute || null,
+        max_calls_per_day: rate_limits?.[service_key]?.per_day || null,
+      }))
+
+      const { error: insertError } = await supabaseAdmin
+        .from('api_key_scopes')
+        .insert(scopeRecords)
+
+      if (insertError) {
+        throw new Error(`Failed to set service scopes: ${insertError.message}`)
+      }
+    }
+
+    // Update the key's service field to 'specific' if scopes are set
+    const newServiceValue = service_keys.length > 0 ? 'specific' : 'all'
+    await supabaseAdmin
+      .from('api_keys')
+      .update({ service: newServiceValue })
+      .eq('id', key_id)
+
+    // Log the event
+    await appendEventWithOutbox({
+      aggregate_type: 'api_key',
+      aggregate_id: key_id,
+      event_type: 'ApiKeyServiceScopesUpdated',
+      payload: {
+        user_id,
+        service_keys,
+        service_type: newServiceValue,
+      },
+      metadata: {
+        source: 'auth-gateway',
+      },
+    })
+
+    return getApiKeyServiceScopes(key_id)
+  } catch (error) {
+    throw new Error(`Set service scopes failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
+ * Check if an API key has access to a specific external service
+ * Memory services are ALWAYS allowed
+ */
+export async function apiKeyHasServiceAccess(key_id: string, service_key: string): Promise<boolean> {
+  try {
+    // Memory services are always allowed
+    const memoryServices = ['memory', 'memories', 'context', 'search', 'embeddings']
+    if (memoryServices.some(m => service_key.toLowerCase().includes(m))) {
+      return true
+    }
+
+    // Get the key's service field
+    const { data: keyData, error: keyError } = await supabaseAdmin
+      .from('api_keys')
+      .select('service')
+      .eq('id', key_id)
+      .eq('is_active', true)
+      .single()
+
+    if (keyError || !keyData) {
+      return false
+    }
+
+    // If service = 'all', allow everything
+    if (keyData.service === 'all' || !keyData.service) {
+      return true
+    }
+
+    // If service = 'specific', check the scopes table
+    const { data: scopeData, error: scopeError } = await supabaseAdmin
+      .from('api_key_scopes')
+      .select('service_key')
+      .eq('api_key_id', key_id)
+      .eq('service_key', service_key)
+      .single()
+
+    if (scopeError || !scopeData) {
+      return false
+    }
+
+    return true
+  } catch (error) {
+    console.error('[api-key.service] apiKeyHasServiceAccess error:', error)
+    return false
+  }
+}
+
+/**
+ * Create API key with service scopes
+ * Extended version of createApiKey that supports external service scoping
+ */
+export async function createApiKeyWithServiceScopes(
+  user_id: string,
+  params: {
+    name: string
+    access_level?: string
+    expires_in_days?: number
+    scopes?: string[] // Permission scopes (memories:read, etc.)
+    service_type?: 'all' | 'specific' // External service access type
+    service_keys?: string[] // If service_type = 'specific', which services
+    rate_limits?: Record<string, { per_minute?: number; per_day?: number }>
+  }
+): Promise<ApiKey> {
+  // Create the base API key
+  const apiKey = await createApiKey(user_id, {
+    name: params.name,
+    access_level: params.access_level,
+    expires_in_days: params.expires_in_days,
+    scopes: params.scopes,
+  })
+
+  // Set service field
+  const serviceType = params.service_type || 'all'
+  await supabaseAdmin
+    .from('api_keys')
+    .update({ service: serviceType })
+    .eq('id', apiKey.id)
+
+  // Set service scopes if specific
+  let serviceScopes: ServiceScope[] = []
+  if (serviceType === 'specific' && params.service_keys && params.service_keys.length > 0) {
+    serviceScopes = await setApiKeyServiceScopes(
+      apiKey.id,
+      user_id,
+      params.service_keys,
+      params.rate_limits
+    )
+  }
+
+  return {
+    ...apiKey,
+    service: serviceType,
+    service_scopes: serviceScopes,
   }
 }
