@@ -37,11 +37,9 @@ import { resolveUAICached, type UAIResolutionResult } from '../services/uai-sess
 import type { AuthMethod } from '../services/identity-resolution.service.js'
 
 // Extend Express Request to include UAI
-declare global {
-  namespace Express {
-    interface Request {
-      uai?: UAIContext
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    uai?: UAIContext
   }
 }
 
