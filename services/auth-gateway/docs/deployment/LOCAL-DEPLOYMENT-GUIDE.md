@@ -131,10 +131,10 @@ nano .env
 
 **Critical Variables:**
 ```bash
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-JWT_SECRET=REDACTED_JWT_SECRET
+postgresql://<user>:<password>@<host>:<port>/<db>
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 PORT=4000
 NODE_ENV="development"
 ```

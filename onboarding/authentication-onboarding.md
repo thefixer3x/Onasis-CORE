@@ -32,7 +32,7 @@ This guide walks you through integrating your application with The Fixer Initiat
 ### Environment Variables
 \`\`\`bash
 # Required
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 AUTH_GATEWAY_URL=https://auth.yourdomain.com
 TOKEN_VERIFY_ENDPOINT=https://auth.yourdomain.com/v1/auth/verify-token
 
@@ -504,7 +504,7 @@ Add to your CI/CD pipeline (GitHub Actions, GitLab CI, etc.):
 \`\`\`yaml
 # .github/workflows/deploy.yml
 env:
-  DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
   AUTH_GATEWAY_URL: ${{ secrets.AUTH_GATEWAY_URL }}
   TOKEN_VERIFY_ENDPOINT: ${{ secrets.TOKEN_VERIFY_ENDPOINT }}
   OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}

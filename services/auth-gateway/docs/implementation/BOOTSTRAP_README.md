@@ -31,9 +31,9 @@ The `bootstrap-from-supabase.ts` script solves this by:
 
 Ensure environment variables are set:
 ```bash
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+postgresql://<user>:<password>@<host>:<port>/<db>
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ### Step 1: Apply Supabase Migration (One-Time)

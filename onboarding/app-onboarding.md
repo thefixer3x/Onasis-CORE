@@ -526,13 +526,13 @@ jobs:
       
       - name: Run provisioning script
         env:
-          DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
         run: |
           psql $DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
       
       - name: Verify schema
         env:
-          DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
         run: |
           psql $DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
             SELECT COUNT(*) as table_count 

@@ -1,20 +1,20 @@
 import 'dotenv/config';
 import { z } from 'zod';
 const envSchema = z.object({
-    DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-    DIRECT_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
     SERVICE_ROLE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-    SUPABASE_URL=https://<project-ref>.supabase.co
-    SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-    SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-    SUPABASE_AUTH_URL=https://<project-ref>.supabase.co/auth/v1
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co/auth/v1
     PORT: z
         .string()
         .default('4000')
         .transform((value) => Number.parseInt(value, 10)),
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     CORS_ORIGIN: z.string().default('*'),
-    JWT_SECRET=REDACTED_JWT_SECRET
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
         .string()
         .min(32, 'JWT_SECRET=REDACTED_JWT_SECRET
     JWT_EXPIRY: z.string().default('7d'),

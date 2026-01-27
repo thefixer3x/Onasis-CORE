@@ -80,12 +80,12 @@ Ensure the following environment variables are set in `.env`:
 
 ```bash
 # Neon Database (Command Side)
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 
 # Supabase (Read Side)
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
 
 # Auth Gateway
 PORT=4000

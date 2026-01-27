@@ -56,7 +56,7 @@ print_status "Creating environment configuration..."
 cat > $APP_DIR/.env << EOF
 NODE_ENV=production
 PORT=$BACKEND_PORT
-JWT_SECRET=REDACTED_JWT_SECRET
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 API_DOMAIN=$API_DOMAIN
 
 # Add your Supabase credentials here if available

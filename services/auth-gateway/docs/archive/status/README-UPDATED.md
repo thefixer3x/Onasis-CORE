@@ -158,14 +158,14 @@ services/auth-gateway/
 
 ```bash
 # Neon Database
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 
 # Supabase (for auth services)
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # JWT
-JWT_SECRET=REDACTED_JWT_SECRET
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 JWT_EXPIRY="7d"
 
 # Server

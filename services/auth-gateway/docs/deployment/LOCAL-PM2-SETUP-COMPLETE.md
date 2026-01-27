@@ -162,10 +162,10 @@ pm2 logs auth-gateway-local --lines 50
 ### Environment Variables (`.env`)
 ```bash
 # Required
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-JWT_SECRET=REDACTED_JWT_SECRET
+postgresql://<user>:<password>@<host>:<port>/<db>
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 
 # Optional (defaults provided)
 PORT=4000
