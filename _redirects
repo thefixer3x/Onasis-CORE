@@ -159,6 +159,7 @@
 # ============================================================================
 
 /api/v1/intelligence/health-check       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-health-check       200!
+/api/v1/intelligence/health             https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-health-check       200!
 /api/v1/intelligence/suggest-tags       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-suggest-tags       200!
 /api/v1/intelligence/find-related       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-find-related       200!
 /api/v1/intelligence/detect-duplicates  https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-detect-duplicates  200!
