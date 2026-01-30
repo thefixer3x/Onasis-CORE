@@ -14,6 +14,7 @@ module.exports = {
     {
       name: 'auth-gateway',
       script: 'start.js',
+      cwd: __dirname,
       instances: 1,
       exec_mode: 'cluster',
       autorestart: true,
