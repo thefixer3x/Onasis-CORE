@@ -2,26 +2,22 @@ import 'dotenv/config'
 import { z } from 'zod'
 
 const envSchema = z.object({
-postgresql://<user>:<password>@<host>:<port>/<db>
-postgresql://<user>:<password>@<host>:<port>/<db>
-  SERVICE_ROLE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-https://<project-ref>.supabase.co
-REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-https://<project-ref>.supabase.co/auth/v1
-  // Main DB Supabase (for user authentication - users are stored in Main DB)
-https://<project-ref>.supabase.co
-  MAIN_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-  MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  DATABASE_URL: z.string().url('DATABASE_URL must be a valid Postgres connection string URL'),
+  DIRECT_DATABASE_URL: z.string().optional(),
+  SERVICE_ROLE_DATABASE_URL: z.string().optional(),
+  SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid Supabase project URL'),
+  SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
+  SUPABASE_AUTH_URL: z.string().optional(),
   PORT: z
     .string()
     .default('4000')
     .transform((value) => Number.parseInt(value, 10)),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   CORS_ORIGIN: z.string().default('*.lanonasis.com,https://*.lanonasis.com,http://localhost:*'),
-REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
+  JWT_SECRET: z
     .string()
-    .min(32, 'JWT_SECRET=REDACTED_JWT_SECRET
+    .min(32, 'JWT_SECRET must be at least 32 characters long for security'),
   JWT_EXPIRY: z.string().default('7d'),
   RATE_LIMIT_WINDOW_MS: z
     .string()
@@ -37,7 +33,6 @@ REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
   COOKIE_DOMAIN: z.string().default('.lanonasis.com'),
   DASHBOARD_URL: z.string().url().default('https://dashboard.lanonasis.com'),
   AUTH_GATEWAY_URL: z.string().url().optional(),
-  AUTH_BASE_URL: z.string().url().default('https://auth.lanonasis.com'),
 
   // Additional organizational subdomains (comma-separated)
   ADDITIONAL_SUBDOMAINS: z.string().optional(),
@@ -86,6 +81,19 @@ REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
     .string()
     .default('true')
     .transform((value) => value.toLowerCase() === 'true'),
+
+  // Main DB configuration (for event projection and sync)
+  MAIN_SUPABASE_URL: z.string().url().optional(),
+  MAIN_SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+
+  // Auth service base URL
+  AUTH_BASE_URL: z.string().url().optional(),
+
+  // Neon database URL (alternative to DATABASE_URL)
+  NEON_DATABASE_URL: z.string().optional(),
+
+  // Webhook secret for sync endpoints
+  WEBHOOK_SECRET: z.string().optional(),
 })
 
 const parsed = envSchema.safeParse(process.env)

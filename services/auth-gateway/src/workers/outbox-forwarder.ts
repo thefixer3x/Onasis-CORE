@@ -15,27 +15,27 @@ const MAX_RETRIES = 5
  * Validate required credentials before starting
  */
 function validateCredentials(): void {
-  if (!env.MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+  if (!env.MAIN_SUPABASE_URL || !env.MAIN_SUPABASE_SERVICE_ROLE_KEY) {
     console.error('═══════════════════════════════════════════════════════════════')
     console.error('❌ OUTBOX FORWARDER MISCONFIGURED')
     console.error('═══════════════════════════════════════════════════════════════')
     console.error('')
     console.error('Missing required environment variables:')
-    console.error('  - MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
-    console.error('  - MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    console.error('  - MAIN_SUPABASE_URL')
+    console.error('  - MAIN_SUPABASE_SERVICE_ROLE_KEY')
     console.error('')
     console.error('The outbox forwarder needs Main DB credentials to project events.')
     console.error('Without these, events will be written to the wrong database!')
     console.error('')
     console.error('Add to your .env:')
-    console.error('  MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
-    console.error('  MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    console.error('  MAIN_SUPABASE_URL=<your-main-db-url>')
+    console.error('  MAIN_SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>')
     console.error('═══════════════════════════════════════════════════════════════')
     process.exit(1)
   }
 
   console.log('✓ Outbox forwarder credentials validated')
-  console.log('  Target: Main DB (MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
+  console.log(`  Target: Main DB (${env.MAIN_SUPABASE_URL})`)
 }
 
 /**

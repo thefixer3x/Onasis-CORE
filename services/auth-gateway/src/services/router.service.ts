@@ -74,15 +74,15 @@ export async function routeToSupabase<T = unknown>(
   supabasePath: string,
   timeout = 60000
 ): Promise<SupabaseRoutingResult<T>> {
-  const url = `${env.SUPABASE_URL=https://<project-ref>.supabase.co
+  const url = `${env.SUPABASE_URL}${supabasePath}`;
   const sanitizedBody = sanitizeRequestBody(req.body || {})
   const requestStartTime = Date.now()
 
   // Prepare headers for Supabase
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-    'apikey': env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+    'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+    'apikey': env.SUPABASE_ANON_KEY,
     'User-Agent': 'Onasis-CORE/1.0',
   }
 

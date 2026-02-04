@@ -97,7 +97,7 @@ export async function generateTokenPairWithUAI(input: TokenGenerationInput): Pro
  * Use generateTokenPairWithUAI() for new logins
  */
 export function generateTokenPairSync(payload: Omit<JWTPayload, 'iat' | 'exp'>): TokenPair {
-  const secret = env.JWT_SECRET=REDACTED_JWT_SECRET
+  const secret = env.JWT_SECRET;
   const accessOptions: SignOptions = { expiresIn: env.JWT_EXPIRY as StringValue }
   const refreshOptions: SignOptions = { expiresIn: '30d' as StringValue }
 
@@ -144,7 +144,7 @@ export function generateTokenPair(payload: Omit<JWTPayload, 'iat' | 'exp'>): Tok
  */
 export function verifyToken(token: string): JWTPayload {
   try {
-    return jwt.verify(token, env.JWT_SECRET=REDACTED_JWT_SECRET
+    return jwt.verify(token, env.JWT_SECRET) as JWTPayload;
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
       throw new Error('Token expired')
