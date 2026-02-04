@@ -1,99 +1,113 @@
 import 'dotenv/config'
 import { z } from 'zod'
 
+const normalizeBoolean = (value: string) => {
+  const normalized = value.trim().toLowerCase()
+  return ['1', 'true', 'yes', 'on'].includes(normalized)
+}
+
+const booleanString = (defaultValue: boolean) =>
+  z
+    .string()
+    .default(defaultValue ? 'true' : 'false')
+    .transform((value) => normalizeBoolean(value))
+
+const integerString = (defaultValue: number) => z.coerce.number().int().default(defaultValue)
+
+const optionalIntegerString = () => z.coerce.number().int().optional()
+
+const requiredString = (name: string) =>
+  z
+    .string({ required_error: `${name} is required` })
+    .min(1, `${name} is required`)
+
+const optionalNonEmptyString = (name: string) =>
+  z
+    .string()
+    .optional()
+    .refine((value) => value === undefined || value.trim().length > 0, `${name} cannot be empty`)
+
+const urlString = (name: string) =>
+  requiredString(name).url(`${name} must be a valid URL`)
+
+const optionalUrlString = (name: string) => urlString(name).optional()
+
 const envSchema = z.object({
-  DATABASE_URL: z.string().url('DATABASE_URL must be a valid Postgres connection string URL'),
-  DIRECT_DATABASE_URL: z.string().optional(),
-  SERVICE_ROLE_DATABASE_URL: z.string().optional(),
-  SUPABASE_URL: z.string().url('SUPABASE_URL must be a valid Supabase project URL'),
-  SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
-  SUPABASE_AUTH_URL: z.string().optional(),
-  PORT: z
-    .string()
-    .default('4000')
-    .transform((value) => Number.parseInt(value, 10)),
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  CORS_ORIGIN: z.string().default('*.lanonasis.com,https://*.lanonasis.com,http://localhost:*'),
-  JWT_SECRET: z
-    .string()
-    .min(32, 'JWT_SECRET must be at least 32 characters long for security'),
+  DATABASE_URL: urlString('DATABASE_URL'),
+  DIRECT_DATABASE_URL: optionalUrlString('DIRECT_DATABASE_URL'),
+  SERVICE_ROLE_DATABASE_URL: urlString('SERVICE_ROLE_DATABASE_URL'),
+  NEON_DATABASE_URL: optionalUrlString('NEON_DATABASE_URL'),
+  SUPABASE_URL: urlString('SUPABASE_URL'),
+  SUPABASE_AUTH_URL: optionalUrlString('SUPABASE_AUTH_URL'),
+  SUPABASE_ANON_KEY: requiredString('SUPABASE_ANON_KEY'),
+  SUPABASE_SERVICE_ROLE_KEY: requiredString('SUPABASE_SERVICE_ROLE_KEY'),
+  SUPABASE_SERVICE_KEY: optionalNonEmptyString('SUPABASE_SERVICE_KEY'),
+  MAIN_SUPABASE_URL: optionalUrlString('MAIN_SUPABASE_URL'),
+  MAIN_SUPABASE_ANON_KEY: optionalNonEmptyString('MAIN_SUPABASE_ANON_KEY'),
+  MAIN_SUPABASE_SERVICE_ROLE_KEY: optionalNonEmptyString('MAIN_SUPABASE_SERVICE_ROLE_KEY'),
+  WEBHOOK_SECRET: optionalNonEmptyString('WEBHOOK_SECRET'),
+  JWT_SECRET: requiredString('JWT_SECRET').min(32, 'JWT_SECRET must be at least 32 characters long'),
   JWT_EXPIRY: z.string().default('7d'),
-  RATE_LIMIT_WINDOW_MS: z
+  ACCESS_TOKEN_TTL_SECONDS: integerString(3600),
+  REFRESH_TOKEN_TTL_SECONDS: integerString(60 * 60 * 24 * 30),
+  AUTH_CODE_TTL_SECONDS: integerString(300),
+  RATE_LIMIT_WINDOW_MS: integerString(15 * 60 * 1000),
+  RATE_LIMIT_MAX_REQUESTS: integerString(100),
+  OAUTH_KEY_ROTATION_INTERVAL: integerString(24 * 60 * 60 * 1000),
+  OAUTH_MAX_AUTHORIZATION_CODE_AGE: integerString(600),
+  UAI_CACHE_TTL: integerString(300),
+  BCRYPT_ROUNDS: integerString(12),
+  PORT: integerString(4000),
+  MY_SERVER_PORT: optionalIntegerString(),
+  HOST: z.string().default('0.0.0.0'),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  NODE_DISABLE_COLORS: optionalNonEmptyString('NODE_DISABLE_COLORS'),
+  NODE_UNIQUE_ID: optionalNonEmptyString('NODE_UNIQUE_ID'),
+  NODE_COMPILE_CACHE: optionalNonEmptyString('NODE_COMPILE_CACHE'),
+  DOTENV_KEY: optionalNonEmptyString('DOTENV_KEY'),
+  PATH: optionalNonEmptyString('PATH'),
+  DEBUG: optionalNonEmptyString('DEBUG'),
+  CI: booleanString(false),
+  CI_ENVIRONMENT_NAME: optionalNonEmptyString('CI_ENVIRONMENT_NAME'),
+  SKIP_SMOKE_TESTS: booleanString(false),
+  TEST: optionalNonEmptyString('TEST'),
+  TEST_PARALLEL_INDEX: optionalNonEmptyString('TEST_PARALLEL_INDEX'),
+  TEST_WORKER_INDEX: optionalNonEmptyString('TEST_WORKER_INDEX'),
+  BOOK_LANG: optionalNonEmptyString('BOOK_LANG'),
+  ICEBERG_TOKEN: optionalNonEmptyString('ICEBERG_TOKEN'),
+  CORS_ORIGIN: z
     .string()
-    .default('900000')
-    .transform((value) => Number.parseInt(value, 10)),
-  RATE_LIMIT_MAX_REQUESTS: z
-    .string()
-    .default('100')
-    .transform((value) => Number.parseInt(value, 10)),
-  LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
-  LOG_FORMAT: z.enum(['json', 'pretty']).default('json'),
-  // Cookie and dashboard settings - Organization-wide authentication
+    .default('*.lanonasis.com,https://*.lanonasis.com,http://localhost:*'),
   COOKIE_DOMAIN: z.string().default('.lanonasis.com'),
-  DASHBOARD_URL: z.string().url().default('https://dashboard.lanonasis.com'),
-  AUTH_GATEWAY_URL: z.string().url().optional(),
-
-  // Additional organizational subdomains (comma-separated)
-  ADDITIONAL_SUBDOMAINS: z.string().optional(),
-
-  // OAuth client auto-registration for new subdomains
-  ENABLE_SUBDOMAIN_AUTO_REGISTRATION: z
+  DASHBOARD_URL: z
     .string()
-    .default('false')
-    .transform((value) => value.toLowerCase() === 'true'),
-
-  // OAuth-specific configuration
-  OAUTH_ISSUER: z.string().url().optional(),
-  OAUTH_KEY_ROTATION_INTERVAL: z
+    .url('DASHBOARD_URL must be a valid URL')
+    .default('https://dashboard.lanonasis.com'),
+  AUTH_GATEWAY_URL: z
     .string()
-    .default('86400000') // 24 hours in ms
-    .transform((value) => Number.parseInt(value, 10)),
-  OAUTH_MAX_AUTHORIZATION_CODE_AGE: z
+    .url('AUTH_GATEWAY_URL must be a valid URL')
+    .optional(),
+  AUTH_BASE_URL: z
     .string()
-    .default('600') // 10 minutes
-    .transform((value) => Number.parseInt(value, 10)),
-
-  // Token TTL configuration (in seconds)
-  AUTH_CODE_TTL_SECONDS: z
-    .string()
-    .default('300') // 5 minutes
-    .transform((value) => Number.parseInt(value, 10)),
-  ACCESS_TOKEN_TTL_SECONDS: z
-    .string()
-    .default('3600') // 1 hour
-    .transform((value) => Number.parseInt(value, 10)),
-  REFRESH_TOKEN_TTL_SECONDS: z
-    .string()
-    .default('2592000') // 30 days
-    .transform((value) => Number.parseInt(value, 10)),
-
-  // Security configuration
-  REQUIRE_PKCE: z
-    .string()
-    .default('true')
-    .transform((value) => value.toLowerCase() === 'true'),
-  ALLOW_PLAIN_PKCE: z
-    .string()
-    .default('false')
-    .transform((value) => value.toLowerCase() === 'true'),
-  ENFORCE_STATE_PARAMETER: z
-    .string()
-    .default('true')
-    .transform((value) => value.toLowerCase() === 'true'),
-
-  // Main DB configuration (for event projection and sync)
-  MAIN_SUPABASE_URL: z.string().url().optional(),
-  MAIN_SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
-
-  // Auth service base URL
-  AUTH_BASE_URL: z.string().url().optional(),
-
-  // Neon database URL (alternative to DATABASE_URL)
-  NEON_DATABASE_URL: z.string().optional(),
-
-  // Webhook secret for sync endpoints
-  WEBHOOK_SECRET: z.string().optional(),
+    .url('AUTH_BASE_URL must be a valid URL')
+    .default('https://auth.lanonasis.com'),
+  ADDITIONAL_SUBDOMAINS: optionalNonEmptyString('ADDITIONAL_SUBDOMAINS'),
+  ENABLE_SUBDOMAIN_AUTO_REGISTRATION: booleanString(false),
+  REQUIRE_PKCE: booleanString(true),
+  ALLOW_PLAIN_PKCE: booleanString(false),
+  ENFORCE_STATE_PARAMETER: booleanString(true),
+  OAUTH_ISSUER: optionalUrlString('OAUTH_ISSUER'),
+  LOG_LEVEL: z
+    .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
+    .default('info'),
+  LOG_FORMAT: z.enum(['json', 'pretty']).default('json'),
+  REDIS_ENABLED: booleanString(false),
+  REDIS_URL: optionalUrlString('REDIS_URL'),
+  UPSTASH_REDIS_URL: optionalUrlString('UPSTASH_REDIS_URL'),
+  REDIS_HOST: optionalNonEmptyString('REDIS_HOST'),
+  REDIS_PORT: optionalIntegerString(),
+  REDIS_DB: optionalIntegerString(),
+  REDIS_PASSWORD: optionalNonEmptyString('REDIS_PASSWORD'),
 })
 
 const parsed = envSchema.safeParse(process.env)
