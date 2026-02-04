@@ -18,18 +18,18 @@ const server = http.createServer(app);
 
 // Configuration
 const PORT = process.env.PORT || 4000;
-const JWT_SECRET=REDACTED_JWT_SECRET
-  const secret = process.env.JWT_SECRET=REDACTED_JWT_SECRET
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
   if (!secret) {
-    throw new Error('JWT_SECRET=REDACTED_JWT_SECRET
+    throw new Error('JWT_SECRET environment variable is required');
   }
   return secret;
 })();
 const JWT_EXPIRY = '7d';
 
 // Supabase configuration (if available)
-const supabaseUrl = process.env.VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 // In-memory storage for demo (replace with database in production)
@@ -61,7 +61,7 @@ app.use((req, res, next) => {
 
 // Helper functions
 function generateToken(userId) {
-  return jwt.sign({ userId, timestamp: Date.now() }, JWT_SECRET=REDACTED_JWT_SECRET
+  return jwt.sign({ userId, timestamp: Date.now() }, JWT_SECRET);
 }
 
 function generateApiKey() {
@@ -70,7 +70,7 @@ function generateApiKey() {
 
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET=REDACTED_JWT_SECRET
+    return jwt.verify(token, JWT_SECRET);
   } catch (error) {
     return null;
   }

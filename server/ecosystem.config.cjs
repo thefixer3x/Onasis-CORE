@@ -6,9 +6,9 @@ module.exports = {
     env: {
       NODE_ENV: 'development',
       PORT: 4000,
-      JWT_SECRET=REDACTED_JWT_SECRET
-      SUPABASE_URL=https://<project-ref>.supabase.co
-      SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      JWT_SECRET: process.env.JWT_SECRET || '',
+      SUPABASE_URL: process.env.SUPABASE_URL || '',
+      SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || ''
     },
     watch: false,
     max_memory_restart: '256M',

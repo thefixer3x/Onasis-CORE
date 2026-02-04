@@ -18,7 +18,7 @@ module.exports = {
       VITE_ENABLE_OAUTH: 'true',
       VITE_ENABLE_MCP: 'true',
       VITE_ENABLE_ANALYTICS: 'false',
-      VITE_JWT_SECRET=REDACTED_JWT_SECRET
+      VITE_JWT_SECRET: process.env.JWT_SECRET || '',
       VITE_JWT_EXPIRY: '7d'
     },
     watch: false,

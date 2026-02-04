@@ -261,8 +261,8 @@ class AIServiceRouter {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-        'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+        'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}
+        'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY}
         'User-Agent': 'Onasis-CORE/1.0'
       },
       body: req.method !== 'GET' ? JSON.stringify(requestBody) : undefined,
@@ -370,8 +370,8 @@ class AIServiceRouter {
       const supabaseResponse = await fetch(`${this.sdGhostSupabaseUrl}/functions/v1/generate-summary`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-          'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+          'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}
+          'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY}
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ content: 'test' }),
