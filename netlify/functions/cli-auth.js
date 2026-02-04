@@ -11,8 +11,8 @@ const crypto = require('crypto');
 
 // Initialize Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-  process.env.SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_URL
+  process.env.SUPABASE_SERVICE_KEY
 );
 
 // Store auth sessions in Supabase for persistence across function calls
@@ -663,7 +663,7 @@ async function token(event) {
       cli_authenticated: true,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 30 // 30 days
-    }, process.env.JWT_SECRET=REDACTED_JWT_SECRET
+    }, process.env.JWT_SECRET
 
     // Generate refresh token
     const refreshToken = crypto.randomBytes(32).toString('base64url');

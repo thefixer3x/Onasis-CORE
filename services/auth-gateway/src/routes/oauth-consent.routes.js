@@ -25,8 +25,8 @@ import crypto from 'crypto';
 import { env } from '../../config/env.js';
 const router = express.Router();
 // Supabase project configuration (ptnrwrgzrsbocgxlpvhd - auth gateway project)
-const SUPABASE_URL=https://<project-ref>.supabase.co
-const SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+const SUPABASE_URL = env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
 /**
  * GET /oauth/consent
  *
@@ -40,7 +40,7 @@ router.get('/consent', (req, res) => {
     }
     // Generate nonce for CSP
     const nonce = crypto.randomBytes(16).toString('base64');
-    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ${SUPABASE_URL=https://<project-ref>.supabase.co
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; connect-src 'self' ${SUPABASE_URL};`);
     res.send(renderConsentPage(authorization_id, nonce));
 });
 /**
@@ -593,12 +593,12 @@ function renderConsentPage(authorizationId, nonce) {
 
   <script nonce="${nonce}">
     // Configuration
-    const SUPABASE_URL=https://<project-ref>.supabase.co
-    const SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+    const SUPABASE_URL = ${JSON.stringify(SUPABASE_URL)};
+    const SUPABASE_ANON_KEY = ${JSON.stringify(SUPABASE_ANON_KEY)};
     const AUTHORIZATION_ID = '${authorizationId}';
 
     // Initialize Supabase
-    const supabase = window.supabase.createClient(SUPABASE_URL=https://<project-ref>.supabase.co
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // State refs
     let authDetails = null;

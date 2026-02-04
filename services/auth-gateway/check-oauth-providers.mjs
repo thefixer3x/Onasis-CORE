@@ -1,11 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 
-const SUPABASE_URL=https://<project-ref>.supabase.co
-const SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || ''
 
-const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error('SUPABASE_URL and SUPABASE_ANON_KEY are required')
+}
+
+const response = await fetch(`${SUPABASE_URL}/auth/v1/settings`, {
   headers: {
-    'apikey': SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+    'apikey': SUPABASE_ANON_KEY,
     'Content-Type': 'application/json'
   }
 })

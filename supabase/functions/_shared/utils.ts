@@ -32,13 +32,13 @@ export interface AccessCheck {
 }
 
 // Environment
-const SUPABASE_URL=https://<project-ref>.supabase.co
-const SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 
 // Create Supabase client with service role
 export function getSupabaseClient() {
-  return createClient(SUPABASE_URL=https://<project-ref>.supabase.co
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: { persistSession: false },
   });
 }

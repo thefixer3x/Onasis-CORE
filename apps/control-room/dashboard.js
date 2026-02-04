@@ -76,16 +76,16 @@ const MONITORED_PLATFORMS = {
 };
 
 // Supabase configuration
-const SUPABASE_URL=https://<project-ref>.supabase.co
-const SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-const SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 
-if (!SUPABASE_URL=https://<project-ref>.supabase.co
-  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL=https://<project-ref>.supabase.co
+if (!SUPABASE_URL) {
+  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL');
   process.exit(1);
 }
-if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-  logger.warn('SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+if (!SUPABASE_SERVICE_KEY) {
+  logger.warn('SUPABASE_SERVICE_KEY not configured; audit logging and admin operations will be disabled');
 }
 
 // Real-time data store
@@ -161,17 +161,17 @@ setInterval(() => {
 
 // Audit logger -> core.log_event (best-effort)
 async function logAudit({ req, action, target, status = 'allowed', meta = {}, userId = null }) {
-  if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  if (!SUPABASE_SERVICE_KEY) {
     logger.debug('Audit skipped: service key missing', { action, target, status });
     return;
   }
   try {
-    await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    await fetch(`${SUPABASE_URL}/rest/v1/rpc/log_event`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-        apikey: SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-        'Content-Type': 'application/json'
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        apikey: SUPABASE_SERVICE_KEY,
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         p_project: 'onasis-core',
@@ -182,8 +182,8 @@ async function logAudit({ req, action, target, status = 'allowed', meta = {}, us
         p_meta: meta,
         p_ip_address: req?.ip || null,
         p_user_agent: req?.get('user-agent') || null,
-        p_project_scope: null
-      })
+        p_project_scope: null,
+      }),
     });
   } catch (e) {
     logger.warn('Audit log failed', { error: e.message, action, target, status });
@@ -192,67 +192,67 @@ async function logAudit({ req, action, target, status = 'allowed', meta = {}, us
 
 // Supabase Auth helpers (REST)
 async function adminCreateUser({ email, password, user_metadata }) {
-  if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  if (!SUPABASE_SERVICE_KEY) {
     throw new Error('Service key not configured');
   }
-  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-      apikey: SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-      'Content-Type': 'application/json'
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      apikey: SUPABASE_SERVICE_KEY,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password, user_metadata })
+    body: JSON.stringify({ email, password, user_metadata }),
   });
   if (!res.ok) throw new Error(`Signup failed (${res.status})`);
   return res.json();
 }
 
 async function signInWithPassword({ email, password }) {
-  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: 'POST',
     headers: {
-      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-      'Content-Type': 'application/json'
+      apikey: SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password }),
   });
   if (!res.ok) throw new Error('Invalid credentials');
   return res.json();
 }
 
 async function refreshSession({ refresh_token }) {
-  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
     method: 'POST',
     headers: {
-      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-      'Content-Type': 'application/json'
+      apikey: SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ refresh_token })
+    body: JSON.stringify({ refresh_token }),
   });
   if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
   return res.json();
 }
 
 async function getUserByAccessToken(accessToken) {
-  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-    }
+      apikey: SUPABASE_ANON_KEY,
+    },
   });
   if (!res.ok) throw new Error(`getUser failed (${res.status})`);
   return res.json();
 }
 
 async function signOutByAccessToken(accessToken) {
-  const res = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      apikey: SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-    }
+      apikey: SUPABASE_ANON_KEY,
+    },
   });
   if (!res.ok) throw new Error(`logout failed (${res.status})`);
 }
@@ -267,7 +267,7 @@ function requireFields(obj, fields) {
 
 // Routes
 app.post('/v1/auth/signup', async (req, res) => {
-  if (!SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  if (!SUPABASE_SERVICE_KEY) {
     await logAudit({ req, action: 'auth_signup', target: 'auth', status: 'denied', meta: { reason: 'service_key_missing' } });
     return res.status(503).json({ error: 'Service unavailable', code: 'SERVICE_KEY_MISSING' });
   }
@@ -485,10 +485,10 @@ const monitorPlatforms = async () => {
 const getSystemAnalytics = async () => {
   try {
     // Fetch usage data from Supabase
-    const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/core.logs?select=*`, {
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-        'apikey': SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'apikey': SUPABASE_SERVICE_KEY
       }
     });
     
@@ -579,10 +579,14 @@ app.get('/analytics/:timeframe', async (req, res) => {
         startDate.setDate(startDate.getDate() - 1);
     }
     
-    const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    const analyticsUrl = new URL(`${SUPABASE_URL}/rest/v1/core.logs`);
+    analyticsUrl.searchParams.set('select', '*');
+    analyticsUrl.searchParams.set('ts', `gte.${startDate.toISOString()}`);
+
+    const response = await fetch(analyticsUrl.toString(), {
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-        'apikey': SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'apikey': SUPABASE_SERVICE_KEY
       }
     });
     

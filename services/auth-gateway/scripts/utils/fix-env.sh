@@ -24,7 +24,7 @@ tail -n 15 .env
 
 echo ""
 echo "🔍 Checking for required variables..."
-required_vars="DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+required_vars="DATABASE_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY JWT_SECRET"
 missing_vars=""
 
 for var in $required_vars; do

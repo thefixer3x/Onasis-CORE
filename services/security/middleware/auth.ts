@@ -14,8 +14,8 @@ export interface UnifiedUser extends JWTPayload {
   app_metadata?: Record<string, unknown>;
 }
 
-const supabaseUrl = env.SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = env.SUPABASE_URL
+const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY
 
 const securitySupabase = supabaseUrl && supabaseKey
   ? createClient(supabaseUrl, supabaseKey).schema('security_service')
@@ -164,7 +164,7 @@ export const authMiddleware = async (
 
     if (isBearerToken) {
       try {
-        const decoded = jwt.verify(token, env.JWT_SECRET=REDACTED_JWT_SECRET
+        const decoded = jwt.verify(token, env.JWT_SECRET) as UnifiedUser;
 
         req.user = decoded;
 

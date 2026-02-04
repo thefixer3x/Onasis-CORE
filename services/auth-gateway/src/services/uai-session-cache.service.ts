@@ -500,7 +500,7 @@ let uaiCacheInstance: UAISessionCacheService | null = null
  *
  * Cache hierarchy:
  * 1. Redis (if REDIS_URL or UPSTASH_REDIS_URL is set) - fastest
- * 2. Postgres (if NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+ * 2. Postgres (if NEON_DATABASE_URL or DATABASE_URL is set)
  * 3. Memory (always available) - development fallback
  */
 export function getUAISessionCache(): UAISessionCacheService {

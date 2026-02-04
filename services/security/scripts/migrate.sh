@@ -18,8 +18,8 @@ fi
 
 # Run migrations
 echo "📊 Applying schema..."
-psql $SUPABASE_URL=https://<project-ref>.supabase.co
-psql $SUPABASE_URL=https://<project-ref>.supabase.co
-psql $SUPABASE_URL=https://<project-ref>.supabase.co
+psql "$SUPABASE_URL"
+psql "$SUPABASE_URL"
+psql "$SUPABASE_URL"
 
 echo "✅ Migrations completed successfully!"

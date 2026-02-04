@@ -13,7 +13,7 @@ const { Pool } = pg
  * - Connection pooling is handled by Supabase
  */
 export const dbPool = new Pool({
-  connectionString: env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  connectionString: env.DATABASE_URL
   ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30_000,
@@ -21,8 +21,8 @@ export const dbPool = new Pool({
 })
 
 export const supabaseAdmin = createClient(
-  env.SUPABASE_URL=https://<project-ref>.supabase.co
-  env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  env.SUPABASE_URL
+  env.SUPABASE_SERVICE_ROLE_KEY
   {
     auth: {
       autoRefreshToken: false,

@@ -3,13 +3,13 @@ const { createClient } = require("@supabase/supabase-js");
 
 // Initialize Supabase client
 const supabaseUrl =
-  process.env.SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  process.env.SUPABASE_DATABASE_URL
 const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error(
-    "SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    "SUPABASE_DATABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required"
   );
 }
 

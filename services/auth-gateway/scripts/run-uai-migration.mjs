@@ -8,7 +8,7 @@
  *   node scripts/run-uai-migration.mjs [--dry-run] [--verbose]
  *
  * Environment:
- *   NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+ *   NEON_DATABASE_URL=postgresql://user:pass@localhost:5432/db
  */
 
 import { readFileSync } from 'fs';
@@ -26,10 +26,10 @@ const verbose = args.includes('--verbose');
 
 // Configuration
 const MIGRATION_FILE = '015_universal_auth_identifier.sql';
-const NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+const NEON_DATABASE_URL = process.env.NEON_DATABASE_URL || '';
 
-if (!NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-  console.error('❌ Error: NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+if (!NEON_DATABASE_URL) {
+  console.error('❌ Error: NEON_DATABASE_URL is required');
   process.exit(1);
 }
 
@@ -56,7 +56,7 @@ async function runMigration() {
 
   // Connect to database
   const pool = new Pool({
-    connectionString: NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    connectionString: NEON_DATABASE_URL,
     ssl: { rejectUnauthorized: false },
   });
 

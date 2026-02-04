@@ -5,9 +5,9 @@ const crypto = require('crypto');
 
 // Initialize Supabase client
 // Use the Supabase project URL, not the direct database URL
-const supabaseUrl = process.env.VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-const jwtSecret = process.env.SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
+const supabaseUrl = process.env.VITE_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const jwtSecret = process.env.SUPABASE_JWT_SECRET
 
 const supabase = supabaseUrl && supabaseServiceKey ? createClient(supabaseUrl, supabaseServiceKey, {
   auth: {

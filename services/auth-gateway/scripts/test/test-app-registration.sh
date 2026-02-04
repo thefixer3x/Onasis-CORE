@@ -10,7 +10,7 @@ echo "🔐 Step 1: Admin Login"
 echo "-----------------------"
 RESPONSE=$(curl -s -X POST http://localhost:4000/admin/bypass-login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"REDACTED_CHANGE_ME"}')
+  -d '{"email":"admin@example.com","password":"change-me"}')
 
 ADMIN_TOKEN=$(echo "$RESPONSE" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 

@@ -4,8 +4,8 @@ import z from 'zod';
 import { env } from '../config/env.js';
 
 // Environment configuration
-const supabaseUrl = env.SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = env.SUPABASE_URL
+const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY
 const encryptionKey = env.API_KEY_ENCRYPTION_KEY;
 
 if (!supabaseUrl || !supabaseKey) {

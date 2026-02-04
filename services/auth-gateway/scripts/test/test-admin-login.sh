@@ -7,7 +7,7 @@ echo "=========================================="
 echo ""
 
 ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
-ADMIN_PASSWORD="${ADMIN_PASSWORD:-REDACTED_CHANGE_ME}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-change-me}"
 
 echo "📧 Email: ${ADMIN_EMAIL}"
 echo "🔑 Password: ${ADMIN_PASSWORD}"

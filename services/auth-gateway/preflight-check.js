@@ -68,10 +68,10 @@ if (existsSync(envPath)) {
   
   // Check required variables
   const required = [
-    'DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-    'SUPABASE_URL=https://<project-ref>.supabase.co
-    'SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-    'JWT_SECRET=REDACTED_JWT_SECRET
+    'DATABASE_URL',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'JWT_SECRET'
   ]
   
   required.forEach(key => {
@@ -84,9 +84,9 @@ if (existsSync(envPath)) {
     }
   })
   
-  // Check JWT_SECRET=REDACTED_JWT_SECRET
-  if (envVars.JWT_SECRET=REDACTED_JWT_SECRET
-    log(`   ${crossmark()} JWT_SECRET=REDACTED_JWT_SECRET
+  // Check JWT secret length
+  if (envVars.JWT_SECRET && envVars.JWT_SECRET.length < 32) {
+    log(`   ${crossmark()} JWT_SECRET is too short (min 32 chars)`, 'red')
     hasErrors = true
   }
   
