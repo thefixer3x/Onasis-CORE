@@ -21,10 +21,10 @@ Note: This is separate from the vibe-mcp database (plain-voice-23407025 - maas-d
 ## Connection String Updated
 ```bash
 # Old (Wrong)
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 
 # New (Correct - Auth Gateway Database)
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 ```
 
 ## Verification

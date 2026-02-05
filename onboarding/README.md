@@ -251,7 +251,7 @@ Legacy (19 tables)
 ### Database Access
 \`\`\`bash
 # Add to .env.local (DO NOT COMMIT)
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 NEON_PROJECT_ID=your-neon-project-id
 NEON_DATABASE_NAME=neondb
 \`\`\`
@@ -299,12 +299,12 @@ jobs:
       
       - name: Test Connection
         env:
-          DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
         run: node test-db-connection.js
       
       - name: Run Migrations
         env:
-          DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
         run: psql $DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
       
       - name: Verify Setup

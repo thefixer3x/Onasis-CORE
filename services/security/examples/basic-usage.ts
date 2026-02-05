@@ -3,21 +3,11 @@
  * Demonstrates core functionality of the security service
  */
 
-import { SecretService, ApiKeyService } from '../index.js';
+import { ApiKeyService } from '../index.js';
 
 async function basicExample() {
-  // Initialize services
-  const secretService = new SecretService();
+  // Initialize service
   const apiKeyService = new ApiKeyService();
-
-  // Store a secret
-  console.log('Storing secret...');
-  await secretService.storeSecret('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-
-  // Retrieve a secret
-  console.log('Retrieving secret...');
-  const dbUrl = await secretService.getSecret('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-  console.log('Database URL:', dbUrl);
 
   // Create an API key
   console.log('Creating API key...');

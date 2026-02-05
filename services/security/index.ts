@@ -4,7 +4,6 @@
  */
 
 // Services
-export { SecretService } from './services/secretService.js';
 export { ApiKeyService, apiKeyService } from './services/apiKeyService.js';
 
 // Middleware
@@ -21,5 +20,4 @@ export type {
 } from './services/apiKeyService.js';
 
 // Re-export for convenience
-export * from './services/secretService.js';
 export * from './services/apiKeyService.js';

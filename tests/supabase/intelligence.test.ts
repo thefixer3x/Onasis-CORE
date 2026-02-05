@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-const SUPABASE_URL=https://<project-ref>.supabase.co
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.supabase.co';
 const TEST_API_KEY = process.env.TEST_API_KEY || 'lano_master_key_2024';
 
 interface IntelligenceResponse {
@@ -28,11 +28,11 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   beforeAll(async () => {
     console.log('\n🧪 Intelligence Test Suite Starting...');
-    console.log(`   Supabase URL: ${SUPABASE_URL=https://<project-ref>.supabase.co
+    console.log(`   Supabase URL: ${SUPABASE_URL}`);
     console.log(`   API Key: ${TEST_API_KEY.substring(0, 15)}...`);
 
     // Create a test memory for intelligence operations
-    const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/memory-create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,7 +56,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
   afterAll(async () => {
     // Cleanup test memory
     if (testMemoryId) {
-      await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      await fetch(`${SUPABASE_URL}/functions/v1/memory-delete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,7 +70,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   describe('intelligence-health-check', () => {
     it('should return health score and statistics', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-health-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,7 +90,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should include health score breakdown', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-health-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should require authentication', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-health-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -120,7 +120,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   describe('intelligence-suggest-tags', () => {
     it('should suggest tags for content', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-suggest-tags`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +141,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should include usage statistics', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-suggest-tags`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,7 +161,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   describe('intelligence-find-related', () => {
     it('should find related memories', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-find-related`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should return 404 for non-existent memory ID', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-find-related`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   describe('intelligence-extract-insights', () => {
     it('should extract insights from memory context', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-extract-insights`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -219,7 +219,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should include token usage', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-extract-insights`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -235,7 +235,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   describe('intelligence-analyze-patterns', () => {
     it('should analyze memory patterns', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-analyze-patterns`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -253,7 +253,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should return pattern statistics', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-analyze-patterns`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -276,7 +276,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
       const timeoutId = setTimeout(() => controller.abort(), 25000);
 
       try {
-        const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-detect-duplicates`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -305,7 +305,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
   describe('Auth methods', () => {
     it('should accept Bearer token format', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-health-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -320,7 +320,7 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
     });
 
     it('should accept X-API-Key header', async () => {
-      const response = await fetch(`${SUPABASE_URL=https://<project-ref>.supabase.co
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/intelligence-health-check`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

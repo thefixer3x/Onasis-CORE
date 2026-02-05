@@ -2,16 +2,16 @@ const jwt = require("jsonwebtoken");
 const { createClient } = require("@supabase/supabase-js");
 
 // Initialize Supabase client
-const supabaseUrl = process.env.VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+const supabaseUrl = process.env.VITE_SUPABASE_URL
 if (!supabaseUrl) {
-  throw new Error("VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+  throw new Error("VITE_SUPABASE_URL is required");
 }
 const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-const jwtSecret = process.env.SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+const jwtSecret = process.env.SUPABASE_JWT_SECRET
 if (!jwtSecret) {
   throw new Error(
-    "JWT_SECRET=REDACTED_JWT_SECRET
+    "JWT_SECRET is required"
   );
 }
 

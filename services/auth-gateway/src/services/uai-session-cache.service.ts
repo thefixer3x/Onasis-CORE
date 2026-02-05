@@ -184,7 +184,7 @@ export class UAISessionCacheService {
     if (this.redis) {
       try {
         const cached = await this.redis.get(key)
-        if (cached) {
+        if (cached && typeof cached === 'string') {
           const session = JSON.parse(cached) as CachedUAISession
           if (session.expiresAt > now) {
             return { session, layer: 'redis' }
@@ -500,13 +500,13 @@ let uaiCacheInstance: UAISessionCacheService | null = null
  *
  * Cache hierarchy:
  * 1. Redis (if REDIS_URL or UPSTASH_REDIS_URL is set) - fastest
- * 2. Postgres (if NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+ * 2. Postgres (if NEON_DATABASE_URL or DATABASE_URL is set)
  * 3. Memory (always available) - development fallback
  */
 export function getUAISessionCache(): UAISessionCacheService {
   if (!uaiCacheInstance) {
     const redisUrl = process.env.REDIS_URL || process.env.UPSTASH_REDIS_URL
-    const postgresUrl = process.env.NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    const postgresUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || ""
     const ttl = parseInt(process.env.UAI_CACHE_TTL || '300', 10)
 
     uaiCacheInstance = new UAISessionCacheService(redisUrl, postgresUrl, ttl)

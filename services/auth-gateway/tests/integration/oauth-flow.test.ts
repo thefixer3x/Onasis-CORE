@@ -2,10 +2,10 @@
 vi.mock('../../src/config/env.js', () => ({
   env: {
     CORS_ORIGIN: 'http://localhost:3000',
-    JWT_SECRET=REDACTED_JWT_SECRET
-    SUPABASE_URL=https://<project-ref>.supabase.co
-    SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-    DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    JWT_SECRET: 'test-jwt-secret-32-characters-long-0000',
+    SUPABASE_URL: 'https://test.supabase.co',
+    SUPABASE_ANON_KEY: 'test-supabase-anon-key',
+    DATABASE_URL: 'postgresql://user:pass@localhost:5432/db',
     PORT: '3001'
   }
 }));

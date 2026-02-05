@@ -61,10 +61,10 @@ AUTH_GATEWAY_URL=https://auth.lanonasis.com
 
 ```bash
 # Database
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+postgresql://<user>:<password>@<host>:<port>/<db>
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Server
 PORT=4000
@@ -74,7 +74,7 @@ NODE_ENV=production
 CORS_ORIGIN=https://dashboard.lanonasis.com,https://api.lanonasis.com,https://mcp.lanonasis.com
 
 # JWT
-JWT_SECRET=REDACTED_JWT_SECRET
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 JWT_EXPIRY=7d
 
 # Rate Limiting

@@ -1,20 +1,19 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 // Set required env before importing modules that validate on load
-process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+process.env.DATABASE_URL = 'postgresql://user:pass@localhost:5432/db';
 process.env.API_KEY_ENCRYPTION_KEY = 'a'.repeat(32);
-process.env.JWT_SECRET=REDACTED_JWT_SECRET
-process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+process.env.JWT_SECRET = 'test-jwt-secret-32-characters-long-0000';
+process.env.SUPABASE_URL = 'https://test.supabase.co';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-supabase-service-role-key';
 process.env.NODE_ENV = 'test';
 
 vi.mock('../config/env.js', () => ({
   env: {
-    DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
     API_KEY_ENCRYPTION_KEY: process.env.API_KEY_ENCRYPTION_KEY!,
-    JWT_SECRET=REDACTED_JWT_SECRET
-    SUPABASE_URL=https://<project-ref>.supabase.co
-    SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    JWT_SECRET: process.env.JWT_SECRET!,
+    SUPABASE_URL: process.env.SUPABASE_URL!,
+    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY!,
     NODE_ENV: 'test',
     PORT: 4100,
     LOG_LEVEL: 'info',

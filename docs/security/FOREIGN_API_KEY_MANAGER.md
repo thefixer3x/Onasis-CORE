@@ -314,8 +314,8 @@ async function fetchVendorKey(vendor, keyName) {
 KEY_ENCRYPTION_SECRET=your-secure-encryption-key-32-chars-min
 
 # Supabase credentials (already configured)
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ### **Database Migration**

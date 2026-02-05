@@ -28,7 +28,7 @@ echo ""
 
 # Execute against Neon database
 # Replace with your actual connection string or use env var
-psql "$NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$NEON_DATABASE_URL"
 
 RESULT=$?
 
@@ -37,7 +37,7 @@ if [ $RESULT -eq 0 ]; then
   echo "✅ Query completed. If no rows returned, it's safe to apply the unique constraint."
   echo ""
   echo "To apply the constraint, run:"
-  echo "  psql \$NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  echo "  psql \$NEON_DATABASE_URL"
 else
   echo ""
   echo "❌ Query failed. Check your database connection."

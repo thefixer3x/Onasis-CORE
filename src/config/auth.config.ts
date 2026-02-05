@@ -38,7 +38,7 @@ export const authConfig = {
   
   // JWT Configuration
   jwt: {
-    secret: env.VITE_JWT_SECRET=REDACTED_JWT_SECRET
+    secret: env.VITE_JWT_SECRET
     expiresIn: env.VITE_JWT_EXPIRY || '7d',
   },
   

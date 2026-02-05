@@ -140,8 +140,8 @@ const ws = new WebSocket("ws://localhost:9083/mcp");
 ### Supabase Production Setup
 
 ```bash
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ### Key Tables
@@ -272,8 +272,8 @@ node test-all-tools.js         # Comprehensive tool validation
 
 ```bash
 # Core Database
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Server Ports
 MCP_SERVER_PORT=9082

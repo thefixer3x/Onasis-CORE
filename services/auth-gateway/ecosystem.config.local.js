@@ -5,6 +5,7 @@ module.exports = {
     {
       name: 'auth-gateway-local',
       script: 'start.js',
+      cwd: __dirname,
       instances: 1,  // Single instance for local testing
       exec_mode: 'fork',  // Fork mode (not cluster) for easier debugging
       autorestart: true,

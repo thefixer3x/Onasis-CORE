@@ -2,7 +2,7 @@ const { Pool } = require('pg');
 const fs = require('fs');
 require('dotenv').config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+const pool = new Pool({ connectionString: process.env.DATABASE_URL
 
 (async () => {
   try {

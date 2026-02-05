@@ -146,12 +146,12 @@ EOF
 echo "🔧 Creating .env.example..."
 cat > security-service/.env.example << 'EOF'
 # Supabase Configuration
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_URL=https://test.supabase.co
+SUPABASE_ANON_KEY=test-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=test-supabase-service-role-key
 
 # JWT Configuration
-JWT_SECRET=REDACTED_JWT_SECRET
+JWT_SECRET=test-jwt-secret-32-characters-long-0000
 
 # Encryption Configuration
 API_KEY_ENCRYPTION_KEY=your-encryption-key-min-32-chars
@@ -202,9 +202,9 @@ fi
 
 # Run migrations
 echo "📊 Applying schema..."
-psql $SUPABASE_URL=https://<project-ref>.supabase.co
-psql $SUPABASE_URL=https://<project-ref>.supabase.co
-psql $SUPABASE_URL=https://<project-ref>.supabase.co
+psql "$SUPABASE_URL"
+psql "$SUPABASE_URL"
+psql "$SUPABASE_URL"
 
 echo "✅ Migrations completed successfully!"
 EOF
@@ -297,11 +297,11 @@ async function basicExample() {
 
   // Store a secret
   console.log('Storing secret...');
-  await secretService.storeSecret('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  await secretService.storeSecret('DATABASE_URL', 'postgresql://user:pass@localhost:5432/db');
 
   // Retrieve a secret
   console.log('Retrieving secret...');
-  const dbUrl = await secretService.getSecret('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  const dbUrl = await secretService.getSecret('DATABASE_URL');
   console.log('Database URL:', dbUrl);
 
   // Create an API key

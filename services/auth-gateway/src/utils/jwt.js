@@ -4,7 +4,7 @@ import { env } from '../../config/env.js';
  * Generate access and refresh tokens for a user
  */
 export function generateTokenPair(payload) {
-    const secret = env.JWT_SECRET=REDACTED_JWT_SECRET
+    const secret = env.JWT_SECRET
     const accessOptions = { expiresIn: env.JWT_EXPIRY };
     const refreshOptions = { expiresIn: '30d' };
     const accessToken = jwt.sign(payload, secret, accessOptions);
@@ -24,7 +24,7 @@ export function generateTokenPair(payload) {
  */
 export function verifyToken(token) {
     try {
-        return jwt.verify(token, env.JWT_SECRET=REDACTED_JWT_SECRET
+        return jwt.verify(token, env.JWT_SECRET
     }
     catch (error) {
         if (error instanceof jwt.TokenExpiredError) {

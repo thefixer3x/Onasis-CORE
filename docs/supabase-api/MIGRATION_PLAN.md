@@ -148,7 +148,7 @@ Edge Functions (Complex Operations - 40% of traffic)
 
 ```bash
 # Connect to Supabase and audit
-PGPASSWORD=REDACTED_DB_PASSWORD
+REDACTED_DB_PASSWORD
 SELECT table_name, column_name, data_type
 FROM information_schema.columns
 WHERE table_schema = 'public' AND table_name IN ('organizations', 'users', 'memory_entries', 'api_keys', 'projects', 'configurations', 'audit_log')
@@ -822,19 +822,19 @@ serve(async (req: Request) => {
 cd /opt/lanonasis/onasis-core
 
 # Apply schema gaps
-PGPASSWORD=REDACTED_DB_PASSWORD
+REDACTED_DB_PASSWORD
   -h db.mxtsdgkwzjzlttpotole.supabase.co \
   -U postgres -d postgres \
   -f supabase/migrations/20251227_001_schema_gaps.sql
 
 # Apply RLS policies
-PGPASSWORD=REDACTED_DB_PASSWORD
+REDACTED_DB_PASSWORD
   -h db.mxtsdgkwzjzlttpotole.supabase.co \
   -U postgres -d postgres \
   -f supabase/migrations/20251227_002_rls_policies.sql
 
 # Apply vector search function
-PGPASSWORD=REDACTED_DB_PASSWORD
+REDACTED_DB_PASSWORD
   -h db.mxtsdgkwzjzlttpotole.supabase.co \
   -U postgres -d postgres \
   -f supabase/migrations/20251227_003_vector_search.sql

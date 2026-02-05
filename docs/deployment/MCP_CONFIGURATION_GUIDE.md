@@ -61,8 +61,8 @@ MEMORY_SERVICE_URL=https://mcp.lanonasis.com
 MEMORY_SERVICE_API_KEY=your_api_key_here
 
 # Database Configuration (Supabase)
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Authentication
 AUTH_GATEWAY_URL=https://api.lanonasis.com

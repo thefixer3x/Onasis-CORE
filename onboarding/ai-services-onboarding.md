@@ -315,7 +315,7 @@ results = vector_store.similarity_search('oauth authentication', k=10)
 # AI Services
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
-DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+postgresql://<user>:<password>@<host>:<port>/<db>
 
 # Agent Banks
 AGENT_BANKS_SCHEMA=agent_banks

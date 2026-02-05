@@ -3,8 +3,8 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
-const supabaseUrl = env.SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = env.SUPABASE_URL
+const supabaseKey = env.SUPABASE_SERVICE_ROLE_KEY
 const securitySupabase = supabaseUrl && supabaseKey
     ? createClient(supabaseUrl, supabaseKey).schema('security_service')
     : null;
@@ -114,7 +114,7 @@ export const authMiddleware = async (req, res, next) => {
         }
         if (isBearerToken) {
             try {
-                const decoded = jwt.verify(token, env.JWT_SECRET=REDACTED_JWT_SECRET
+                const decoded = jwt.verify(token, env.JWT_SECRET
                 req.user = decoded;
                 logger.debug('User authenticated via JWT', {
                     userId: decoded.userId,

@@ -11,21 +11,25 @@ const { Pool } = pg;
  * - Connection pooling is handled by Supabase
  */
 export const dbPool = new Pool({
-    connectionString: env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    connectionString: env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
 });
-export const supabaseAdmin = createClient(env.SUPABASE_URL=https://<project-ref>.supabase.co
-    auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-    },
-    db: {
-        schema: 'public',
-    },
-});
+export const supabaseAdmin = createClient(
+    env.SUPABASE_URL || '',
+    env.SUPABASE_SERVICE_ROLE_KEY || '',
+    {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
+        db: {
+            schema: 'public',
+        },
+    }
+);
 
 /**
  * Supabase Auth Client - connects to Main DB (mxtsd...)
@@ -33,8 +37,8 @@ export const supabaseAdmin = createClient(env.SUPABASE_URL=https://<project-ref>
  * This is needed because users are registered in Main DB, not Auth-Gateway DB
  */
 export const supabaseAuth = createClient(
-    env.MAIN_SUPABASE_URL=https://<project-ref>.supabase.co
-    env.MAIN_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    env.MAIN_SUPABASE_URL || env.SUPABASE_URL || '',
+    env.MAIN_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
     {
         auth: {
             autoRefreshToken: false,

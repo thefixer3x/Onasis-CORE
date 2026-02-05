@@ -17,20 +17,19 @@ CREATE TABLE IF NOT EXISTS auth_gateway.admin_override (
 CREATE INDEX IF NOT EXISTS idx_admin_override_email ON auth_gateway.admin_override(email);
 
 -- 2. Insert emergency admin accounts
--- Password: REDACTED_CHANGE_ME (you can change this)
--- Hash generated with bcrypt rounds=12
+-- NOTE: Replace password_hash values with bcrypt hashes for your own admin password before running in prod.
 
 INSERT INTO auth_gateway.admin_override (email, password_hash, full_name, metadata)
 VALUES
   (
     'admin@example.com',
-    '$2b$12$ODYULBf55kCd6CW6rY7jUuPiB.kprOYc8XR6O8ZEJ1tQoKngpWGmy', -- REDACTED_CHANGE_ME
+    '$2b$12$ODYULBf55kCd6CW6rY7jUuPiB.kprOYc8XR6O8ZEJ1tQoKngpWGmy', -- CHANGE_ME
     'Lanonasis System Administrator',
     '{"role": "super_admin", "permissions": ["*"], "bypass": true}'::jsonb
   ),
   (
     'owner@example.com',
-    '$2b$12$ODYULBf55kCd6CW6rY7jUuPiB.kprOYc8XR6O8ZEJ1tQoKngpWGmy', -- REDACTED_CHANGE_ME
+    '$2b$12$ODYULBf55kCd6CW6rY7jUuPiB.kprOYc8XR6O8ZEJ1tQoKngpWGmy', -- CHANGE_ME
     'Seye Derick - Owner',
     '{"role": "owner", "permissions": ["*"], "bypass": true}'::jsonb
   )

@@ -2,7 +2,7 @@
 import { neon } from '@neondatabase/serverless'
 import 'dotenv/config'
 
-const sql = neon(process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+const sql = neon(process.env.DATABASE_URL
 
 async function checkOAuthTables() {
   console.log('🔍 Checking for OAuth tables in Neon DB...\n')

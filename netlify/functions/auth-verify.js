@@ -8,8 +8,8 @@ const { jwtDecode } = require('jwt-decode');
 
 // Initialize Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-  process.env.SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_URL
+  process.env.SUPABASE_SERVICE_KEY
 );
 
 /**
@@ -109,7 +109,7 @@ exports.handler = async function(event) {
       }
 
       // Optional: Verify with Supabase if it's a Supabase token
-      if (process.env.SUPABASE_URL=https://<project-ref>.supabase.co
+      if (process.env.SUPABASE_URL
         try {
           const { data: user, error } = await supabase.auth.getUser(token);
           

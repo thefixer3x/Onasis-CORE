@@ -69,7 +69,7 @@ else
     # Check if any contain sensitive patterns
     for file in $STAGED_FILES; do
         if [ -f "$file" ]; then
-            if grep -qE "SUPABASE.*KEY|JWT_SECRET=REDACTED_JWT_SECRET
+            if grep -qE "SUPABASE.*KEY|JWT_SECRET" "$file"; then
                 echo -e "${RED}✗${NC} $file contains sensitive data!"
             fi
         fi
@@ -118,9 +118,9 @@ fi
 echo -e "\n${BLUE}8. Testing database connection...${NC}"
 if [ -f ".env" ]; then
     source .env
-    if [ -n "$DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    if [ -n "$DATABASE_URL" ]; then
         if command -v psql &> /dev/null; then
-            if psql "$DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+            if psql "$DATABASE_URL" &> /dev/null; then
                 echo -e "${GREEN}✓${NC} Database connection successful"
             else
                 echo -e "${RED}✗${NC} Database connection failed"
@@ -129,7 +129,7 @@ if [ -f ".env" ]; then
             echo -e "${YELLOW}⚠${NC} psql not installed, skipping database test"
         fi
     else
-        echo -e "${RED}✗${NC} DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+        echo -e "${RED}✗${NC} DATABASE_URL is not set"
     fi
 else
     echo -e "${YELLOW}⚠${NC} .env file not found, skipping database test"

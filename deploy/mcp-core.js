@@ -57,7 +57,7 @@ class MCPCoreDeployment {
   }
 
   async validateEnvironment() {
-    const required = ["SUPABASE_URL=https://<project-ref>.supabase.co
+    const required = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY"];
 
     const missing = required.filter((key) => !process.env[key]);
 

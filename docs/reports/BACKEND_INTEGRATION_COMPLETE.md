@@ -244,7 +244,7 @@ VITE_API_BASE_URL=https://4000-...e2b.dev
 
 # Backend (ecosystem.config.cjs)
 PORT=4000
-JWT_SECRET=REDACTED_JWT_SECRET
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 ```
 
 ### Development Commands

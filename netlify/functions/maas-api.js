@@ -8,17 +8,17 @@ const app = express();
 
 // Initialize Supabase client using environment variables
 const supabaseUrl =
-  process.env.SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  process.env.SUPABASE_DATABASE_URL
 const supabaseServiceKey =
-  process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
-const jwtSecret = process.env.SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+const jwtSecret = process.env.SUPABASE_JWT_SECRET
 
 if (!supabaseUrl || !supabaseServiceKey) {
   console.error("Missing required Supabase environment variables");
 }
 
 if (!jwtSecret) {
-  console.error("Missing JWT secret (SUPABASE_JWT_SECRET=REDACTED_JWT_SECRET
+  console.error("Missing JWT secret (SUPABASE_JWT_SECRET is required)");
 }
 
 const supabase =

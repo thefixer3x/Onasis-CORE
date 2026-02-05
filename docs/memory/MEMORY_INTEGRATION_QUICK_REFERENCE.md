@@ -95,10 +95,10 @@ turbo run test --filter=memory-service   # Test service
 
 ```env
 # Required
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
 OPENAI_API_KEY=sk-xxx
-JWT_SECRET=REDACTED_JWT_SECRET
+REDACTED_JWT_SECRET=REDACTED_JWT_SECRET
 
 # Development
 USE_LOCAL_MEMORY=true

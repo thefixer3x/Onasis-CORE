@@ -12,11 +12,11 @@ const path = require('path');
 // Load environment variables
 require('dotenv').config();
 
-const supabaseUrl = process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || '';
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('❌ Error: SUPABASE_URL=https://<project-ref>.supabase.co
+  console.error('❌ Error: SUPABASE_URL and SUPABASE_SERVICE_KEY environment variables are required');
   console.log('Please set these in your .env file or environment');
   process.exit(1);
 }
@@ -93,8 +93,8 @@ async function applyMigration() {
     console.log('🔍 vendor_key_audit_log table is ready');
     console.log('\n🎯 Next steps:');
     console.log('1. Configure environment variables in Netlify:');
-    console.log('   - SUPABASE_URL=https://<project-ref>.supabase.co
-    console.log('   - SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    console.log('   - SUPABASE_URL (your Supabase URL)');
+    console.log('   - SUPABASE_SERVICE_KEY (your service role key)');
     console.log('   - KEY_ENCRYPTION_SECRET (32+ characters)');
     console.log('2. Test the Key Manager API at https://api.lanonasis.com/v1/keys/health');
     

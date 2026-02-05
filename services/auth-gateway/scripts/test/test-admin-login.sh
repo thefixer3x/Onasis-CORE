@@ -6,8 +6,11 @@ echo "Testing Emergency Admin Bypass Login"
 echo "=========================================="
 echo ""
 
-echo "📧 Email: admin@example.com"
-echo "🔑 Password: REDACTED_CHANGE_ME"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@example.com}"
+ADMIN_PASSWORD="${ADMIN_PASSWORD:-change-me}"
+
+echo "📧 Email: ${ADMIN_EMAIL}"
+echo "🔑 Password: ${ADMIN_PASSWORD}"
 echo ""
 
 echo "🔄 Attempting login..."
@@ -16,10 +19,15 @@ echo ""
 # Create JSON payload to avoid shell escaping issues
 cat > /tmp/admin-login-payload.json << 'EOF'
 {
-  "email": "admin@example.com",
-  "password": "REDACTED_CHANGE_ME"
+  "email": "__ADMIN_EMAIL__",
+  "password": "__ADMIN_PASSWORD__"
 }
 EOF
+
+sed -i '' \
+  -e "s/__ADMIN_EMAIL__/${ADMIN_EMAIL}/" \
+  -e "s/__ADMIN_PASSWORD__/${ADMIN_PASSWORD}/" \
+  /tmp/admin-login-payload.json
 
 curl -s -X POST http://localhost:4000/admin/bypass-login \
   -H "Content-Type: application/json" \

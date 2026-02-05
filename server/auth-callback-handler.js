@@ -123,7 +123,7 @@ router.post("/auth/verify", (req, res) => {
     const jwt = require("jsonwebtoken");
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET=REDACTED_JWT_SECRET
+      process.env.JWT_SECRET || ''
     );
 
     res.json({

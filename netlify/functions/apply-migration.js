@@ -19,8 +19,8 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const supabaseUrl = process.env.SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.SUPABASE_DATABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return {
@@ -28,7 +28,7 @@ exports.handler = async (event, context) => {
         headers: corsHeaders,
         body: JSON.stringify({
           error: 'Supabase configuration missing',
-          details: 'SUPABASE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+          details: 'SUPABASE_DATABASE_URL is required'
         })
       };
     }

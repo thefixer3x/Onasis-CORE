@@ -73,7 +73,7 @@ Currently registered: **1 app**
 See [GET-SUPABASE-CREDENTIALS.md](GET-SUPABASE-CREDENTIALS.md) for step-by-step instructions.
 
 **Quick Link**:
-https://app.supabase.com/project/mxtsdgkwzjzlttpotole/settings/api
+https://app.supabase.com/project/<project-ref>/settings/api
 
 ### Endpoints Pending Supabase Credentials
 
@@ -94,8 +94,8 @@ Once you add Supabase credentials, these endpoints will work:
 **Status**: Credentials added, ready for implementation
 
 ```bash
-✅ OAUTH_PROVIDER_PUBLISHABLE_KEY="sb_publishable_QDb3q6FGi961CWc7hF1eQA_SWfAbb9D"
-✅ OAUTH_PROVIDER_SECRET_KEY="sb_secret_BJVhffwdMVW4sZkd0rRGHQ_B31E2-4Y"
+✅ OAUTH_PROVIDER_PUBLISHABLE_KEY="REDACTED_PUBLISHABLE_KEY"
+✅ OAUTH_PROVIDER_SECRET_KEY="REDACTED_SECRET_KEY"
 ```
 
 These OAuth credentials are configured and ready for social login implementation.
@@ -187,7 +187,7 @@ curl -X POST http://localhost:4000/admin/bypass-login \
 ## 🔧 Next Steps
 
 1. **Add Supabase Credentials** ⚠️ HIGH PRIORITY
-   - Go to: https://app.supabase.com/project/mxtsdgkwzjzlttpotole/settings/api
+   - Go to: https://app.supabase.com/project/<project-ref>/settings/api
    - Copy `anon` and `service_role` keys
    - Update `.env` file
    - Restart server

@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 async function runMigration() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+  const client = new Client({ connectionString: process.env.DATABASE_URL
 
   try {
     console.log('📦 Reading OAuth migration file...')

@@ -40,9 +40,9 @@ npm install openai  # For vector embeddings
 
 ```bash
 # .env.local
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY=your_openai_api_key
 AUTH_GATEWAY_URL=https://auth.lanonasis.com
 ```

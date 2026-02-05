@@ -64,8 +64,8 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL=https://<project-ref>.supabase.co
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+      Deno.env.get('SUPABASE_URL')
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
     );
 
     // First, verify which memories exist and user has access to

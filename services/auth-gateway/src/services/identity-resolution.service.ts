@@ -477,9 +477,9 @@ let identityServiceInstance: IdentityResolutionService | null = null
  */
 export function getIdentityService(): IdentityResolutionService {
   if (!identityServiceInstance) {
-    const neonDbUrl = process.env.NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    const neonDbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || ""
     if (!neonDbUrl) {
-      throw new Error('NEON_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+      throw new Error('NEON_DATABASE_URL or DATABASE_URL environment variable is required for identity resolution service')
     }
     identityServiceInstance = new IdentityResolutionService(neonDbUrl)
   }

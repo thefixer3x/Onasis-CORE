@@ -34,7 +34,7 @@ VITE_API_BASE_URL=https://api.lanonasis.com
 
 # Your app-specific Supabase (if needed)
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+REDACTED_SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
 ```
 
 **Important:** Add your local dev origin to control-room CORS (e.g., `http://localhost:5173`, `3000`, etc.)
@@ -233,8 +233,8 @@ Object.defineProperty(window, 'location', {
 
 ```bash
 # Supabase
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 
 # Central Auth
 AUTH_GATEWAY_URL=https://api.lanonasis.com

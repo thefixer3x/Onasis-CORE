@@ -24,23 +24,23 @@ export function validateOAuthEnvironment(): ValidationResult {
     const warnings: string[] = []
 
     // 1. JWT Secret Security Validation
-    if (env.JWT_SECRET=REDACTED_JWT_SECRET
-        errors.push('JWT_SECRET=REDACTED_JWT_SECRET
+    if (env.JWT_SECRET.length < 32) {
+        errors.push('JWT_SECRET must be at least 32 characters for security')
     }
 
-    if (env.JWT_SECRET=REDACTED_JWT_SECRET
-        errors.push('JWT_SECRET=REDACTED_JWT_SECRET
+    if (env.JWT_SECRET === 'your-secret-key-here' || env.JWT_SECRET.includes('example')) {
+        errors.push('JWT_SECRET appears to be a default/example value - use a secure random key')
     }
 
     // Test JWT secret entropy
     try {
-        const secretBuffer = Buffer.from(env.JWT_SECRET=REDACTED_JWT_SECRET
+        const secretBuffer = Buffer.from(env.JWT_SECRET)
         const entropy = calculateEntropy(secretBuffer)
         if (entropy < 4.0) {
-            warnings.push(`JWT_SECRET=REDACTED_JWT_SECRET
+            warnings.push(`JWT_SECRET has low entropy (${entropy.toFixed(2)}). Consider using a more random key`)
         }
     } catch (error) {
-        warnings.push('Could not calculate JWT_SECRET=REDACTED_JWT_SECRET
+        warnings.push('Could not calculate JWT_SECRET entropy')
     }
 
     // 2. CORS Configuration Validation
@@ -73,18 +73,18 @@ export function validateOAuthEnvironment(): ValidationResult {
     }
 
     // 4. Database Configuration Validation
-    if (!env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-        errors.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+    if (!env.DATABASE_URL) {
+        errors.push('DATABASE_URL is required for OAuth token storage')
     } else {
         // Validate database URL format
         try {
-            const dbUrl = new URL(env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+            const dbUrl = new URL(env.DATABASE_URL)
             if (!['postgres:', 'postgresql:'].includes(dbUrl.protocol)) {
-                errors.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+                errors.push('DATABASE_URL must be a PostgreSQL connection string')
             }
             // Check for valid hostname
             if (!dbUrl.hostname) {
-                warnings.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+                warnings.push('DATABASE_URL missing hostname')
             }
             // Neon and other cloud providers may use pooler URLs without explicit ports
             // or include port in hostname (e.g., ep-name-pooler.region.aws.neon.tech)
@@ -96,23 +96,23 @@ export function validateOAuthEnvironment(): ValidationResult {
                                    dbUrl.hostname.includes('aiven.io')
             
             if (!dbUrl.port && !isCloudProvider) {
-                warnings.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+                warnings.push('DATABASE_URL missing port (this may be normal for cloud providers)')
             }
         } catch (error) {
-            errors.push('DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+            errors.push('DATABASE_URL format is invalid')
         }
     }
 
     // 5. Supabase Configuration Validation
-    if (!env.SUPABASE_URL=https://<project-ref>.supabase.co
-        errors.push('SUPABASE_URL=https://<project-ref>.supabase.co
+    if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
+        errors.push('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required')
     }
 
-    if (env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+    if (env.SUPABASE_SERVICE_ROLE_KEY && env.SUPABASE_SERVICE_ROLE_KEY.startsWith('sb-')) {
         // This appears to be a service role key, validate format
-        const parts = env.SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+        const parts = env.SUPABASE_SERVICE_ROLE_KEY.split('.')
         if (parts.length !== 3) {
-            warnings.push('SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+            warnings.push('SUPABASE_SERVICE_ROLE_KEY format may be invalid (expected JWT format)')
         }
     }
 
@@ -155,7 +155,7 @@ export function validateOAuthEnvironment(): ValidationResult {
 
     // 10. SSL/TLS Requirements for Production
     if (env.NODE_ENV === 'production') {
-        const urls = [env.DASHBOARD_URL, env.SUPABASE_URL=https://<project-ref>.supabase.co
+        const urls = [env.DASHBOARD_URL, env.SUPABASE_URL, env.AUTH_GATEWAY_URL].filter(Boolean)
         for (const url of urls) {
             if (url && !url.startsWith('https://')) {
                 errors.push(`Production URL must use HTTPS: ${url}`)
@@ -222,8 +222,8 @@ export async function validateOAuthClients(): Promise<ValidationResult & { summa
     }
 
     try {
-        if (!env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
-            errors.push('Cannot validate OAuth clients: DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+        if (!env.DATABASE_URL) {
+            errors.push('Cannot validate OAuth clients: DATABASE_URL not configured')
             return { isValid: false, errors, warnings, summary }
         }
 
