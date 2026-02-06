@@ -116,6 +116,12 @@
 /sse              https://mcp.lanonasis.com/sse                  200!
 /api/v1/events    https://mcp.lanonasis.com/api/v1/events        200!
 /message          /.netlify/functions/mcp-message               200
+
+# Documentation MCP Server - proxy to Vercel serverless function
+/api/v1/docs/mcp        https://docs.lanonasis.com/api/mcp        200!
+/api/v1/mcp/docs        https://docs.lanonasis.com/api/mcp        200!
+/mcp/docs               https://docs.lanonasis.com/api/mcp        200!
+
 /oauth/*          https://auth.lanonasis.com/oauth/:splat        200!
 /api/v1/oauth/*   https://auth.lanonasis.com/oauth/:splat        200!
 /api/cli-auth/*   https://auth.lanonasis.com/auth/cli-login      200!
