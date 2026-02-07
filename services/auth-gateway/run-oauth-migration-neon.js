@@ -8,7 +8,7 @@ import 'dotenv/config'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-const sql = neon(process.env.DATABASE_URL
+const sql = neon(process.env.DATABASE_URL);
 
 async function runMigration() {
   try {
@@ -17,7 +17,7 @@ async function runMigration() {
     const migrationSQL = readFileSync(migrationPath, 'utf-8')
 
     console.log('🚀 Running OAuth2 PKCE migration on Neon...')
-    console.log(`   Database: ${process.env.DATABASE_URL
+    console.log(`   Database: ${process.env.DATABASE_URL}`);
 
     await sql(migrationSQL)
 

@@ -39,7 +39,7 @@ class EnhancedMCPWebSocketHandler {
 
     // Initialize Supabase client for API key validation
     this.supabase = createClient(
-      process.env.SUPABASE_URL
+      process.env.SUPABASE_URL,
       process.env.SUPABASE_SERVICE_KEY
     );
 

@@ -8,7 +8,7 @@ const { jwtDecode } = require('jwt-decode');
 
 // Initialize Supabase client
 const supabase = createClient(
-  process.env.SUPABASE_URL
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 

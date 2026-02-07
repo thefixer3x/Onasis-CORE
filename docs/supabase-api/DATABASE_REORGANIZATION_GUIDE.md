@@ -641,12 +641,12 @@ export const getSupabaseClient = () => {
 
   const configs = {
     production: {
-      url: process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-      anonKey: process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      url: process.env.SUPABASE_URL
+      anonKey: process.env.SUPABASE_ANON_KEY
     },
     v2: {
-      url: process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-      anonKey: process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      url: process.env.SUPABASE_URL
+      anonKey: process.env.SUPABASE_ANON_KEY
     },
   };
 
@@ -677,16 +677,16 @@ export const getSupabaseClientWithRollout = (userId?: string) => {
   if (rolloutPercentage === 0) {
     // Use old project
     return createClient(
-      process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-      process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY
     );
   }
 
   if (rolloutPercentage === 100) {
     // Use new project
     return createClient(
-      process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-      process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY
     );
   }
 
@@ -699,8 +699,8 @@ export const getSupabaseClientWithRollout = (userId?: string) => {
     const useV2 = userPercentile < rolloutPercentage;
 
     return useV2
-      ? createClient(process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-      : createClient(process.env.SUPABASE_URL=https://<project-ref>.supabase.co
+      ? createClient(process.env.SUPABASE_URL
+      : createClient(process.env.SUPABASE_URL
   }
 
   // No user ID: random assignment
@@ -708,8 +708,8 @@ export const getSupabaseClientWithRollout = (userId?: string) => {
   const useV2 = random < rolloutPercentage;
 
   return useV2
-    ? createClient(process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-    : createClient(process.env.SUPABASE_URL=https://<project-ref>.supabase.co
+    ? createClient(process.env.SUPABASE_URL
+    : createClient(process.env.SUPABASE_URL
 };
 ```
 

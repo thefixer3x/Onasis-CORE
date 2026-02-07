@@ -2136,7 +2136,7 @@ export class LanOnasisClient {
   constructor(private config: LanOnasisConfig) {
     this.supabase = createClient(
       config.supabaseUrl || 'https://mxtsdgkwzjzlttpotole.supabase.co',
-      config.supabaseKey || process.env.SUPABASE_ANON_KEY=REDACTED_SUPABASE_ANON_KEY
+      config.supabaseKey || process.env.SUPABASE_ANON_KEY
     );
     this.memoryService = createMemoryService(this.supabase);
   }
