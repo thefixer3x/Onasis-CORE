@@ -119,13 +119,13 @@
 # Apply: 002_memory_service_maas.sql
 
 # 1. Verify vector extension
-psql "$MAAS_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$MAAS_DATABASE_URL"
 
 # 2. Apply migration
-psql "$MAAS_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$MAAS_DATABASE_URL"
 
 # 3. Verify schema
-psql "$MAAS_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$MAAS_DATABASE_URL"
 ```
 
 ### Phase 2: Security Service (Vendor Management) ✅ Priority
@@ -135,13 +135,13 @@ psql "$MAAS_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
 # Apply: 001_vendor_management.sql, 003_vendor_api_keys.sql
 
 # 1. Apply vendor management
-psql "$SECURITY_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$SECURITY_DATABASE_URL"
 
 # 2. Apply external API keys
-psql "$SECURITY_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$SECURITY_DATABASE_URL"
 
 # 3. Verify schema
-psql "$SECURITY_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+psql "$SECURITY_DATABASE_URL"
 ```
 
 ---
@@ -150,20 +150,20 @@ psql "$SECURITY_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
 
 ### For MaaS Database
 
-```bash
-MAAS_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+```env
+MAAS_DATABASE_URL=your_maas_database_url
 ```
 
 ### For Security Service Database
 
-```bash
-SECURITY_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+```env
+SECURITY_DATABASE_URL=your_security_database_url
 ```
 
 ### For Core Audit Database (Already Applied)
 
-```bash
-CORE_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+```env
+CORE_DATABASE_URL=your_core_database_url
 ```
 
 ---
@@ -267,7 +267,7 @@ DROP FUNCTION IF EXISTS get_vendor_usage_summary CASCADE;
 2. **Vector Extension**: The `vector` extension is required for MaaS. Verify it's available in your Neon project:
 
    ```bash
-   psql "$MAAS_DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+   psql "$MAAS_DATABASE_URL"
    ```
 
 3. **Schema Separation**:
