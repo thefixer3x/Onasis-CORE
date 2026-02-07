@@ -8,7 +8,7 @@
     "build": "tsc -p .",
     "start": "node start.js",
     "lint": "eslint src --ext .ts",
-    "test": "vitest",
+    "test": "vitest run",
     "test:unit": "vitest run tests/unit --reporter=verbose",
     "test:integration": "vitest run tests/integration --reporter=verbose",
     "test:security": "vitest run tests/security --reporter=verbose --passWithNoTests",
