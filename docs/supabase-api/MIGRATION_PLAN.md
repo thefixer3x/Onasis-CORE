@@ -14,39 +14,44 @@
 ## ✅ Implementation Summary (Completed 2025-12-27)
 
 ### Deployed Edge Functions
-| Function | Status | Vanity URL |
-|----------|--------|------------|
+
+| Function        | Status      | Vanity URL                                                 |
+| --------------- | ----------- | ---------------------------------------------------------- |
 | `memory-search` | ACTIVE (v4) | `https://lanonasis.supabase.co/functions/v1/memory-search` |
 | `memory-create` | ACTIVE (v4) | `https://lanonasis.supabase.co/functions/v1/memory-create` |
 | `system-health` | ACTIVE (v2) | `https://lanonasis.supabase.co/functions/v1/system-health` |
 
 ### Database Updates Applied
+
 - ✅ Created `projects`, `configurations`, `audit_log` tables
 - ✅ Created `search_memories()`, `count_memories()`, `memory_stats()` SQL functions
 - ✅ Added RLS policies for service role and user-scoped access
 - ✅ Verified pgvector extension and HNSW index active
 
 ### Routing Configuration Updated
+
 - ✅ `/api/v1/memory/search` → Supabase Edge Function
 - ✅ `/api/v1/memory/health` → Supabase Edge Function
 - ✅ Other `/api/v1/memory/*` → Netlify Functions (fallback)
 
 ### Verified Working
+
 ```bash
 # Search with vector similarity
 curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-search" \
-  -H "X-API-Key: lano_master_key_2024" \
+  -H "X-API-Key: $LANONASIS_API_KEY" \
   -d '{"query": "test", "limit": 3}'
 # Returns: 88% similarity match
 
 # Create memory with auto-embedding
 curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-create" \
-  -H "X-API-Key: lano_master_key_2024" \
+  -H "X-API-Key: $LANONASIS_API_KEY" \
   -d '{"title": "Test", "content": "...", "memory_type": "context"}'
 # Returns: Created memory with 1536-dim embedding
 ```
 
 ### Next Steps
+
 1. Deploy `_redirects` changes to Netlify (git push)
 2. Monitor traffic split for 24-48 hours
 3. Optionally build `memory-stats` and `memory-bulk-delete` Edge Functions
@@ -59,6 +64,7 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-create" \
 Migrate from Netlify Functions to Supabase REST APIs while maintaining zero downtime. The migration uses a hybrid approach: **PostgREST** for CRUD operations (auto-generated) and **Edge Functions** for complex operations (vector search, embeddings, SSE streaming).
 
 ### Key Decisions
+
 - **API Approach:** PostgREST + Edge Functions (hybrid)
 - **Migration Strategy:** Phased rollout (10% -> 25% -> 50% -> 100%)
 - **Database:** Verify and consolidate schema (fix dual-database issue)
@@ -68,25 +74,26 @@ Migrate from Netlify Functions to Supabase REST APIs while maintaining zero down
 
 ## Current API Endpoints (from maas-api.js)
 
-| Method | Endpoint | Purpose | Migration Target |
-|--------|----------|---------|------------------|
-| GET | `/api/v1/memory` | List memories with pagination | PostgREST |
-| POST | `/api/v1/memory` | Create memory | Edge Function (embedding) |
-| GET | `/api/v1/memory/:id` | Get memory by ID | PostgREST |
-| PUT | `/api/v1/memory/:id` | Update memory | PostgREST |
-| DELETE | `/api/v1/memory/:id` | Delete memory | PostgREST |
-| GET | `/api/v1/memory/count` | Get total count | PostgREST RPC |
-| GET | `/api/v1/memory/stats` | Get statistics | Edge Function |
-| POST | `/api/v1/memory/:id/access` | Track access | PostgREST |
-| POST | `/api/v1/memory/bulk/delete` | Bulk delete | Edge Function |
-| POST | `/api/v1/memory/search` | Semantic search | Edge Function |
-| GET | `/health` | Health check | Edge Function |
+| Method | Endpoint                     | Purpose                       | Migration Target          |
+| ------ | ---------------------------- | ----------------------------- | ------------------------- |
+| GET    | `/api/v1/memory`             | List memories with pagination | PostgREST                 |
+| POST   | `/api/v1/memory`             | Create memory                 | Edge Function (embedding) |
+| GET    | `/api/v1/memory/:id`         | Get memory by ID              | PostgREST                 |
+| PUT    | `/api/v1/memory/:id`         | Update memory                 | PostgREST                 |
+| DELETE | `/api/v1/memory/:id`         | Delete memory                 | PostgREST                 |
+| GET    | `/api/v1/memory/count`       | Get total count               | PostgREST RPC             |
+| GET    | `/api/v1/memory/stats`       | Get statistics                | Edge Function             |
+| POST   | `/api/v1/memory/:id/access`  | Track access                  | PostgREST                 |
+| POST   | `/api/v1/memory/bulk/delete` | Bulk delete                   | Edge Function             |
+| POST   | `/api/v1/memory/search`      | Semantic search               | Edge Function             |
+| GET    | `/health`                    | Health check                  | Edge Function             |
 
 ---
 
 ## Current Architecture Analysis
 
 ### Triple-Layer Complexity
+
 ```
 Client -> Netlify CDN/_redirects -> Auth Gateway (VPS) -> Netlify Functions
                                                        -> Supabase Edge (Intelligence API)
@@ -96,13 +103,13 @@ Client -> Netlify CDN/_redirects -> Auth Gateway (VPS) -> Netlify Functions
 
 ### Critical Issues Identified
 
-| Issue | Impact | Resolution |
-|-------|--------|------------|
-| **Dual Database** | API keys in Neon OR Supabase, not synced | **See [DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)** for full solution |
-| **Schema Pollution** | 95+ tables in `public` schema, mixed concerns | **See [DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)** for multi-schema architecture |
-| **Auth Gateway Dependency** | Separate Node.js service on VPS | Keep running, redirect DB calls |
-| **Hardcoded Paths** | Client code references `/.netlify/functions/*` | Environment-based routing |
-| **Route Ordering Bug** | `/count` and `/stats` fail (matched as `:id`) | Fix in Edge Functions |
+| Issue                       | Impact                                         | Resolution                                                                                                   |
+| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Dual Database**           | API keys in Neon OR Supabase, not synced       | **See [DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)** for full solution             |
+| **Schema Pollution**        | 95+ tables in `public` schema, mixed concerns  | **See [DATABASE_REORGANIZATION_GUIDE.md](./DATABASE_REORGANIZATION_GUIDE.md)** for multi-schema architecture |
+| **Auth Gateway Dependency** | Separate Node.js service on VPS                | Keep running, redirect DB calls                                                                              |
+| **Hardcoded Paths**         | Client code references `/.netlify/functions/*` | Environment-based routing                                                                                    |
+| **Route Ordering Bug**      | `/count` and `/stats` fail (matched as `:id`)  | Fix in Edge Functions                                                                                        |
 
 ---
 
@@ -125,7 +132,7 @@ Edge Functions (Complex Operations - 40% of traffic)
 +-- GET /functions/v1/system-health (health checks)
 ```
 
-### URL Mapping (via _redirects)
+### URL Mapping (via \_redirects)
 
 ```nginx
 # Public API URLs (unchanged for clients)
@@ -156,6 +163,7 @@ ORDER BY table_name, ordinal_position;"
 ```
 
 **Tables to verify:**
+
 - [x] `organizations` (created today)
 - [ ] `users` (verify columns match)
 - [ ] `memory_entries` (verify embedding column exists)
@@ -483,31 +491,32 @@ async function hashApiKey(key: string): Promise<string> {
 // File: /opt/lanonasis/onasis-core/supabase/functions/_shared/cors.ts
 
 const ALLOWED_ORIGINS = [
-  'https://dashboard.lanonasis.com',
-  'https://mcp.lanonasis.com',
-  'https://api.lanonasis.com',
-  'https://docs.lanonasis.com',
-  'http://localhost:3000',
-  'http://localhost:3001',
-  '*'  // Allow all for API access
+  "https://dashboard.lanonasis.com",
+  "https://mcp.lanonasis.com",
+  "https://api.lanonasis.com",
+  "https://docs.lanonasis.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "*", // Allow all for API access
 ];
 
 export function corsHeaders(req: Request): Record<string, string> {
-  const origin = req.headers.get('origin') || '*';
+  const origin = req.headers.get("origin") || "*";
 
   return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-API-Key, X-Requested-With',
-    'Access-Control-Max-Age': '86400',
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-API-Key, X-Requested-With",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
 export function handleCors(req: Request): Response | null {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: corsHeaders(req)
+      headers: corsHeaders(req),
     });
   }
   return null;
@@ -520,30 +529,33 @@ export function handleCors(req: Request): Response | null {
 // File: /opt/lanonasis/onasis-core/supabase/functions/_shared/errors.ts
 
 export enum ErrorCode {
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
-  AUTHENTICATION_ERROR = 'AUTHENTICATION_ERROR',
-  AUTHORIZATION_ERROR = 'AUTHORIZATION_ERROR',
-  NOT_FOUND = 'NOT_FOUND',
-  RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
-  INTERNAL_ERROR = 'INTERNAL_ERROR',
-  DATABASE_ERROR = 'DATABASE_ERROR'
+  VALIDATION_ERROR = "VALIDATION_ERROR",
+  AUTHENTICATION_ERROR = "AUTHENTICATION_ERROR",
+  AUTHORIZATION_ERROR = "AUTHORIZATION_ERROR",
+  NOT_FOUND = "NOT_FOUND",
+  RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED",
+  INTERNAL_ERROR = "INTERNAL_ERROR",
+  DATABASE_ERROR = "DATABASE_ERROR",
 }
 
 export function createErrorResponse(
   code: ErrorCode,
   message: string,
   status: number,
-  details?: any
+  details?: any,
 ): Response {
-  return new Response(JSON.stringify({
-    error: message,
-    code: code,
-    details: details,
-    timestamp: new Date().toISOString()
-  }), {
-    status,
-    headers: { 'Content-Type': 'application/json' }
-  });
+  return new Response(
+    JSON.stringify({
+      error: message,
+      code: code,
+      details: details,
+      timestamp: new Date().toISOString(),
+    }),
+    {
+      status,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 ```
 
@@ -868,7 +880,7 @@ curl -s https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/system-health
 # Test search with API key
 curl -s -X POST https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/memory-search \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer lano_master_key_2024" \
+  -H "Authorization: Bearer $LANONASIS_API_KEY" \
   -d '{"query": "test", "limit": 5}'
 
 # Test PostgREST direct access
@@ -964,12 +976,12 @@ echo "$HEALTH" | jq .status
 # Test memory list
 echo "2. Testing memory list..."
 curl -s "https://api.lanonasis.com/api/v1/memory" \
-  -H "Authorization: Bearer lano_master_key_2024" | jq '.data | length'
+  -H "Authorization: Bearer $LANONASIS_API_KEY" | jq '.data | length'
 
 # Test memory search
 echo "3. Testing memory search..."
 curl -s -X POST "https://api.lanonasis.com/api/v1/memory/search" \
-  -H "Authorization: Bearer lano_master_key_2024" \
+  -H "Authorization: Bearer $LANONASIS_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "MCP", "limit": 3}' | jq '.data | length'
 
@@ -1004,36 +1016,38 @@ echo "Rollback complete - all traffic now routes to Netlify"
 
 ## Success Metrics
 
-| Metric | Target | How to Measure |
-|--------|--------|----------------|
-| **Latency (p95)** | < 200ms | Supabase Dashboard |
-| **Error Rate** | < 0.1% | Supabase logs |
-| **Uptime** | > 99.9% | Health endpoint monitoring |
-| **Backward Compatibility** | 100% | All existing URLs work |
+| Metric                     | Target  | How to Measure             |
+| -------------------------- | ------- | -------------------------- |
+| **Latency (p95)**          | < 200ms | Supabase Dashboard         |
+| **Error Rate**             | < 0.1%  | Supabase logs              |
+| **Uptime**                 | > 99.9% | Health endpoint monitoring |
+| **Backward Compatibility** | 100%    | All existing URLs work     |
 
 ---
 
 ## Timeline Summary
 
-| Week | Phase | Key Tasks | Deliverables |
-|------|-------|-----------|--------------|
-| 1 | Database | Schema audit, create migrations, deploy RLS | Unified schema ready |
-| 1-2 | Edge Functions | Implement shared utils + 5 functions | search, create, stats, bulk-delete, health |
-| 2 | Deployment | Deploy functions, set secrets, verify | Live Edge Functions |
-| 3 | Traffic 10% | Update _redirects, deploy, monitor | Canary deployment |
-| 3-4 | Traffic 50% | Increase traffic, validate metrics | Stable split |
-| 4 | Traffic 100% | Full cutover, deprecate Netlify | Migration complete |
+| Week | Phase          | Key Tasks                                   | Deliverables                               |
+| ---- | -------------- | ------------------------------------------- | ------------------------------------------ |
+| 1    | Database       | Schema audit, create migrations, deploy RLS | Unified schema ready                       |
+| 1-2  | Edge Functions | Implement shared utils + 5 functions        | search, create, stats, bulk-delete, health |
+| 2    | Deployment     | Deploy functions, set secrets, verify       | Live Edge Functions                        |
+| 3    | Traffic 10%    | Update \_redirects, deploy, monitor         | Canary deployment                          |
+| 3-4  | Traffic 50%    | Increase traffic, validate metrics          | Stable split                               |
+| 4    | Traffic 100%   | Full cutover, deprecate Netlify             | Migration complete                         |
 
 ---
 
 ## Files to Create
 
 ### SQL Migrations
+
 1. `/opt/lanonasis/onasis-core/supabase/migrations/20251227_001_schema_gaps.sql`
 2. `/opt/lanonasis/onasis-core/supabase/migrations/20251227_002_rls_policies.sql`
 3. `/opt/lanonasis/onasis-core/supabase/migrations/20251227_003_vector_search.sql`
 
 ### Edge Functions
+
 4. `/opt/lanonasis/onasis-core/supabase/functions/_shared/auth.ts`
 5. `/opt/lanonasis/onasis-core/supabase/functions/_shared/cors.ts`
 6. `/opt/lanonasis/onasis-core/supabase/functions/_shared/errors.ts`
@@ -1044,6 +1058,7 @@ echo "Rollback complete - all traffic now routes to Netlify"
 11. `/opt/lanonasis/onasis-core/supabase/functions/system-health/index.ts`
 
 ### Scripts
+
 12. `/opt/lanonasis/onasis-core/scripts/validate-migration.sh`
 13. `/opt/lanonasis/onasis-core/scripts/rollback-to-netlify.sh`
 
