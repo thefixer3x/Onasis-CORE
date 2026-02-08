@@ -5,7 +5,6 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { Configuration, OpenAIApi } from 'openai';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -13,10 +12,38 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Initialize OpenAI for embeddings
-const openai = new OpenAIApi(new Configuration({
-  apiKey: process.env.OPENAI_API_KEY
-}));
+async function createEmbedding(input) {
+  // Avoid a hard dependency on the `openai` npm package in Netlify Functions.
+  // Netlify will fail to load the function if the package is missing.
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is not configured');
+  }
+
+  const resp = await fetch('https://api.openai.com/v1/embeddings', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: 'text-embedding-3-small',
+      input
+    })
+  });
+
+  if (!resp.ok) {
+    const txt = await resp.text();
+    throw new Error(`OpenAI embeddings failed: HTTP ${resp.status} ${txt}`);
+  }
+
+  const json = await resp.json();
+  const embedding = json?.data?.[0]?.embedding;
+  if (!Array.isArray(embedding)) {
+    throw new Error('OpenAI embeddings response missing embedding vector');
+  }
+  return embedding;
+}
 
 /**
  * Handle MCP tool calls
@@ -56,12 +83,7 @@ async function createMemory(params, context) {
   const memory_type = params.memory_type || params.type || 'context';
 
   // Generate embedding
-  const embeddingResponse = await openai.createEmbedding({
-    model: 'text-embedding-ada-002',
-    input: `${title} ${content}`
-  });
-
-  const embedding = embeddingResponse.data.data[0].embedding;
+  const embedding = await createEmbedding(`${title} ${content}`);
 
   // Insert into public.memory_entries (fixed: was maas.memory_entries - empty table)
   const { data, error } = await supabase
@@ -102,12 +124,7 @@ async function searchMemory(params, context) {
   const memory_type = params.memory_type || params.type;
   
   // Generate query embedding
-  const embeddingResponse = await openai.createEmbedding({
-    model: 'text-embedding-ada-002',
-    input: query
-  });
-  
-  const queryEmbedding = embeddingResponse.data.data[0].embedding;
+  const queryEmbedding = await createEmbedding(query);
   
   // Search using match_memories function
   const { data, error } = await supabase.rpc('match_memories', {

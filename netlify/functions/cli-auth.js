@@ -663,7 +663,7 @@ async function token(event) {
       cli_authenticated: true,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600 * 24 * 30 // 30 days
-    }, process.env.JWT_SECRET
+    }, process.env.JWT_SECRET);
 
     // Generate refresh token
     const refreshToken = crypto.randomBytes(32).toString('base64url');
