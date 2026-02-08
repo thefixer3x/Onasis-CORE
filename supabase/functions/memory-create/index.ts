@@ -31,6 +31,31 @@ const VALID_MEMORY_TYPES: MemoryType[] = [
   'workflow',
 ];
 
+// Embedding provider configuration
+type EmbeddingProvider = 'openai' | 'voyage';
+
+const PROVIDER_CONFIG = {
+  openai: {
+    model: 'text-embedding-3-small',
+    url: 'https://api.openai.com/v1/embeddings',
+  },
+  voyage: {
+    model: 'voyage-4',
+    url: 'https://api.voyageai.com/v1/embeddings',
+  },
+} as const;
+
+function getProvider(): EmbeddingProvider {
+  const provider = Deno.env.get('EMBEDDING_PROVIDER')?.toLowerCase();
+  return provider === 'voyage' ? 'voyage' : 'openai';
+}
+
+function getApiKey(provider: EmbeddingProvider): string | undefined {
+  return provider === 'voyage'
+    ? Deno.env.get('VOYAGE_API_KEY')
+    : Deno.env.get('OPENAI_API_KEY');
+}
+
 serve(async (req: Request) => {
   // Handle CORS preflight
   const corsResponse = handleCors(req);
@@ -99,36 +124,41 @@ serve(async (req: Request) => {
       });
     }
 
-    // Generate embedding via OpenAI
+    // Generate embedding via configured provider (Voyage AI or OpenAI)
     let embedding: number[] | null = null;
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
+    const provider = getProvider();
+    const providerConfig = PROVIDER_CONFIG[provider];
+    const apiKey = getApiKey(provider);
 
-    if (openaiKey) {
+    if (apiKey) {
       try {
-        const embeddingRes = await fetch('https://api.openai.com/v1/embeddings', {
+        const textToEmbed = `${body.title}\n\n${body.content}`;
+        const embeddingBody = provider === 'voyage'
+          ? { input: [textToEmbed], model: Deno.env.get('VOYAGE_MODEL') || providerConfig.model, input_type: 'document' }
+          : { model: providerConfig.model, input: textToEmbed };
+
+        const embeddingRes = await fetch(providerConfig.url, {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: 'text-embedding-ada-002',
-            input: `${body.title}\n\n${body.content}`,
-          }),
+          body: JSON.stringify(embeddingBody),
         });
 
         if (embeddingRes.ok) {
           const embeddingData = await embeddingRes.json();
           embedding = embeddingData.data[0].embedding;
         } else {
-          console.warn('Failed to generate embedding, continuing without it');
+          const errText = await embeddingRes.text();
+          console.warn(`Failed to generate embedding via ${provider}:`, errText);
         }
       } catch (embeddingError) {
         console.warn('Embedding generation error:', embeddingError);
         // Continue without embedding
       }
     } else {
-      console.warn('OPENAI_API_KEY not set, creating memory without embedding');
+      console.warn(`No API key configured for embedding provider: ${provider}`);
     }
 
     // Insert memory
@@ -150,7 +180,12 @@ serve(async (req: Request) => {
     }
 
     if (embedding) {
-      insertData.embedding = embedding;
+      // Store in provider-appropriate column
+      if (provider === 'voyage') {
+        insertData.voyage_embedding = embedding;
+      } else {
+        insertData.embedding = embedding;
+      }
     }
 
     const { data: memory, error } = await supabase

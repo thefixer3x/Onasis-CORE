@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://test.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://lanonasis.supabase.co';
 const TEST_API_KEY = process.env.TEST_API_KEY || 'lano_master_key_2024';
 
 interface IntelligenceResponse {

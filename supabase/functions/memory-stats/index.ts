@@ -24,8 +24,8 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
     // Try to use the memory_stats RPC function if available
@@ -92,12 +92,21 @@ serve(async (req: Request) => {
       .match(baseFilter)
       .gte('last_accessed', yesterdayIso);
 
-    // Memories with embeddings
-    const { count: withEmbeddings } = await supabase
+    // Memories with embeddings (check both OpenAI and Voyage columns)
+    const { count: withOpenAI } = await supabase
       .from('memory_entries')
       .select('*', { count: 'exact', head: true })
       .match(baseFilter)
       .not('embedding', 'is', null);
+
+    const { count: withVoyage } = await supabase
+      .from('memory_entries')
+      .select('*', { count: 'exact', head: true })
+      .match(baseFilter)
+      .not('voyage_embedding', 'is', null);
+
+    // Use the higher count (memories with ANY embedding)
+    const withEmbeddings = Math.max(withOpenAI || 0, withVoyage || 0);
 
     // Top tags (aggregate from all memories)
     const { data: tagsData } = await supabase
@@ -135,8 +144,13 @@ serve(async (req: Request) => {
       },
       top_tags: topTags,
       storage: {
-        embedding_dimension: 1536,
-        model: 'text-embedding-ada-002'
+        embedding_provider: Deno.env.get('EMBEDDING_PROVIDER')?.toLowerCase() === 'voyage' ? 'voyage' : 'openai',
+        embedding_dimension: Deno.env.get('EMBEDDING_PROVIDER')?.toLowerCase() === 'voyage' ? 1024 : 1536,
+        model: Deno.env.get('EMBEDDING_PROVIDER')?.toLowerCase() === 'voyage'
+          ? (Deno.env.get('VOYAGE_MODEL') || 'voyage-4')
+          : 'text-embedding-3-small',
+        openai_embeddings: withOpenAI || 0,
+        voyage_embeddings: withVoyage || 0,
       }
     };
 

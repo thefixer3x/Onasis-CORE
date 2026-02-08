@@ -34,7 +34,22 @@ export interface AccessCheck {
 // Environment
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
+
+// Embedding provider configuration
+type EmbeddingProvider = 'openai' | 'voyage';
+const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() || 'openai') as EmbeddingProvider;
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const VOYAGE_API_KEY = Deno.env.get("VOYAGE_API_KEY");
+
+// Get the appropriate API key based on provider
+function getEmbeddingApiKey(): string {
+  if (EMBEDDING_PROVIDER === 'voyage') {
+    if (!VOYAGE_API_KEY) throw new Error("VOYAGE_API_KEY not configured");
+    return VOYAGE_API_KEY;
+  }
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+  return OPENAI_API_KEY;
+}
 
 // Create Supabase client with service role
 export function getSupabaseClient() {
@@ -280,11 +295,15 @@ export async function setCache(
   });
 }
 
-// OpenAI chat completion
+// OpenAI chat completion (requires OPENAI_API_KEY regardless of embedding provider)
 export async function chatCompletion(
   messages: Array<{ role: string; content: string }>,
   model: string = "gpt-4o-mini"
 ): Promise<{ content: string; tokensUsed: number; cost: number }> {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY not configured for chat completions");
+  }
+
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -318,14 +337,26 @@ export async function chatCompletion(
   };
 }
 
-// OpenAI embedding
+// Provider-aware embedding generation
 export async function generateEmbedding(
   text: string
-): Promise<{ embedding: number[]; cost: number }> {
+): Promise<{ embedding: number[]; cost: number; provider: EmbeddingProvider; dimensions: number }> {
+  if (EMBEDDING_PROVIDER === 'voyage') {
+    return generateVoyageEmbedding(text);
+  }
+  return generateOpenAIEmbedding(text);
+}
+
+// OpenAI embedding
+async function generateOpenAIEmbedding(
+  text: string
+): Promise<{ embedding: number[]; cost: number; provider: EmbeddingProvider; dimensions: number }> {
+  const apiKey = getEmbeddingApiKey();
+
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -342,12 +373,52 @@ export async function generateEmbedding(
   }
 
   const tokensUsed = data.usage?.total_tokens || 0;
-  // text-embedding-3-small pricing
-  const cost = tokensUsed * 0.00000002;
+  const cost = tokensUsed * 0.00000002; // text-embedding-3-small pricing
+  const embedding = data.data[0].embedding;
 
   return {
-    embedding: data.data[0].embedding,
+    embedding,
     cost,
+    provider: 'openai',
+    dimensions: embedding.length,
+  };
+}
+
+// Voyage AI embedding
+async function generateVoyageEmbedding(
+  text: string
+): Promise<{ embedding: number[]; cost: number; provider: EmbeddingProvider; dimensions: number }> {
+  const apiKey = getEmbeddingApiKey();
+  const model = Deno.env.get("VOYAGE_MODEL") || "voyage-4";
+
+  const response = await fetch("https://api.voyageai.com/v1/embeddings", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      input: [text],
+      model,
+      input_type: "document",
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error?.message || "Voyage embedding API error");
+  }
+
+  const tokensUsed = data.usage?.total_tokens || 0;
+  const cost = tokensUsed * 0.00000006; // voyage-4 pricing
+  const embedding = data.data[0].embedding;
+
+  return {
+    embedding,
+    cost,
+    provider: 'voyage',
+    dimensions: embedding.length,
   };
 }
 

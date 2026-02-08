@@ -244,10 +244,59 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
 
   /memories/search:
+    get:
+      tags:
+        - Memories
+      summary: Search Memories (GET)
+      description: Search memories using semantic vector search via query parameters (MCP tool `search_memories`)
+      operationId: searchMemoriesGet
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query text (also accepts `q` as alias)
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemoryType'
+          description: Filter by memory type (also accepts `memory_type`)
+        - name: threshold
+          in: query
+          schema:
+            type: number
+            default: 0.7
+            minimum: 0
+            maximum: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+        - name: tags
+          in: query
+          description: Comma-separated list of tags to filter by
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchMemoriesResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
     post:
       tags:
         - Memories
-      summary: Search Memories
+      summary: Search Memories (POST)
       description: Search memories using semantic vector search (MCP tool `search_memories`)
       operationId: searchMemories
       requestBody:

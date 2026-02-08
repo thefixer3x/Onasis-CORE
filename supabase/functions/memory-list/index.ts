@@ -58,8 +58,8 @@ serve(async (req: Request) => {
     const sortOrder = params.sortOrder || 'desc';
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
     // Build query
@@ -97,7 +97,11 @@ serve(async (req: Request) => {
 
     if (error) {
       console.error('List error:', error);
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to list memories', 500);
+      return createErrorResponse(
+        ErrorCode.DATABASE_ERROR,
+        `Failed to list memories: ${error.message || 'Unknown database error'}`,
+        500
+      );
     }
 
     // Calculate pagination info

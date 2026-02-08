@@ -48,40 +48,42 @@ serve(async (req: Request) => {
       }
     }
 
-    // Use provided org_id or default to user's org
-    const targetOrgId = orgId || auth.organization_id;
-
-    // Only master keys can list projects from other orgs
-    if (orgId && orgId !== auth.organization_id && !auth.is_master) {
-      return createErrorResponse(
-        ErrorCode.AUTHORIZATION_ERROR,
-        'Cannot access projects from other organizations',
-        403
-      );
-    }
-
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Get total count
-    const { count: total } = await supabase
-      .from('projects')
-      .select('*', { count: 'exact', head: true })
-      .eq('organization_id', targetOrgId);
+    // Build query - scope by org via metadata if org filter provided
+    const targetOrgId = orgId || auth.organization_id;
 
-    // Get projects - using actual table columns
-    const { data: projects, error } = await supabase
+    // Get total count
+    const countQuery = supabase
       .from('projects')
-      .select('id, name, description, organization_id, metadata, is_active, created_at, updated_at')
-      .eq('organization_id', targetOrgId)
+      .select('*', { count: 'exact', head: true });
+
+    // Scope to org via metadata->organization_id (unless master key with no filter)
+    if (!auth.is_master || orgId) {
+      countQuery.eq('metadata->>organization_id', targetOrgId);
+    }
+
+    const { count: total } = await countQuery;
+
+    // Get projects - using actual table columns from control_room.projects facade view
+    const listQuery = supabase
+      .from('projects')
+      .select('id, name, description, type, status, metadata, created_at, updated_at')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    // Scope to org via metadata->organization_id
+    if (!auth.is_master || orgId) {
+      listQuery.eq('metadata->>organization_id', targetOrgId);
+    }
+
+    const { data: projects, error } = await listQuery;
+
     if (error) {
       console.error('Query error:', error);
-      // Check if projects table exists
       if (error.code === '42P01') {
         return new Response(JSON.stringify({
           data: [],
@@ -94,10 +96,14 @@ serve(async (req: Request) => {
           headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
         });
       }
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to list projects', 500);
+      return createErrorResponse(
+        ErrorCode.DATABASE_ERROR,
+        `Failed to list projects: ${error.message || 'Unknown database error'}`,
+        500
+      );
     }
 
-    // Enrich with memory counts per project (if tracking)
+    // Enrich with memory counts per project
     const enrichedProjects = await Promise.all(
       (projects || []).map(async (project) => {
         const { count: memoryCount } = await supabase
@@ -107,6 +113,8 @@ serve(async (req: Request) => {
 
         return {
           ...project,
+          organization_id: project.metadata?.organization_id || null,
+          is_active: project.status === 'active',
           memory_count: memoryCount || 0,
         };
       })

@@ -83,6 +83,8 @@
 
 # Organization Info - Returns org details, plan, limits
 /api/v1/organization        https://lanonasis.supabase.co/functions/v1/organization-info    200!
+/api/v1/organizations       https://lanonasis.supabase.co/functions/v1/organization-info    200!
+/api/v1/organizations/:id   https://lanonasis.supabase.co/functions/v1/organization-info    200!
 /api/v1/org                 https://lanonasis.supabase.co/functions/v1/organization-info    200!
 /api/v1/org/info            https://lanonasis.supabase.co/functions/v1/organization-info    200!
 
@@ -101,12 +103,13 @@
 # CONFIGURATION - SUPABASE EDGE FUNCTIONS
 # ============================================================================
 
-# Get Config - GET /api/v1/config
-/api/v1/config              https://lanonasis.supabase.co/functions/v1/config-get           200!
+# Get Config - GET /api/v1/config (supports /config/:key path params)
 /api/v1/config/get          https://lanonasis.supabase.co/functions/v1/config-get           200!
-
-# Set Config - POST /api/v1/config/set
 /api/v1/config/set          https://lanonasis.supabase.co/functions/v1/config-set           200!
+/api/v1/config/:key         https://lanonasis.supabase.co/functions/v1/config-get           200!
+/api/v1/config              https://lanonasis.supabase.co/functions/v1/config-get           200!
+
+# Set Config - POST /api/v1/config/set (already handled above)
 
 # MCP Protocol Routes
 # WebSocket and SSE routing - proxy to VPS MCP server via nginx (SSL terminated)

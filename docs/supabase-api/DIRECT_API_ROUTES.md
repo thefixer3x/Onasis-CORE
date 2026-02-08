@@ -32,7 +32,7 @@ All authenticated endpoints require one of:
 | `memory-update` | POST/PUT/PATCH | `/functions/v1/memory-update` | ✅ | Update memory (re-embeds if content changes) |
 | `memory-delete` | POST/DELETE | `/functions/v1/memory-delete` | ✅ | Delete single memory by ID |
 | `memory-list` | GET/POST | `/functions/v1/memory-list` | ✅ | List memories with pagination & filtering |
-| `memory-search` | POST | `/functions/v1/memory-search` | ✅ | Semantic vector search with embeddings |
+| `memory-search` | GET/POST | `/functions/v1/memory-search` | ✅ | Semantic vector search with embeddings |
 | `memory-stats` | GET/POST | `/functions/v1/memory-stats` | ✅ | Memory statistics and analytics |
 | `memory-bulk-delete` | POST/DELETE | `/functions/v1/memory-bulk-delete` | ✅ | Bulk delete multiple memories |
 | `system-health` | GET | `/functions/v1/system-health` | ❌ | Health check for MaaS API |
@@ -81,7 +81,7 @@ curl "https://lanonasis.supabase.co/functions/v1/memory-list?limit=10&type=knowl
   -H "X-API-Key: lano_master_key_2024"
 ```
 
-**Example - Memory Search:**
+**Example - Memory Search (POST):**
 ```bash
 curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-search" \
   -H "Content-Type: application/json" \
@@ -92,6 +92,12 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-search" \
     "threshold": 0.7,
     "memory_type": "knowledge"
   }'
+```
+
+**Example - Memory Search (GET):**
+```bash
+curl "https://lanonasis.supabase.co/functions/v1/memory-search?query=how+to+configure+MCP&limit=10&threshold=0.7&type=knowledge" \
+  -H "X-API-Key: lano_master_key_2024"
 ```
 
 **Example - Memory Stats:**

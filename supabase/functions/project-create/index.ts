@@ -58,22 +58,15 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Generate slug from name
-    const slug = body.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .substring(0, 50);
-
-    // Check for duplicate name in org
+    // Check for duplicate name in org (via metadata->organization_id)
     const { data: existing } = await supabase
       .from('projects')
       .select('id')
-      .eq('organization_id', orgId)
+      .eq('metadata->>organization_id', orgId)
       .eq('name', body.name.trim())
       .limit(1);
 
@@ -85,14 +78,17 @@ serve(async (req: Request) => {
       );
     }
 
-    // Create project
-    const projectData = {
+    // Create project - using actual columns from control_room.projects facade view
+    const projectData: Record<string, unknown> = {
       name: body.name.trim(),
-      slug: `${slug}-${Date.now().toString(36)}`,
       description: body.description?.trim() || null,
-      organization_id: orgId,
-      created_by: auth.user_id,
-      settings: body.settings || {},
+      type: 'memory',
+      status: 'active',
+      metadata: {
+        organization_id: orgId,
+        created_by: auth.user_id,
+        ...(body.settings || {}),
+      },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -113,7 +109,7 @@ serve(async (req: Request) => {
           500
         );
       }
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to create project', 500);
+      return createErrorResponse(ErrorCode.DATABASE_ERROR, `Failed to create project: ${error.message || 'Unknown database error'}`, 500);
     }
 
     // Audit log

@@ -18,6 +18,31 @@ interface UpdateMemoryRequest {
   metadata?: Record<string, unknown>;
 }
 
+// Embedding provider configuration
+type EmbeddingProvider = 'openai' | 'voyage';
+
+const PROVIDER_CONFIG = {
+  openai: {
+    model: 'text-embedding-3-small',
+    url: 'https://api.openai.com/v1/embeddings',
+  },
+  voyage: {
+    model: 'voyage-4',
+    url: 'https://api.voyageai.com/v1/embeddings',
+  },
+} as const;
+
+function getProvider(): EmbeddingProvider {
+  const provider = Deno.env.get('EMBEDDING_PROVIDER')?.toLowerCase();
+  return provider === 'voyage' ? 'voyage' : 'openai';
+}
+
+function getApiKey(provider: EmbeddingProvider): string | undefined {
+  return provider === 'voyage'
+    ? Deno.env.get('VOYAGE_API_KEY')
+    : Deno.env.get('OPENAI_API_KEY');
+}
+
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -52,8 +77,8 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
     // First, fetch the existing memory to check ownership and get current content
@@ -87,31 +112,45 @@ serve(async (req: Request) => {
     if (body.tags) updateData.tags = body.tags;
     if (body.metadata) updateData.metadata = body.metadata;
 
-    // If content changed, regenerate embedding
+    // If content changed, regenerate embedding via configured provider
     let embeddingGenerated = false;
     if (body.content && body.content !== existing.content) {
       updateData.content = body.content;
 
-      // Generate new embedding
-      const textToEmbed = `${body.title || existing.title}\n\n${body.content}`;
-      const embeddingRes = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-ada-002',
-          input: textToEmbed
-        })
-      });
+      const provider = getProvider();
+      const providerConfig = PROVIDER_CONFIG[provider];
+      const apiKey = getApiKey(provider);
 
-      if (embeddingRes.ok) {
-        const embeddingData = await embeddingRes.json();
-        updateData.embedding = embeddingData.data[0].embedding;
-        embeddingGenerated = true;
+      if (apiKey) {
+        const textToEmbed = `${body.title || existing.title}\n\n${body.content}`;
+        const embeddingBody = provider === 'voyage'
+          ? { input: [textToEmbed], model: Deno.env.get('VOYAGE_MODEL') || providerConfig.model, input_type: 'document' }
+          : { model: providerConfig.model, input: textToEmbed };
+
+        const embeddingRes = await fetch(providerConfig.url, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(embeddingBody)
+        });
+
+        if (embeddingRes.ok) {
+          const embeddingData = await embeddingRes.json();
+          // Store in provider-appropriate column
+          if (provider === 'voyage') {
+            updateData.voyage_embedding = embeddingData.data[0].embedding;
+          } else {
+            updateData.embedding = embeddingData.data[0].embedding;
+          }
+          embeddingGenerated = true;
+        } else {
+          const errText = await embeddingRes.text();
+          console.warn(`Failed to regenerate embedding via ${provider}:`, errText);
+        }
       } else {
-        console.warn('Failed to regenerate embedding, updating without it');
+        console.warn(`No API key for embedding provider: ${provider}, updating without embedding`);
       }
     }
 
@@ -125,7 +164,12 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error('Update error:', updateError);
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to update memory', 500);
+      return createErrorResponse(
+        ErrorCode.DATABASE_ERROR,
+        `Failed to update memory: ${updateError.message || 'Unknown database error'}`,
+        500,
+        { fields_attempted: Object.keys(updateData).filter(k => k !== 'updated_at') }
+      );
     }
 
     // Audit log (fire and forget)
