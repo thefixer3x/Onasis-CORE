@@ -14,7 +14,7 @@ export const TEST_CONFIG = {
   NETLIFY_BASE_URL: 'https://api.lanonasis.com/api/v1',
 
   // Test API key (master key for full access)
-  API_KEY: process.env.TEST_API_KEY || '$LANONASIS_API_KEY',
+  API_KEY: process.env.TEST_API_KEY || 'lano_master_key_2024',
 
   // Request timeout
   TIMEOUT: 25000,
