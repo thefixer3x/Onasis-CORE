@@ -18,7 +18,8 @@ const optionalIntegerString = () => z.coerce.number().int().optional()
 
 const requiredString = (name: string) =>
   z
-    .string({ required_error: `${name} is required` })
+    // Zod v4 removed `required_error`; use `message` to customize the invalid_type error.
+    .string({ message: `${name} is required` })
     .min(1, `${name} is required`)
 
 const optionalNonEmptyString = (name: string) =>
