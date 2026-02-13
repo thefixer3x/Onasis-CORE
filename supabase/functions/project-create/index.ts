@@ -58,8 +58,8 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL') || '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     );
 
     // Generate slug from name
@@ -85,6 +85,18 @@ serve(async (req: Request) => {
       );
     }
 
+    // Validate and filter user-provided settings to prevent privilege escalation
+    const allowedSettingKeys = ['visibility', 'require_auth', 'enable_ai', 'enable_memory', 'max_storage_gb'];
+    const validatedSettings: Record<string, any> = {};
+
+    if (body.settings && typeof body.settings === 'object') {
+      for (const key of allowedSettingKeys) {
+        if (key in body.settings) {
+          validatedSettings[key] = body.settings[key];
+        }
+      }
+    }
+
     // Create project
     const projectData = {
       name: body.name.trim(),
@@ -92,7 +104,7 @@ serve(async (req: Request) => {
       description: body.description?.trim() || null,
       organization_id: orgId,
       created_by: auth.user_id,
-      settings: body.settings || {},
+      settings: validatedSettings,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

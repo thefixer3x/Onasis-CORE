@@ -13,7 +13,7 @@ async function basicExample() {
   console.log('Creating API key...');
   const apiKey = await apiKeyService.createApiKey({
     name: 'Test API Key',
-    value: 'sk_test_123456789',
+    value: 'sk_example_placeholder_key', // Use placeholder - real keys generated automatically
     keyType: 'api_key',
     environment: 'development',
     accessLevel: 'team',
