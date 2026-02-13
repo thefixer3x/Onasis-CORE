@@ -8,6 +8,11 @@ import {
   updateStoredKey,
 } from '../services/stored-keys.service.js'
 
+// Helper to extract string param
+const getStringParam = (param: string | string[]): string => {
+  return typeof param === 'string' ? param : param[0] || ''
+}
+
 /**
  * List all stored API keys for a project
  * GET /api/v1/projects/:projectId/api-keys
@@ -21,7 +26,7 @@ export async function listProjectStoredKeys(req: Request, res: Response) {
   }
 
   try {
-    const keys = await listStoredKeysForProject(req.params.projectId, req.user.sub, req.user.role)
+    const keys = await listStoredKeysForProject(getStringParam(req.params.projectId), req.user.sub, req.user.role)
     return res.json(keys)
   } catch (error) {
     return handleStoredKeyError(res, error)
@@ -42,8 +47,8 @@ export async function getStoredKey(req: Request, res: Response) {
 
   try {
     const key = await getStoredKeyById(
-      req.params.projectId,
-      req.params.keyId,
+      getStringParam(req.params.projectId),
+      getStringParam(req.params.keyId),
       req.user.sub,
       req.user.role
     )
@@ -66,7 +71,7 @@ export async function createStoredKeyHandler(req: Request, res: Response) {
   }
 
   try {
-    const key = await createStoredKey(req.params.projectId, req.user.sub, req.user.role, {
+    const key = await createStoredKey(getStringParam(req.params.projectId), req.user.sub, req.user.role, {
       name: req.body?.name,
       encryptedValue: req.body?.encryptedValue,
       keyType: req.body?.keyType,
@@ -98,8 +103,8 @@ export async function updateStoredKeyHandler(req: Request, res: Response) {
 
   try {
     const key = await updateStoredKey(
-      req.params.projectId,
-      req.params.keyId,
+      getStringParam(req.params.projectId),
+      getStringParam(req.params.keyId),
       req.user.sub,
       req.user.role,
       {
@@ -135,7 +140,7 @@ export async function deleteStoredKeyHandler(req: Request, res: Response) {
   }
 
   try {
-    await deleteStoredKey(req.params.projectId, req.params.keyId, req.user.sub, req.user.role)
+    await deleteStoredKey(getStringParam(req.params.projectId), getStringParam(req.params.keyId), req.user.sub, req.user.role)
     return res.json({ success: true })
   } catch (error) {
     return handleStoredKeyError(res, error)

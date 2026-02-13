@@ -228,7 +228,7 @@ INSERT INTO app_sd_ghost.ai_recommendations (
 import { OpenAI } from 'openai';
 import { neon } from '@neondatabase/serverless';
 
-const sql = neon(process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+const sql = neon(process.env.DATABASE_URL
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function storeMemoryWithEmbedding(userId, content, metadata) {

@@ -301,8 +301,8 @@ export const verifyAuth = (requiredScope: string) => {
 // src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL=https://<project-ref>.supabase.co
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {

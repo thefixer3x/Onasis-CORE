@@ -38,7 +38,7 @@ Client Application → Onasis Gateway → Vendor API → Response
 ### Authentication
 Include your API key in the `Authorization` header:
 ```
-Authorization: Bearer your_api_key_here
+Authorization: Bearer <YOUR_VALUE>
 ```
 
 ### Supported Vendors
@@ -58,7 +58,7 @@ Create a chat completion with privacy protection.
 **Headers:**
 ```
 Content-Type: application/json
-Authorization: Bearer your_api_key
+Authorization: Bearer <YOUR_VALUE>
 X-Vendor: openai
 ```
 
@@ -325,7 +325,7 @@ print(data['choices'][0]['message']['content'])
 ```bash
 curl -X POST https://api.vortexai.io/api/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your_api_key" \
+  -H "Authorization: Bearer <YOUR_VALUE>" \
   -H "X-Vendor: openai" \
   -d '{
     "messages": [{"role": "user", "content": "Hello!"}],

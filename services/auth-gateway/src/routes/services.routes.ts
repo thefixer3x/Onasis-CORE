@@ -15,9 +15,9 @@ import crypto from 'crypto'
 import { requireAuth, optionalAuth, requireScopes } from '../middleware/auth.js'
 import { privacyProtection, attachServiceMetadata } from '../middleware/privacy.js'
 import { routeToSupabase } from '../services/router.service.js'
-import { 
-  SERVICE_ROUTES, 
-  RATE_LIMITS, 
+import {
+  SERVICE_ROUTES,
+  RATE_LIMITS,
   ROUTER_VERSION,
   getServiceConfig,
   getServiceNames,
@@ -75,7 +75,7 @@ const rateLimiters = {
  * GET /services
  * Returns list of all available services with metadata
  */
-router.get('/services', generalRateLimit, (req: RouterRequest, res: Response) => {
+router.get('/services', generalRateLimit, (req: RouterRequest, res: Response): void => {
   const services = Object.entries(SERVICE_ROUTES).map(([name, config]) => ({
     name,
     endpoint: `/api/v1/services/${name}`,
@@ -107,8 +107,8 @@ router.get('/services', generalRateLimit, (req: RouterRequest, res: Response) =>
 router.all(
   '/api/v1/services/:service/*path',
   privacyProtection,
-  async (req: RouterRequest, res: Response) => {
-    const serviceName = req.params.service
+  async (req: RouterRequest, res: Response): Promise<void> => {
+    const serviceName = typeof req.params.service === 'string' ? req.params.service : req.params.service?.[0] || 'unknown'
     const serviceConfig = getServiceConfig(serviceName)
 
     // Check if service exists
@@ -122,12 +122,13 @@ router.all(
         available_services: getServiceNames(),
         request_id: req.anonymousId,
       }
-      return res.status(404).json(errorResponse)
+      res.status(404).json(errorResponse)
+      return
     }
 
     // Check HTTP method
     if (!serviceConfig.allowedMethods.includes(req.method as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')) {
-      return res.status(405).json({
+      res.status(405).json({
         error: {
           message: `Method ${req.method} not allowed for service '${serviceName}'`,
           type: 'method_not_allowed',
@@ -140,7 +141,7 @@ router.all(
 
     // Apply rate limiting based on service tier
     const rateLimiter = rateLimiters[serviceConfig.rateLimitTier]
-    
+
     rateLimiter(req, res, async (rateLimitErr) => {
       if (rateLimitErr) {
         return res.status(429).json({
@@ -180,7 +181,7 @@ router.all(
       async function executeRoute() {
         try {
           // Attach service metadata
-          attachServiceMetadata(serviceName)(req, res, () => {})
+          attachServiceMetadata(serviceName)(req, res, () => { })
 
           // Route to Supabase
           const result = await routeToSupabase(
@@ -211,8 +212,9 @@ router.all(
  * Shorthand route without /api/v1/services prefix
  * ALL /services/:service (redirects to full path)
  */
-router.all('/services/:service', (req: RouterRequest, res: Response) => {
-  const fullPath = `/api/v1/services/${req.params.service}${req.path.replace(`/services/${req.params.service}`, '')}`
+router.all('/services/:service', (req: RouterRequest, res: Response): void => {
+  const serviceName = typeof req.params.service === 'string' ? req.params.service : req.params.service?.[0] || 'unknown'
+  const fullPath = `/api/v1/services/${serviceName}${req.path.replace(`/services/${serviceName}`, '')}`
   res.redirect(307, fullPath)
 })
 
@@ -264,17 +266,18 @@ router.post(
   '/webhook/:service',
   privacyProtection,
   webhookRateLimit,
-  async (req: RouterRequest, res: Response) => {
-    const serviceName = req.params.service
+  async (req: RouterRequest, res: Response): Promise<void> => {
+    const serviceName = typeof req.params.service === 'string' ? req.params.service : req.params.service?.[0] || 'unknown'
     const serviceConfig = getServiceConfig(serviceName)
 
     if (!serviceConfig) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'Webhook service not found',
         available_services: getServiceNames(),
         request_id: req.anonymousId,
       })
+      return
     }
 
     try {

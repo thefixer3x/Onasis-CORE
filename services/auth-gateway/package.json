@@ -8,7 +8,7 @@
     "build": "tsc -p .",
     "start": "node start.js",
     "lint": "eslint src --ext .ts",
-    "test": "vitest",
+    "test": "vitest run",
     "test:unit": "vitest run tests/unit --reporter=verbose",
     "test:integration": "vitest run tests/integration --reporter=verbose",
     "test:security": "vitest run tests/security --reporter=verbose --passWithNoTests",
@@ -69,6 +69,7 @@
     "vitest": "^4.0.18"
   },
   "overrides": {
+    "lodash": "^4.17.23",
     "body-parser": "^2.2.1",
     "js-yaml": "^4.1.1",
     "qs": "^6.14.1",

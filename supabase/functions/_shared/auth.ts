@@ -3,7 +3,7 @@
  * Supports: Bearer tokens (JWT/API keys), X-API-Key header
  *
  * Token validation priority:
- * 1. API key format (lano_*, vibe_*, sk_*, pk_*, master_*)
+ * 1. API key format (lano_*, lms_*, vibe_*, sk_*, pk_*, master_*)
  * 2. Auth-gateway JWT (via /oauth/introspect)
  * 3. Supabase JWT (via supabase.auth.getUser)
  */
@@ -33,7 +33,7 @@ export function createSupabaseClient(): SupabaseClient {
 /**
  * Authenticate an incoming request
  * Supports:
- * 1. Bearer token (API key format: lano_*, vibe_*, sk_*, pk_*)
+ * 1. Bearer token (API key format: lano_*, lms_*, vibe_*, sk_*, pk_*)
  * 2. Bearer token (auth-gateway JWT via /oauth/introspect)
  * 3. Bearer token (Supabase JWT via supabase.auth.getUser)
  * 4. X-API-Key header
@@ -190,7 +190,7 @@ async function authenticateViaSupabase(
  * Check if a token looks like an API key
  */
 function isApiKeyFormat(token: string): boolean {
-  return /^(lano_|vibe_|sk_|pk_|master_)/.test(token);
+  return /^(lano_|lms_|vibe_|sk_|pk_|master_)/.test(token);
 }
 
 /**

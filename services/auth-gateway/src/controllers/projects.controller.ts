@@ -9,6 +9,11 @@ import {
   updateProject,
 } from '../services/projects.service.js'
 
+// Helper to extract string param
+const getStringParam = (param: string | string[]): string => {
+  return typeof param === 'string' ? param : param[0] || ''
+}
+
 export async function listProjects(req: Request, res: Response) {
   if (!req.user?.sub) {
     return res.status(401).json({
@@ -34,7 +39,7 @@ export async function getProject(req: Request, res: Response) {
   }
 
   try {
-    const project = await getProjectById(req.params.projectId, req.user.sub, req.user.role)
+    const project = await getProjectById(getStringParam(req.params.projectId), req.user.sub, req.user.role)
     return res.json(project)
   } catch (error) {
     return handleProjectError(res, error)
@@ -73,7 +78,7 @@ export async function updateProjectHandler(req: Request, res: Response) {
   }
 
   try {
-    const project = await updateProject(req.params.projectId, req.user.sub, req.user.role, {
+    const project = await updateProject(getStringParam(req.params.projectId), req.user.sub, req.user.role, {
       name: req.body?.name,
       description: req.body?.description,
       teamMembers: req.body?.teamMembers,
@@ -95,7 +100,7 @@ export async function deleteProjectHandler(req: Request, res: Response) {
   }
 
   try {
-    await deleteProject(req.params.projectId, req.user.sub, req.user.role)
+    await deleteProject(getStringParam(req.params.projectId), req.user.sub, req.user.role)
     return res.json({ success: true })
   } catch (error) {
     return handleProjectError(res, error)
@@ -111,7 +116,7 @@ export async function listProjectApiKeys(req: Request, res: Response) {
   }
 
   try {
-    const keys = await listProjectKeys(req.params.projectId, req.user.sub, req.user.role)
+    const keys = await listProjectKeys(getStringParam(req.params.projectId), req.user.sub, req.user.role)
     return res.json(keys)
   } catch (error) {
     return handleProjectError(res, error)
