@@ -463,7 +463,7 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: './.env.local' });
 
-const sql = neon(process.env.DATABASE_URL=postgresql://<user>:<password>@<host>:<port>/<db>
+const sql = neon(process.env.DATABASE_URL
 
 async function testAppSchema() {
     const appId = 'app_your_service';

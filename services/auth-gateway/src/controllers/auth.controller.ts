@@ -18,6 +18,11 @@ const OAUTH_STATE_TTL_SECONDS = 600
 const MAGIC_LINK_STATE_PREFIX = 'magic_link_state:'
 const MAGIC_LINK_STATE_TTL_SECONDS = 900
 
+// Helper to extract string param
+const getStringParam = (param: string | string[]): string => {
+  return typeof param === 'string' ? param : param[0] || ''
+}
+
 const OAUTH_PROVIDERS: Record<string, { supabaseProvider: string; scopes: string }> = {
   google: { supabaseProvider: 'google', scopes: 'email profile' },
   github: { supabaseProvider: 'github', scopes: 'user:email read:user' },
@@ -786,11 +791,11 @@ export async function magicLinkExchange(req: Request, res: Response) {
       platform === 'web'
         ? redirectUri
         : appendTokensToRedirect(
-            redirectUri,
-            tokens,
-            resolvedProjectScope,
-            'magic_link'
-          )
+          redirectUri,
+          tokens,
+          resolvedProjectScope,
+          'magic_link'
+        )
 
     return res.json({
       success: true,
@@ -1514,7 +1519,7 @@ export async function getApiKey(req: Request, res: Response) {
       })
     }
 
-    const apiKey = await apiKeyService.getApiKey(req.params.keyId, req.user.sub)
+    const apiKey = await apiKeyService.getApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success: true,
@@ -1543,7 +1548,7 @@ export async function rotateApiKey(req: Request, res: Response) {
       })
     }
 
-    const apiKey = await apiKeyService.rotateApiKey(req.params.keyId, req.user.sub)
+    const apiKey = await apiKeyService.rotateApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success: true,
@@ -1573,7 +1578,7 @@ export async function revokeApiKey(req: Request, res: Response) {
       })
     }
 
-    const success = await apiKeyService.revokeApiKey(req.params.keyId, req.user.sub)
+    const success = await apiKeyService.revokeApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success,
@@ -1602,7 +1607,7 @@ export async function deleteApiKey(req: Request, res: Response) {
       })
     }
 
-    const success = await apiKeyService.deleteApiKey(req.params.keyId, req.user.sub)
+    const success = await apiKeyService.deleteApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success,

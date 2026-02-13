@@ -145,7 +145,7 @@ Lanonasis uses a unified authentication system centered on `auth.lanonasis.com` 
   httpOnly: true,
   secure: true,
   sameSite: 'lax'
-}
+};
 ```
 
 ## Single Sign-On (SSO) Architecture

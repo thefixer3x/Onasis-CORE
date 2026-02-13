@@ -23,7 +23,7 @@ const router = Router()
  * Headers: X-Webhook-Secret (for authentication)
  * Body: { event_type, id, user_id, organization_id, name, key_hash, access_level, permissions, expires_at, created_at, is_active }
  */
-router.post('/api-key', async (req: Request, res: Response) => {
+router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
   try {
     // Verify webhook secret (REQUIRED in production)
     const webhookSecret = process.env.WEBHOOK_SECRET || ""
@@ -32,7 +32,8 @@ router.post('/api-key', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     const {
@@ -51,17 +52,20 @@ router.post('/api-key', async (req: Request, res: Response) => {
     } = req.body
 
     if (!id || !user_id || !name) {
-      return res.status(400).json({ error: 'Missing required fields: id, user_id, name' })
+      res.status(400).json({ error: 'Missing required fields: id, user_id, name' })
+      return
     }
 
     if (!key_hash) {
       console.warn(`API key sync received without key_hash for id=${id}`)
-      return res.status(400).json({ error: 'Missing key_hash - cannot sync without hash' })
+      res.status(400).json({ error: 'Missing key_hash - cannot sync without hash' })
+      return
     }
 
     if (!organization_id) {
       console.warn(`API key sync received without organization_id for id=${id}`)
-      return res.status(400).json({ error: 'Missing organization_id - required for RLS isolation' })
+      res.status(400).json({ error: 'Missing organization_id - required for RLS isolation' })
+      return
     }
 
     const client = await dbPool.connect()
@@ -181,7 +185,7 @@ router.post('/api-key', async (req: Request, res: Response) => {
  * Headers: X-Webhook-Secret (for authentication)
  * Body: { id, email, role, provider, metadata, last_sign_in_at }
  */
-router.post('/user', async (req: Request, res: Response) => {
+router.post('/user', async (req: Request, res: Response): Promise<void> => {
   try {
     // Verify webhook secret (REQUIRED in production)
     const webhookSecret = process.env.WEBHOOK_SECRET || ""
@@ -190,13 +194,15 @@ router.post('/user', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     const { id, email, role, provider, metadata, last_sign_in_at } = req.body
 
     if (!id || !email) {
-      return res.status(400).json({ error: 'Missing required fields' })
+      res.status(400).json({ error: 'Missing required fields' })
+      return
     }
 
     const client = await dbPool.connect()
@@ -265,7 +271,7 @@ router.post('/user', async (req: Request, res: Response) => {
 /**
  * Health check for sync webhooks
  */
-router.get('/health', (_req: Request, res: Response) => {
+router.get('/health', (_req: Request, res: Response): void => {
   res.json({
     status: 'ok',
     service: 'sync-webhooks',
@@ -286,22 +292,25 @@ router.get('/health', (_req: Request, res: Response) => {
  *
  * This is a one-time operation to populate Auth-Gateway DB with existing keys
  */
-router.post('/backfill-api-keys', async (req: Request, res: Response) => {
+router.post('/backfill-api-keys', async (req: Request, res: Response): Promise<void> => {
   try {
     // Verify webhook secret
     const webhookSecret = process.env.WEBHOOK_SECRET || ""
     if (!webhookSecret) {
-      return res.status(500).json({ error: 'Server misconfiguration' })
+      res.status(500).json({ error: 'Server misconfiguration' })
+      return
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
-      return res.status(401).json({ error: 'Unauthorized' })
+      res.status(401).json({ error: 'Unauthorized' })
+      return
     }
 
     // This endpoint expects the keys to be passed from a secure source
     const { keys } = req.body
 
     if (!keys || !Array.isArray(keys)) {
-      return res.status(400).json({ error: 'Missing keys array in request body' })
+      res.status(400).json({ error: 'Missing keys array in request body' })
+      return
     }
 
     const client = await dbPool.connect()

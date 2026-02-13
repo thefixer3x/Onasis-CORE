@@ -1,0 +1,371 @@
+version: 1
+metadata:
+  name: onasis-routing-policy
+  owner: platform
+  updated_at: 2026-02-07
+  status: draft
+
+# Defaults used when a route does not override specific fields.
+defaults:
+  timeout_ms: 12000
+  retries: 0
+  allow_fallback: false
+  auth:
+    mode: required # required | optional | none
+    scopes: []
+    introspect_url: "${AUTH_GATEWAY_URL}/v1/auth/resolve"
+    passthrough_headers:
+      - Authorization
+      - X-API-Key
+      - X-UAI-Auth-Id
+      - X-UAI-Organization
+      - X-UAI-Auth-Method
+      - X-UAI-Email
+  privacy:
+    strip_pii: true
+    pii_strip_mode: fields # fields | all
+  logging:
+    sample_rate: 1.0
+    redact:
+      - authorization
+      - x-api-key
+      - cookie
+      - set-cookie
+
+# Route definitions for gradual cutover.
+routes:
+  - id: ai-chat
+    match:
+      path: /api/v1/ai-chat
+      methods: [POST]
+    primary:
+      type: http
+      base_url: "${AI_ROUTER_URL}"
+      path: /api/v1/ai-chat
+    fallback:
+      enabled: true
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/ai-chat
+    allow_fallback: true
+    auth:
+      mode: required
+      scopes: [ai:chat]
+    rate_limit:
+      tier: ai
+
+  - id: chat-completions-legacy
+    match:
+      path: /api/v1/chat/completions
+      methods: [POST]
+    primary:
+      type: http
+      base_url: "${AI_ROUTER_URL}"
+      path: /api/v1/ai-chat
+    fallback:
+      enabled: true
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/ai-chat
+    allow_fallback: true
+    auth:
+      mode: required
+      scopes: [ai:chat]
+    rate_limit:
+      tier: ai
+
+  - id: memory-search
+    match:
+      path: /api/v1/memories/search
+      methods: [POST]
+    primary:
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/memory-search
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [memory:read]
+    rate_limit:
+      tier: general
+    flags:
+      shadow_auth: true
+
+  - id: memory-list
+    match:
+      path: /api/v1/memories/list
+      methods: [GET]
+    primary:
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/memory-list
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [memory:read]
+    rate_limit:
+      tier: general
+    flags:
+      shadow_auth: true
+
+  - id: memory-create
+    match:
+      path: /api/v1/memories
+      methods: [POST]
+    primary:
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/memory-create
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [memory:write]
+    rate_limit:
+      tier: general
+    flags:
+      shadow_auth: true
+
+  - id: memory-get
+    match:
+      path_pattern: /api/v1/memory/:id
+      methods: [GET]
+    primary:
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/memory-get
+      append_param: id
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [memory:read]
+    rate_limit:
+      tier: general
+    flags:
+      shadow_auth: true
+
+  - id: memory-delete
+    match:
+      path_pattern: /api/v1/memory/:id
+      methods: [DELETE]
+    primary:
+      type: http
+      base_url: "${SUPABASE_URL}"
+      path: /functions/v1/memory-delete
+      inject_body:
+        id: id
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [memory:write]
+    rate_limit:
+      tier: general
+    flags:
+      shadow_auth: true
+
+  - id: api-keys
+    match:
+      path_prefix: /api/v1/keys
+      methods: [GET, POST, DELETE]
+    primary:
+      type: auth-gateway
+      base_url: "${AUTH_GATEWAY_URL}"
+      path_prefix: /api/v1/keys
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [keys:manage]
+    rate_limit:
+      tier: general
+
+  - id: auth
+    match:
+      path_prefix: /api/v1/auth
+      methods: [GET, POST, DELETE]
+    primary:
+      type: auth-gateway
+      base_url: "${AUTH_GATEWAY_URL}"
+      path_prefix: /api/v1/auth
+    allow_fallback: false
+    auth:
+      mode: required
+    rate_limit:
+      tier: general
+
+  - id: oauth
+    match:
+      path_prefix: /api/v1/oauth
+      methods: [GET, POST]
+    primary:
+      type: auth-gateway
+      base_url: "${AUTH_GATEWAY_URL}"
+      path_prefix: /api/v1/oauth
+    allow_fallback: false
+    auth:
+      mode: required
+    rate_limit:
+      tier: general
+
+  - id: projects
+    match:
+      path_prefix: /api/v1/projects
+      methods: [GET, POST]
+    primary:
+      type: auth-gateway
+      base_url: "${AUTH_GATEWAY_URL}"
+      path_prefix: /api/v1/projects
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [projects:read, projects:write]
+    rate_limit:
+      tier: general
+
+  - id: config
+    match:
+      path_prefix: /api/v1/config
+      methods: [GET, POST]
+    primary:
+      type: auth-gateway
+      base_url: "${AUTH_GATEWAY_URL}"
+      path_prefix: /api/v1/config
+    allow_fallback: false
+    auth:
+      mode: required
+      scopes: [config:read, config:write]
+    rate_limit:
+      tier: general
+
+  - id: intelligence
+    match:
+      path_prefix: /api/v1/intelligence
+      methods: [GET, POST]
+    primary:
+      type: http
+      base_url: "${INTELLIGENCE_SUPABASE_URL}"
+      path_prefix: /functions/v1
+    allow_fallback: false
+    auth:
+      mode: optional
+    rate_limit:
+      tier: general
+
+  - id: realtime-ws
+    match:
+      path: /ws
+      methods: [GET]
+    primary:
+      type: http
+      base_url: "${MCP_WS_URL}"
+      path: /ws
+    allow_fallback: false
+    auth:
+      mode: optional
+    rate_limit:
+      tier: general
+
+  - id: realtime-sse
+    match:
+      path: /sse
+      methods: [GET]
+    primary:
+      type: http
+      base_url: "${MCP_SSE_URL}"
+      path: /sse
+    allow_fallback: false
+    auth:
+      mode: optional
+    rate_limit:
+      tier: general
+
+  - id: health
+    match:
+      path: /api/v1/health
+      methods: [GET]
+    primary:
+      type: local
+      handler: health
+    allow_fallback: false
+    auth:
+      mode: none
+    rate_limit:
+      tier: general
+
+# Route matrix summary for human review.
+route_matrix:
+  - path: /api/v1/ai-chat
+    methods: [POST]
+    tier: C
+    primary: AIServiceRouter
+    fallback: Supabase edge
+    auth: required (ai:chat)
+    notes: "Primary AI router with edge fallback."
+  - path: /api/v1/chat/completions
+    methods: [POST]
+    tier: C
+    primary: AIServiceRouter
+    fallback: Supabase edge
+    auth: required (ai:chat)
+    notes: "Legacy compatibility."
+  - path: /api/v1/memories/*
+    methods: [GET, POST, DELETE]
+    tier: B
+    primary: Supabase edge
+    fallback: none
+    auth: required (memory:*), shadow_auth
+    notes: "Direct for latency; RLS must enforce."
+  - path: /api/v1/keys/*
+    methods: [GET, POST, DELETE]
+    tier: A
+    primary: auth-gateway
+    fallback: none
+    auth: required (keys:manage)
+    notes: "Fail closed."
+  - path: /api/v1/auth/*
+    methods: [GET, POST, DELETE]
+    tier: A
+    primary: auth-gateway
+    fallback: none
+    auth: required
+    notes: "Cross-platform auth."
+  - path: /api/v1/oauth/*
+    methods: [GET, POST]
+    tier: A
+    primary: auth-gateway
+    fallback: none
+    auth: required
+    notes: "OAuth flows."
+  - path: /api/v1/projects/*
+    methods: [GET, POST]
+    tier: A
+    primary: auth-gateway
+    fallback: none
+    auth: required (projects:*)
+    notes: "Sensitive."
+  - path: /api/v1/config/*
+    methods: [GET, POST]
+    tier: A
+    primary: auth-gateway
+    fallback: none
+    auth: required (config:*)
+    notes: "Sensitive."
+  - path: /api/v1/intelligence/*
+    methods: [GET, POST]
+    tier: B
+    primary: Supabase edge (intelligence)
+    fallback: none
+    auth: optional/required (tbd)
+    notes: "High volume, low risk."
+  - path: /ws, /sse
+    methods: [GET]
+    tier: B
+    primary: MCP VPS
+    fallback: none
+    auth: optional
+    notes: "Realtime paths remain direct."
+  - path: /api/v1/health
+    methods: [GET]
+    tier: Public
+    primary: local
+    fallback: none
+    auth: none
+    notes: "Gateway health."

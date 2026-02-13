@@ -37,11 +37,12 @@ const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
  * Main authorization consent endpoint.
  * This is the authorization_path configured in Supabase dashboard.
  */
-router.get('/consent', (req, res) => {
+router.get('/consent', (req, res): void => {
   const { authorization_id } = req.query
 
   if (!authorization_id) {
-    return res.status(400).send(renderErrorPage('Missing authorization_id parameter'))
+    res.status(400).send(renderErrorPage('Missing authorization_id parameter'))
+    return
   }
 
   // Generate nonce for CSP

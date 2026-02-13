@@ -97,7 +97,11 @@ serve(async (req: Request) => {
 
     if (error) {
       console.error('List error:', error);
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to list memories', 500);
+      return createErrorResponse(
+        ErrorCode.DATABASE_ERROR,
+        `Failed to list memories: ${error.message || 'Unknown database error'}`,
+        500
+      );
     }
 
     // Calculate pagination info

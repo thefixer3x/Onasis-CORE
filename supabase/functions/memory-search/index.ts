@@ -3,12 +3,40 @@
  * POST /functions/v1/memory-search
  *
  * Performs semantic vector search on memories using pgvector
+ * Supports multiple embedding providers (OpenAI, Voyage AI)
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { authenticate, createSupabaseClient } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode, successResponse } from '../_shared/errors.ts';
+
+// Embedding provider configuration
+type EmbeddingProvider = 'openai' | 'voyage';
+
+const PROVIDER_CONFIG = {
+  openai: {
+    model: 'text-embedding-3-small',
+    url: 'https://api.openai.com/v1/embeddings',
+    rpcFunction: 'search_memories',
+  },
+  voyage: {
+    model: 'voyage-4',
+    url: 'https://api.voyageai.com/v1/embeddings',
+    rpcFunction: 'search_memories_voyage',
+  },
+} as const;
+
+function getProvider(): EmbeddingProvider {
+  const provider = Deno.env.get('EMBEDDING_PROVIDER')?.toLowerCase();
+  return provider === 'voyage' ? 'voyage' : 'openai';
+}
+
+function getApiKey(provider: EmbeddingProvider): string | undefined {
+  return provider === 'voyage'
+    ? Deno.env.get('VOYAGE_API_KEY')
+    : Deno.env.get('OPENAI_API_KEY');
+}
 
 interface SearchRequest {
   query: string;
@@ -38,11 +66,24 @@ serve(async (req: Request) => {
       });
     }
 
-    // Only allow POST
-    if (req.method !== 'POST') {
+    // Parse request - support both GET (query params) and POST (body)
+    let body: SearchRequest;
+
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      body = {
+        query: url.searchParams.get('query') || url.searchParams.get('q') || '',
+        memory_type: url.searchParams.get('type') || url.searchParams.get('memory_type') || undefined,
+        threshold: url.searchParams.has('threshold') ? Number(url.searchParams.get('threshold')) : undefined,
+        limit: url.searchParams.has('limit') ? Number(url.searchParams.get('limit')) : undefined,
+        tags: url.searchParams.has('tags') ? url.searchParams.get('tags')!.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+      };
+    } else if (req.method === 'POST') {
+      body = await req.json();
+    } else {
       const response = createErrorResponse(
         ErrorCode.VALIDATION_ERROR,
-        'Method not allowed. Use POST.',
+        'Method not allowed. Use GET or POST.',
         405
       );
       return new Response(response.body, {
@@ -50,9 +91,6 @@ serve(async (req: Request) => {
         headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
       });
     }
-
-    // Parse request body
-    const body: SearchRequest = await req.json();
 
     // Validate required fields
     if (!body.query || body.query.trim().length === 0) {
@@ -67,10 +105,13 @@ serve(async (req: Request) => {
       });
     }
 
-    // Generate embedding via OpenAI
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiKey) {
-      console.error('OPENAI_API_KEY not configured');
+    // Determine embedding provider
+    const provider = getProvider();
+    const providerConfig = PROVIDER_CONFIG[provider];
+    const apiKey = getApiKey(provider);
+
+    if (!apiKey) {
+      console.error(`${provider.toUpperCase()} API key not configured`);
       const response = createErrorResponse(
         ErrorCode.INTERNAL_ERROR,
         'Search service temporarily unavailable',
@@ -82,21 +123,23 @@ serve(async (req: Request) => {
       });
     }
 
-    const embeddingRes = await fetch('https://api.openai.com/v1/embeddings', {
+    // Generate embedding using configured provider
+    const embeddingBody = provider === 'voyage'
+      ? { input: [body.query], model: Deno.env.get('VOYAGE_MODEL') || providerConfig.model, input_type: 'query' }
+      : { model: providerConfig.model, input: body.query };
+
+    const embeddingRes = await fetch(providerConfig.url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'text-embedding-ada-002',
-        input: body.query,
-      }),
+      body: JSON.stringify(embeddingBody),
     });
 
     if (!embeddingRes.ok) {
       const error = await embeddingRes.text();
-      console.error('OpenAI embedding error:', error);
+      console.error(`${provider} embedding error:`, error);
       const response = createErrorResponse(
         ErrorCode.EMBEDDING_ERROR,
         'Failed to process search query',
@@ -111,12 +154,12 @@ serve(async (req: Request) => {
     const embeddingData = await embeddingRes.json();
     const queryEmbedding = embeddingData.data[0].embedding;
 
-    // Search via RPC function
+    // Search via provider-specific RPC function
     const supabase = createSupabaseClient();
     const threshold = body.threshold ?? 0.7;
     const limit = Math.min(body.limit ?? 10, 100);
 
-    const { data: results, error } = await supabase.rpc('search_memories', {
+    const { data: results, error } = await supabase.rpc(providerConfig.rpcFunction, {
       query_embedding: queryEmbedding,
       match_threshold: threshold,
       match_count: limit,
@@ -125,6 +168,19 @@ serve(async (req: Request) => {
     });
 
     if (error) {
+      if (provider === 'voyage') {
+        console.error('Voyage search RPC missing or misconfigured:', error);
+        const response = createErrorResponse(
+          ErrorCode.DATABASE_ERROR,
+          'Voyage vector search is not configured. Apply the voyage search migration.',
+          500,
+          error.message
+        );
+        return new Response(response.body, {
+          status: 500,
+          headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+        });
+      }
       console.error('Search RPC error:', error);
       const response = createErrorResponse(
         ErrorCode.DATABASE_ERROR,
@@ -146,7 +202,7 @@ serve(async (req: Request) => {
       );
     }
 
-    // Build response
+    // Build response (no vendor details exposed per vendor-abstraction guideline)
     const responseBody = {
       data: filteredResults,
       query: body.query,

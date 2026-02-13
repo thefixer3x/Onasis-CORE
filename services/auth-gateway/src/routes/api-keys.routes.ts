@@ -16,6 +16,11 @@ import {
 
 const router = Router()
 
+// Helper function to extract string param from potentially string | string[]
+const getStringParam = (param: string | string[]): string => {
+  return typeof param === 'string' ? param : param[0] || ''
+}
+
 /**
  * API Keys Routes - User-level API key management
  * Endpoint: /api/v1/auth/api-keys
@@ -241,7 +246,8 @@ router.get('/:keyId', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const apiKey = await getApiKey(req.params.keyId, req.user.sub)
+    const keyId = getStringParam(req.params.keyId)
+    const apiKey = await getApiKey(keyId, req.user.sub)
 
     return res.json({
       success: true,
@@ -287,7 +293,7 @@ router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
       })
     }
 
-    const apiKey = await updateApiKeyScopes(req.params.keyId, req.user.sub, scopes)
+    const apiKey = await updateApiKeyScopes(getStringParam(req.params.keyId), req.user.sub, scopes)
 
     return res.json({
       success: true,
@@ -324,7 +330,7 @@ router.post('/:keyId/rotate', requireAuth, async (req: Request, res: Response) =
   }
 
   try {
-    const apiKey = await rotateApiKey(req.params.keyId, req.user.sub)
+    const apiKey = await rotateApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success: true,
@@ -362,7 +368,7 @@ router.post('/:keyId/revoke', requireAuth, async (req: Request, res: Response) =
   }
 
   try {
-    await revokeApiKey(req.params.keyId, req.user.sub)
+    await revokeApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success: true,
@@ -399,7 +405,7 @@ router.delete('/:keyId', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    await deleteApiKey(req.params.keyId, req.user.sub)
+    await deleteApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success: true,
@@ -448,10 +454,10 @@ router.put('/:keyId/service-scopes', requireAuth, async (req: Request, res: Resp
       })
     }
 
-    await setApiKeyServiceScopes(req.params.keyId, req.user.sub, service_keys, rate_limits)
+    await setApiKeyServiceScopes(getStringParam(req.params.keyId), req.user.sub, service_keys, rate_limits)
 
     // Fetch updated key to return
-    const updatedKey = await getApiKey(req.params.keyId, req.user.sub)
+    const updatedKey = await getApiKey(getStringParam(req.params.keyId), req.user.sub)
 
     return res.json({
       success: true,

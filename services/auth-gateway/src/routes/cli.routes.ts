@@ -688,21 +688,23 @@ router.get("/cli-login", (req, res) => {
 router.post("/cli-login", mcpController.cliLogin);
 
 // CLI registration - POST route for new user signup
-router.post("/cli-register", async (req, res) => {
+router.post("/cli-register", async (req, res): Promise<void> => {
   const { email, password, confirm_password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({
+    res.status(400).json({
       error: "Email and password are required",
       success: false,
     });
+    return;
   }
 
   if (password !== confirm_password) {
-    return res.status(400).json({
+    res.status(400).json({
       error: "Passwords do not match",
       success: false,
     });
+    return;
   }
 
   try {
@@ -716,10 +718,11 @@ router.post("/cli-register", async (req, res) => {
     });
 
     if (error) {
-      return res.status(400).json({
+      res.status(400).json({
         error: error.message,
         success: false,
       });
+      return;
     }
 
     // Generate API key/token for the new user
