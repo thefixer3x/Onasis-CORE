@@ -605,8 +605,8 @@ function renderConsentPage(authorizationId: string, nonce: string): string {
   <script nonce="${nonce}">
     // Configuration
     const SUPABASE_URL = ${JSON.stringify(SUPABASE_URL)};
+    const SUPABASE_URL = ${JSON.stringify(SUPABASE_URL)};
     const SUPABASE_ANON_KEY = ${JSON.stringify(SUPABASE_ANON_KEY)};
-    const AUTHORIZATION_ID = '${authorizationId}';
 
     // Initialize Supabase
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
