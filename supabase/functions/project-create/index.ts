@@ -78,6 +78,12 @@ serve(async (req: Request) => {
       );
     }
 
+    // Sanitize settings to prevent overriding reserved metadata keys
+    const rawSettings = body.settings || {};
+    const settings: Record<string, unknown> = { ...rawSettings };
+    delete settings.organization_id;
+    delete settings.created_by;
+
     // Create project - using actual columns from control_room.projects facade view
     const projectData: Record<string, unknown> = {
       name: body.name.trim(),
@@ -85,9 +91,9 @@ serve(async (req: Request) => {
       type: 'memory',
       status: 'active',
       metadata: {
+        ...settings,
         organization_id: orgId,
         created_by: auth.user_id,
-        ...(body.settings || {}),
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),

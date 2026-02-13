@@ -102,7 +102,7 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-search" \
 **Example - Memory Search (GET):**
 ```bash
 curl "https://lanonasis.supabase.co/functions/v1/memory-search?query=how+to+configure+MCP&limit=10&threshold=0.7&type=knowledge" \
-  -H "X-API-Key: lano_master_key_2024"
+  -H "X-API-Key: $LANONASIS_API_KEY"
 ```
 
 **Example - Memory Stats:**

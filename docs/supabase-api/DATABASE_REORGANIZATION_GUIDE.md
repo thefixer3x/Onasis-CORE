@@ -699,8 +699,8 @@ export const getSupabaseClientWithRollout = (userId?: string) => {
     const useV2 = userPercentile < rolloutPercentage;
 
     return useV2
-      ? createClient(process.env.SUPABASE_URL
-      : createClient(process.env.SUPABASE_URL
+      ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
+      : createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY)
   }
 
   // No user ID: random assignment

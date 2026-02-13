@@ -53,6 +53,15 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
+    // Reject cross-tenant access unless master key
+    if (orgId && orgId !== auth.organization_id && !auth.is_master) {
+      return createErrorResponse(
+        ErrorCode.AUTHORIZATION_ERROR,
+        'Cannot list projects for other organizations',
+        403
+      );
+    }
+
     // Build query - scope by org via metadata if org filter provided
     const targetOrgId = orgId || auth.organization_id;
 

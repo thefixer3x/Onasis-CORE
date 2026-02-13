@@ -35,12 +35,12 @@ const logger = winston.createLogger({
 });
 
 // Supabase configuration
-const SUPABASE_URL
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
-if (!SUPABASE_URL
-  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL
+if (!SUPABASE_URL) {
+  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL');
   process.exit(1);
 }
 
@@ -238,15 +238,15 @@ const sanitizeResponse = (data) => {
 
 // Route to Supabase edge function
 const routeToSupabase = async (req, serviceName, supabasePath) => {
-  const url = `${SUPABASE_URL
+  const url = `${SUPABASE_URL}${supabasePath}`;
   const sanitizedBody = sanitizeRequestBody(req.body);
   const requestStartTime = Date.now();
   
   // Prepare headers for Supabase
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${SUPABASE_ANON_KEY}
-    'apikey': SUPABASE_ANON_KEY}
+    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+    'apikey': SUPABASE_ANON_KEY,
     'User-Agent': 'Onasis-CORE/1.0',
     // Forward specific headers while maintaining privacy
     ...(req.headers['x-service'] && { 'X-Service': req.headers['x-service'] }),
@@ -320,7 +320,7 @@ app.get('/health', (req, res) => {
     service: 'Onasis-CORE Unified Router',
     version: '1.0.0',
     uptime: Math.floor(process.uptime()),
-    supabase_url: SUPABASE_URL
+    supabase_url: SUPABASE_URL,
     available_services: Object.keys(SERVICE_ROUTES),
     privacy_level: 'high',
     features: [
@@ -492,13 +492,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 app.listen(PORT, '0.0.0.0', () => {
   logger.info('Onasis-CORE Unified Router started', {
     port: PORT,
-    supabase_url: SUPABASE_URL
+    supabase_url: SUPABASE_URL,
     available_services: Object.keys(SERVICE_ROUTES),
     environment: process.env.NODE_ENV || 'development'
   });
   
   console.log(`🌐 Onasis-CORE Unified Router running on port ${PORT}`);
-  console.log(`🔗 Supabase URL: ${SUPABASE_URL
+  console.log(`🔗 Supabase URL: ${SUPABASE_URL}`);
   console.log(`🛡️  Privacy protection: ENABLED`);
   console.log(`🔀 Service routing: ACTIVE`);
   console.log(`📊 Available services: ${Object.keys(SERVICE_ROUTES).length}`);

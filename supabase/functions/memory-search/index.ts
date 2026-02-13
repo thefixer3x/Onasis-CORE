@@ -23,7 +23,7 @@ const PROVIDER_CONFIG = {
   voyage: {
     model: 'voyage-4',
     url: 'https://api.voyageai.com/v1/embeddings',
-    rpcFunction: 'search_memories', // Uses same function - now supports voyage_embedding
+    rpcFunction: 'search_memories_voyage',
   },
 } as const;
 
@@ -168,6 +168,19 @@ serve(async (req: Request) => {
     });
 
     if (error) {
+      if (provider === 'voyage') {
+        console.error('Voyage search RPC missing or misconfigured:', error);
+        const response = createErrorResponse(
+          ErrorCode.DATABASE_ERROR,
+          'Voyage vector search is not configured. Apply the voyage search migration.',
+          500,
+          error.message
+        );
+        return new Response(response.body, {
+          status: 500,
+          headers: { ...corsHeaders(req), 'Content-Type': 'application/json' },
+        });
+      }
       console.error('Search RPC error:', error);
       const response = createErrorResponse(
         ErrorCode.DATABASE_ERROR,
