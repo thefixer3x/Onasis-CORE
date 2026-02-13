@@ -228,7 +228,7 @@ class AIServiceRouter {
         'User-Agent': 'Onasis-CORE/1.0',
         'X-Forwarded-For': req.ip,
         // Include SD-Ghost Protocol memory API key
-        'Authorization': `Bearer ${process.env.SD_GHOST_MEMORY_API_KEY || 'sk_test_ghost_memory_2024_secure_api_key_v1'}`
+        'Authorization': `Bearer ${process.env.SD_GHOST_MEMORY_API_KEY}`
       },
       body: req.method !== 'GET' ? JSON.stringify(requestBody) : undefined,
       timeout: 60000
@@ -261,8 +261,8 @@ class AIServiceRouter {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}
-        'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY}
+        'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}`,
+        'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY,
         'User-Agent': 'Onasis-CORE/1.0'
       },
       body: req.method !== 'GET' ? JSON.stringify(requestBody) : undefined,
@@ -370,8 +370,8 @@ class AIServiceRouter {
       const supabaseResponse = await fetch(`${this.sdGhostSupabaseUrl}/functions/v1/generate-summary`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}
-          'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY}
+          'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}`,
+          'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ content: 'test' }),

@@ -28,19 +28,19 @@ serve(async (req: Request) => {
     }
 
     // Parse params
-    let orgId: string | undefined;
     let limit = 50;
     let offset = 0;
+    let requestedOrgId: string | undefined;
 
     if (req.method === 'GET') {
       const url = new URL(req.url);
-      orgId = url.searchParams.get('organization_id') || undefined;
+      requestedOrgId = url.searchParams.get('organization_id') || undefined;
       limit = parseInt(url.searchParams.get('limit') || '50', 10);
       offset = parseInt(url.searchParams.get('offset') || '0', 10);
     } else {
       try {
         const body = await req.json();
-        orgId = body.organization_id;
+        requestedOrgId = body.organization_id;
         limit = body.limit || 50;
         offset = body.offset || 0;
       } catch {
@@ -48,11 +48,8 @@ serve(async (req: Request) => {
       }
     }
 
-    // Use provided org_id or default to user's org
-    const targetOrgId = orgId || auth.organization_id;
-
     // Only master keys can list projects from other orgs
-    if (orgId && orgId !== auth.organization_id && !auth.is_master) {
+    if (requestedOrgId && requestedOrgId !== auth.organization_id && !auth.is_master) {
       return createErrorResponse(
         ErrorCode.AUTHORIZATION_ERROR,
         'Cannot access projects from other organizations',
@@ -60,9 +57,12 @@ serve(async (req: Request) => {
       );
     }
 
+    // Use provided org_id or default to user's org (only for master keys)
+    const targetOrgId = (auth.is_master && requestedOrgId) ? requestedOrgId : auth.organization_id;
+
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+      Deno.env.get('SUPABASE_URL') || '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     );
 
     // Get total count
