@@ -26,6 +26,8 @@
 # Memory Bulk Operations
 /api/v1/memory/bulk/delete  https://lanonasis.supabase.co/functions/v1/memory-bulk-delete  200!
 /api/v1/memories/bulk/delete https://lanonasis.supabase.co/functions/v1/memory-bulk-delete 200!
+/api/v1/memory/bulk-delete  https://lanonasis.supabase.co/functions/v1/memory-bulk-delete  200!
+/api/v1/memories/bulk-delete https://lanonasis.supabase.co/functions/v1/memory-bulk-delete 200!
 
 # Memory Health Check
 /api/v1/memory/health       https://lanonasis.supabase.co/functions/v1/system-health       200!
@@ -197,4 +199,3 @@
 
 # Catch-all for API Gateway (LOWEST PRIORITY - catch remaining routes)
 /api/*            /.netlify/functions/api-gateway/:splat        200
-
