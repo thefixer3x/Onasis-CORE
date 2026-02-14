@@ -5,7 +5,37 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://lanonasis.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://lanonasis.supabase.co';
+
+function normalizeSupabaseUrl(value: string): string {
+  const trimmed = value.trim().replace(/\/+$/, '');
+  // Some environments provide the edge base already; normalize to the project base URL.
+  return trimmed.replace(/\/functions\/v1$/, '');
+}
+
+function resolveSupabaseUrl(): string {
+  const envValue = process.env.SUPABASE_URL;
+  if (!envValue) {
+    return DEFAULT_SUPABASE_URL;
+  }
+
+  // Common placeholders/templates that should not be used as a real URL.
+  if (envValue.includes('<project-ref>') || envValue.includes('your-project')) {
+    return DEFAULT_SUPABASE_URL;
+  }
+
+  try {
+    const normalized = normalizeSupabaseUrl(envValue);
+    // Validate it parses as a URL (throws on invalid).
+    // eslint-disable-next-line no-new
+    new URL(normalized);
+    return normalized;
+  } catch {
+    return DEFAULT_SUPABASE_URL;
+  }
+}
+
+const SUPABASE_URL = resolveSupabaseUrl();
 const TEST_API_KEY = process.env.TEST_API_KEY || 'lano_master_key_2024';
 
 interface IntelligenceResponse {
