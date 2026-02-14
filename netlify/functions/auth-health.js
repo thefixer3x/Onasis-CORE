@@ -25,7 +25,7 @@ exports.handler = async (event, context) => {
   
   try {
     // Check if auth service environment variables are set
-    if (!process.env.SUPABASE_URL
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
       authStatus = 'degraded';
     }
   } catch (error) {
