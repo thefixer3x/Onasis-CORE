@@ -228,7 +228,7 @@ class AIServiceRouter {
         'User-Agent': 'Onasis-CORE/1.0',
         'X-Forwarded-For': req.ip,
         // Include SD-Ghost Protocol memory API key
-        'Authorization': `Bearer ${process.env.SD_GHOST_MEMORY_API_KEY || 'sk_test_ghost_memory_2024_secure_api_key_v1'}`
+        'Authorization': `Bearer ${process.env.SD_GHOST_MEMORY_API_KEY}`
       },
       body: req.method !== 'GET' ? JSON.stringify(requestBody) : undefined,
       timeout: 60000

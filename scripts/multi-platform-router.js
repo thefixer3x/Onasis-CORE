@@ -71,10 +71,6 @@ const SD_GHOST_SUPABASE_URL = process.env.SD_GHOST_SUPABASE_URL || '';
 // Onasis-CORE Partnership Management (separate Supabase project)
 const ONASIS_SUPABASE_URL = process.env.ONASIS_SUPABASE_URL || '';
 const ONASIS_SUPABASE_SERVICE_KEY = process.env.ONASIS_SUPABASE_SERVICE_KEY || '';
-const ONASIS_SUPABASE_ANON_KEY = process.env.ONASIS_SUPABASE_ANON_KEY || '';
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 const JWT_SECRET = process.env.JWT_SECRET || '';
 
 // Enhanced logging
@@ -94,9 +90,9 @@ const logger = winston.createLogger({
 });
 
 // Validate required environment variables
-if (!SD_GHOST_VPS_URL || !SD_GHOST_SUPABASE_URL || !SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_KEY) {
+if (!SD_GHOST_VPS_URL || !SD_GHOST_SUPABASE_URL) {
   logger.error('Missing required environment variables. Please check your .env file.');
-  logger.error('Required: SD_GHOST_VPS_URL, SD_GHOST_SUPABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY');
+  logger.error('Required: SD_GHOST_VPS_URL, SD_GHOST_SUPABASE_URL environment variables');
   process.exit(1);
 }
 
@@ -183,7 +179,7 @@ const billingRateLimit = createPlatformRateLimit(60 * 1000, 200);
 const authenticateUser = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
-    
+
     if (!token) {
       return res.status(401).json({
         error: {
@@ -193,26 +189,26 @@ const authenticateUser = async (req, res, next) => {
         }
       });
     }
-    
+
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     // Fetch user from Onasis-CORE Supabase project
-    const userResponse = await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/users?select=id,email&limit=1&id=eq.${decoded.sub}`, {
+    const userResponse = await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/users?id=eq.${decoded.sub}`, {
       headers: {
         'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY}`,
         'apikey': ONASIS_SUPABASE_SERVICE_KEY,
         'Content-Type': 'application/json'
       }
     });
-    
+
     if (!userResponse.ok) {
       throw new Error('User not found');
     }
-    
+
     const userData = await userResponse.json();
     req.user = userData[0] || { id: decoded.sub };
-    
+
     next();
   } catch (error) {
     logger.error('Authentication failed', { error: error.message });
@@ -261,7 +257,7 @@ const trackUsage = async (req, res, next) => {
 const logUsage = async (usage) => {
   try {
     // Store usage in Onasis-CORE Supabase for vendor billing
-    await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/usage_analytics`, {
+    await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/usage`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY}`,
@@ -343,19 +339,19 @@ app.post('/auth/register', authRateLimit, async (req, res) => {
         }
       })
     });
-    
+
     const authData = await authResponse.json();
-    
+
     if (!authResponse.ok) {
       throw new Error(authData.error_description || 'Registration failed');
     }
-    
+
     // Create user profile
-    await fetch(`${SUPABASE_URL}/rest/v1/users`, {
+    await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/user_profiles`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY}`,
+        'apikey': ONASIS_SUPABASE_SERVICE_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -407,27 +403,27 @@ app.post('/auth/login', authRateLimit, async (req, res) => {
     }
     
     // Authenticate with Supabase
-    const authResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    const authResponse = await fetch(`${ONASIS_SUPABASE_URL}/auth/v1/token?grant_type=password`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${ONASIS_SUPABASE_ANON_KEY}`,
+        'apikey': ONASIS_SUPABASE_ANON_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ email, password })
     });
-    
+
     const authData = await authResponse.json();
-    
+
     if (!authResponse.ok) {
       throw new Error('Invalid credentials');
     }
-    
+
     // Get user profile
-    const profileResponse = await fetch(`${SUPABASE_URL}/rest/v1/users?select=*&limit=1&id=eq.${authData.user.id}`, {
+    const profileResponse = await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/user_profiles?user_id=eq.${authData.user.id}`, {
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'apikey': SUPABASE_SERVICE_KEY
+        'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY}`,
+        'apikey': ONASIS_SUPABASE_SERVICE_KEY
       }
     });
     
@@ -465,11 +461,11 @@ app.get('/billing/usage', billingRateLimit, authenticateUser, async (req, res) =
     let query = `user_id=eq.${req.user.id}`;
     if (start_date) query += `&timestamp=gte.${start_date}`;
     if (end_date) query += `&timestamp=lte.${end_date}`;
-    
-    const usageResponse = await fetch(`${SUPABASE_URL}/rest/v1/usage_analytics?select=*&${query}`, {
+
+    const usageResponse = await fetch(`${ONASIS_SUPABASE_URL}/rest/v1/usage?${query}`, {
       headers: {
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'apikey': SUPABASE_SERVICE_KEY
+        'Authorization': `Bearer ${ONASIS_SUPABASE_SERVICE_KEY}`,
+        'apikey': ONASIS_SUPABASE_SERVICE_KEY
       }
     });
     
@@ -577,9 +573,9 @@ app.use('/api/:service', apiRateLimit, trackUsage, async (req, res) => {
 
 // Route to Supabase with platform-specific branding
 const routeToSupabaseWithBranding = async (req, serviceName, supabasePath, platform) => {
-  const url = `${SUPABASE_URL}${supabasePath}`;
+  const url = `${SD_GHOST_SUPABASE_URL}${supabasePath}`;
   const requestStartTime = Date.now();
-  
+
   // Add platform context to request body
   const enhancedBody = {
     ...req.body,
@@ -590,11 +586,11 @@ const routeToSupabaseWithBranding = async (req, serviceName, supabasePath, platf
       target_audience: platform.target
     }
   };
-  
+
   const headers = {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    'apikey': SUPABASE_ANON_KEY,
+    'Authorization': `Bearer ${process.env.SD_GHOST_SUPABASE_ANON_KEY}`,
+    'apikey': process.env.SD_GHOST_SUPABASE_ANON_KEY,
     'User-Agent': `${platform.brand}/1.0`,
     'X-Platform': platform.brand
   };

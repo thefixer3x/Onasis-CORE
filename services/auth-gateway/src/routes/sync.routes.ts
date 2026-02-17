@@ -29,8 +29,7 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
     const webhookSecret = process.env.WEBHOOK_SECRET || ""
     if (!webhookSecret) {
       console.error('CRITICAL: WEBHOOK_SECRET environment variable not set');
-      res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
-      return
+      return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -192,8 +191,7 @@ router.post('/user', async (req: Request, res: Response): Promise<void> => {
     const webhookSecret = process.env.WEBHOOK_SECRET || ""
     if (!webhookSecret) {
       console.error('CRITICAL: WEBHOOK_SECRET environment variable not set');
-      res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
-      return
+      return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
       res.status(401).json({ error: 'Unauthorized' })

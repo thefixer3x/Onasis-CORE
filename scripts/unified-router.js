@@ -39,8 +39,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || '';
 
-if (!SUPABASE_URL) {
-  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL');
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  logger.error('Missing required Supabase configuration. Please set SUPABASE_URL and SUPABASE_ANON_KEY');
   process.exit(1);
 }
 
@@ -241,7 +241,7 @@ const routeToSupabase = async (req, serviceName, supabasePath) => {
   const url = `${SUPABASE_URL}${supabasePath}`;
   const sanitizedBody = sanitizeRequestBody(req.body);
   const requestStartTime = Date.now();
-  
+
   // Prepare headers for Supabase
   const headers = {
     'Content-Type': 'application/json',
@@ -496,7 +496,7 @@ app.listen(PORT, '0.0.0.0', () => {
     available_services: Object.keys(SERVICE_ROUTES),
     environment: process.env.NODE_ENV || 'development'
   });
-  
+
   console.log(`🌐 Onasis-CORE Unified Router running on port ${PORT}`);
   console.log(`🔗 Supabase URL: ${SUPABASE_URL}`);
   console.log(`🛡️  Privacy protection: ENABLED`);

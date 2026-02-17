@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const { Pool } = pg;
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL
 
 const migrations = [
   '003_create_api_keys_table.sql',

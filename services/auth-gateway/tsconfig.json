@@ -11,9 +11,9 @@
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "strict": false,
-    "strictNullChecks": false,
-    "noImplicitAny": false,
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
     "outDir": "dist",
     "rootDir": ".",
     "paths": {

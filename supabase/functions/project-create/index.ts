@@ -58,8 +58,8 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+      Deno.env.get('SUPABASE_URL') || '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
     );
 
     // Check for duplicate name in org (via metadata->organization_id)
@@ -78,23 +78,25 @@ serve(async (req: Request) => {
       );
     }
 
-    // Sanitize settings to prevent overriding reserved metadata keys
-    const rawSettings = body.settings || {};
-    const settings: Record<string, unknown> = { ...rawSettings };
-    delete settings.organization_id;
-    delete settings.created_by;
+    // Validate and filter user-provided settings to prevent privilege escalation
+    const allowedSettingKeys = ['visibility', 'require_auth', 'enable_ai', 'enable_memory', 'max_storage_gb'];
+    const validatedSettings: Record<string, any> = {};
 
-    // Create project - using actual columns from control_room.projects facade view
-    const projectData: Record<string, unknown> = {
+    if (body.settings && typeof body.settings === 'object') {
+      for (const key of allowedSettingKeys) {
+        if (key in body.settings) {
+          validatedSettings[key] = body.settings[key];
+        }
+      }
+    }
+
+    // Create project
+    const projectData = {
       name: body.name.trim(),
       description: body.description?.trim() || null,
-      type: 'memory',
-      status: 'active',
-      metadata: {
-        ...settings,
-        organization_id: orgId,
-        created_by: auth.user_id,
-      },
+      organization_id: orgId,
+      created_by: auth.user_id,
+      settings: validatedSettings,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

@@ -34,22 +34,7 @@ export interface AccessCheck {
 // Environment
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-
-// Embedding provider configuration
-type EmbeddingProvider = 'openai' | 'voyage';
-const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() || 'openai') as EmbeddingProvider;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-const VOYAGE_API_KEY = Deno.env.get("VOYAGE_API_KEY");
-
-// Get the appropriate API key based on provider
-function getEmbeddingApiKey(): string {
-  if (EMBEDDING_PROVIDER === 'voyage') {
-    if (!VOYAGE_API_KEY) throw new Error("VOYAGE_API_KEY not configured");
-    return VOYAGE_API_KEY;
-  }
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
-  return OPENAI_API_KEY;
-}
+const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
 
 // Create Supabase client with service role
 export function getSupabaseClient() {

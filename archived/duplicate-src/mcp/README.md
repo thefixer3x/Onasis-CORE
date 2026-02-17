@@ -306,8 +306,8 @@ upstream mcp-backend {
 
 ```bash
 # Required
-SUPABASE_URL=https://<project-ref>.supabase.co
-SUPABASE_SERVICE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY=your-openai-key
 
 # Optional

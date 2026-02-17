@@ -24,7 +24,7 @@ export function generateTokenPair(payload) {
  */
 export function verifyToken(token) {
     try {
-        return jwt.verify(token, env.JWT_SECRET);
+        return jwt.verify(token, env.JWT_SECRET
     }
     catch (error) {
         if (error instanceof jwt.TokenExpiredError) {

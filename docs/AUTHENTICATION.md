@@ -278,9 +278,9 @@ ACCESS_TOKEN_TTL_SECONDS=900     # 15 minutes
 REFRESH_TOKEN_TTL_SECONDS=2592000 # 30 days
 
 # Database
-DATABASE_URL=process.env.DATABASE_URL
-SUPABASE_URL=process.env.SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY=process.env.SUPABASE_SERVICE_ROLE_KEY
+postgresql://<user>:<password>@<host>:<port>/<db>
+https://<project-ref>.supabase.co
+REDACTED_SUPABASE_SERVICE_ROLE_KEY=REDACTED_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ## Troubleshooting
