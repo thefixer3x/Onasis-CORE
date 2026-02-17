@@ -343,7 +343,7 @@ app.listen(env.PORT, async () => {
   console.log(`🚀 Auth gateway running on port ${env.PORT} in ${env.NODE_ENV} mode`)
   console.log(`📍 Health check: http://localhost:${env.PORT}/health`)
   console.log(`🧪 E2E Test Client: http://localhost:${env.PORT}/test-client`)
-  console.log(`🔐 Auth endpoints:`)
+  console.log(`🛠️  Auth Tester: http://localhost:${env.PORT}/auth-tester`)
   console.log(`   - POST /v1/auth/login`)
   console.log(`   - POST /v1/auth/logout`)
   console.log(`   - GET  /v1/auth/session`)
@@ -389,3 +389,11 @@ process.on('SIGINT', async () => {
   await closeRedis()
   process.exit(0)
 })
+
+// Auth Tester Interface - serves comprehensive auth testing UI
+// Available at /auth-tester for testing all 9 auth methods
+app.get('/auth-tester', (_req, res) => {
+  res.sendFile(path.join(__dirname, 'auth-tester', 'index.html'));
+});
+app.use('/auth-tester', express.static(path.join(__dirname, 'auth-tester')));
+

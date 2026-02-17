@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LanOnasis Auth Gateway - Testing Interface</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 LanOnasis Auth Gateway - Testing Interface</h1>
+            <p>Comprehensive testing suite for all 9 authentication methods</p>
+        </header>
+
+        <nav class="auth-methods-nav">
+            <h2>Select Authentication Method:</h2>
+            <div class="method-grid">
+                <button class="method-btn active" data-method="oauth-pkce">OAuth 2.0 + PKCE</button>
+                <button class="method-btn" data-method="api-key">API Key Authentication</button>
+                <button class="method-btn" data-method="jwt">JWT Authentication</button>
+                <button class="method-btn" data-method="session">Session Cookies</button>
+                <button class="method-btn" data-method="otp">OTP Authentication</button>
+                <button class="method-btn" data-method="device">Device Code Flow</button>
+                <button class="method-btn" data-method="uai">Universal Auth Identifier (UAI)</button>
+                <button class="method-btn" data-method="mcp">MCP OAuth</button>
+                <button class="method-btn" data-method="cli">CLI Authentication</button>
+            </div>
+        </nav>
+
+        <main class="auth-method-container">
+            <!-- OAuth 2.0 + PKCE Section -->
+            <section id="oauth-pkce-section" class="auth-section active">
+                <h2>OAuth 2.0 + PKCE Authentication</h2>
+                <div class="form-group">
+                    <label for="oauth-client-id">Client ID:</label>
+                    <input type="text" id="oauth-client-id" placeholder="Enter client ID">
+                </div>
+                <div class="form-group">
+                    <label for="oauth-redirect-uri">Redirect URI:</label>
+                    <input type="text" id="oauth-redirect-uri" placeholder="https://example.com/callback">
+                </div>
+                <div class="form-group">
+                    <label for="oauth-scopes">Scopes (space separated):</label>
+                    <input type="text" id="oauth-scopes" placeholder="openid profile email">
+                </div>
+                <div class="form-group">
+                    <label for="oauth-state">State (optional):</label>
+                    <input type="text" id="oauth-state" placeholder="random-state-string">
+                </div>
+                <div class="form-group">
+                    <label for="oauth-response-type">Response Type:</label>
+                    <select id="oauth-response-type">
+                        <option value="code">code</option>
+                    </select>
+                </div>
+                <button id="oauth-start-btn" class="primary-btn">Start OAuth Flow</button>
+                <button id="oauth-test-btn" class="secondary-btn">Test Existing Tokens</button>
+                
+                <div class="redirect-section">
+                    <h3>Redirect URI Testing</h3>
+                    <div class="form-group">
+                        <label for="test-redirect-uri">Test Redirect URI:</label>
+                        <input type="text" id="test-redirect-uri" placeholder="https://example.com/callback">
+                    </div>
+                    <button id="test-redirect-btn" class="secondary-btn">Test Redirect</button>
+                </div>
+            </section>
+
+            <!-- API Key Authentication Section -->
+            <section id="api-key-section" class="auth-section">
+                <h2>API Key Authentication</h2>
+                <div class="form-group">
+                    <label for="api-key-input">API Key:</label>
+                    <input type="password" id="api-key-input" placeholder="Enter your API key">
+                </div>
+                <div class="form-group">
+                    <label for="api-key-endpoint">Test Endpoint:</label>
+                    <input type="text" id="api-key-endpoint" placeholder="/api/v1/users/me">
+                </div>
+                <button id="api-key-test-btn" class="primary-btn">Test API Key Authentication</button>
+            </section>
+
+            <!-- JWT Authentication Section -->
+            <section id="jwt-section" class="auth-section">
+                <h2>JWT Authentication</h2>
+                <div class="form-group">
+                    <label for="jwt-token">JWT Token:</label>
+                    <textarea id="jwt-token" placeholder="Enter your JWT token"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="jwt-test-endpoint">Test Endpoint:</label>
+                    <input type="text" id="jwt-test-endpoint" placeholder="/api/v1/profile">
+                </div>
+                <button id="jwt-test-btn" class="primary-btn">Test JWT Authentication</button>
+                <button id="jwt-validate-btn" class="secondary-btn">Validate JWT</button>
+            </section>
+
+            <!-- Session Authentication Section -->
+            <section id="session-section" class="auth-section">
+                <h2>Session Cookie Authentication</h2>
+                <div class="form-group">
+                    <label for="session-cookie">Session Cookie Value:</label>
+                    <input type="text" id="session-cookie" placeholder="session_cookie_value">
+                </div>
+                <div class="form-group">
+                    <label for="session-test-endpoint">Test Endpoint:</label>
+                    <input type="text" id="session-test-endpoint" placeholder="/api/v1/session">
+                </div>
+                <button id="session-test-btn" class="primary-btn">Test Session Authentication</button>
+            </section>
+
+            <!-- OTP Authentication Section -->
+            <section id="otp-section" class="auth-section">
+                <h2>OTP Authentication</h2>
+                <div class="form-group">
+                    <label for="otp-email">Email Address:</label>
+                    <input type="email" id="otp-email" placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="otp-type">OTP Type:</label>
+                    <select id="otp-type">
+                        <option value="email">Email Code</option>
+                        <option value="magiclink">Magic Link</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="otp-platform">Platform:</label>
+                    <select id="otp-platform">
+                        <option value="web">Web</option>
+                        <option value="cli">CLI</option>
+                        <option value="api">API</option>
+                        <option value="mcp">MCP</option>
+                    </select>
+                </div>
+                <button id="otp-send-btn" class="primary-btn">Send OTP</button>
+                
+                <div class="otp-verify-section">
+                    <h3>Verify OTP</h3>
+                    <div class="form-group">
+                        <label for="otp-verify-code">OTP Code:</label>
+                        <input type="text" id="otp-verify-code" placeholder="123456">
+                    </div>
+                    <button id="otp-verify-btn" class="secondary-btn">Verify OTP</button>
+                </div>
+            </section>
+
+            <!-- Device Code Flow Section -->
+            <section id="device-section" class="auth-section">
+                <h2>Device Code Flow (RFC 8628)</h2>
+                <div class="form-group">
+                    <label for="device-client-id">Client ID:</label>
+                    <input type="text" id="device-client-id" placeholder="device-client-id">
+                </div>
+                <div class="form-group">
+                    <label for="device-scopes">Scopes:</label>
+                    <input type="text" id="device-scopes" placeholder="openid profile">
+                </div>
+                <button id="device-start-btn" class="primary-btn">Start Device Flow</button>
+                
+                <div class="device-poll-section">
+                    <h3>Poll for Authorization</h3>
+                    <div class="form-group">
+                        <label for="device-code">Device Code:</label>
+                        <input type="text" id="device-code" placeholder="device-code-from-server">
+                    </div>
+                    <button id="device-poll-btn" class="secondary-btn">Poll for Token</button>
+                </div>
+            </section>
+
+            <!-- UAI Authentication Section -->
+            <section id="uai-section" class="auth-section">
+                <h2>Universal Auth Identifier (UAI)</h2>
+                <div class="form-group">
+                    <label for="uai-identifier">UAI Identifier:</label>
+                    <input type="text" id="uai-identifier" placeholder="universal-auth-identifier">
+                </div>
+                <div class="form-group">
+                    <label for="uai-test-endpoint">Test Endpoint:</label>
+                    <input type="text" id="uai-test-endpoint" placeholder="/v1/auth/resolve">
+                </div>
+                <button id="uai-test-btn" class="primary-btn">Test UAI Resolution</button>
+                <button id="uai-create-btn" class="secondary-btn">Create UAI Token</button>
+            </section>
+
+            <!-- MCP OAuth Section -->
+            <section id="mcp-section" class="auth-section">
+                <h2>MCP OAuth (RFC 8414 + RFC 7591)</h2>
+                <div class="form-group">
+                    <label for="mcp-client-name">Client Name:</label>
+                    <input type="text" id="mcp-client-name" placeholder="My MCP Client">
+                </div>
+                <div class="form-group">
+                    <label for="mcp-redirect-uris">Redirect URIs (comma separated):</label>
+                    <input type="text" id="mcp-redirect-uris" placeholder="http://localhost:3000/callback,https://myapp.com/callback">
+                </div>
+                <div class="form-group">
+                    <label for="mcp-scopes">Scopes:</label>
+                    <input type="text" id="mcp-scopes" placeholder="memories:read memories:write mcp:connect">
+                </div>
+                <button id="mcp-register-btn" class="primary-btn">Register MCP Client</button>
+                
+                <div class="mcp-discovery-section">
+                    <h3>Discovery Endpoints</h3>
+                    <button id="mcp-discover-btn" class="secondary-btn">Get OAuth Metadata</button>
+                    <button id="mcp-well-known-btn" class="secondary-btn">Get Well-Known Config</button>
+                </div>
+            </section>
+
+            <!-- CLI Authentication Section -->
+            <section id="cli-section" class="auth-section">
+                <h2>CLI Authentication</h2>
+                <div class="form-group">
+                    <label for="cli-username">Username/Email:</label>
+                    <input type="text" id="cli-username" placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="cli-password">Password:</label>
+                    <input type="password" id="cli-password" placeholder="password">
+                </div>
+                <button id="cli-login-btn" class="primary-btn">Login via CLI Endpoint</button>
+                
+                <div class="cli-token-section">
+                    <h3>Test CLI Token</h3>
+                    <div class="form-group">
+                        <label for="cli-token">CLI Token:</label>
+                        <input type="text" id="cli-token" placeholder="cli-token-value">
+                    </div>
+                    <button id="cli-test-btn" class="secondary-btn">Test CLI Token</button>
+                </div>
+            </section>
+        </main>
+
+        <div class="results-panel">
+            <h2>Test Results & Logs</h2>
+            <div id="results-content">
+                <p>Results will appear here after running tests...</p>
+            </div>
+            <button id="clear-results-btn" class="secondary-btn">Clear Results</button>
+        </div>
+
+        <footer>
+            <p>LanOnasis Auth Gateway Testing Interface | Debug Mode</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
