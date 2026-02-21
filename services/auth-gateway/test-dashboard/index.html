@@ -3,1339 +3,1468 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Auth Gateway - E2E Test Client</title>
+  <title>Auth Gateway — Test Suite</title>
   <style>
     :root {
       --bg-primary: #0a0a0b;
       --bg-secondary: #141416;
       --bg-tertiary: #1c1c1f;
+      --bg-card: #18181b;
       --text-primary: #f4f4f5;
       --text-secondary: #a1a1aa;
+      --text-muted: #52525b;
       --accent: #3b82f6;
       --accent-hover: #2563eb;
+      --accent-dim: rgba(59,130,246,0.12);
       --success: #22c55e;
+      --success-dim: rgba(34,197,94,0.12);
       --error: #ef4444;
+      --error-dim: rgba(239,68,68,0.12);
       --warning: #f59e0b;
+      --warning-dim: rgba(245,158,11,0.12);
+      --purple: #a855f7;
+      --purple-dim: rgba(168,85,247,0.12);
       --border: #27272a;
+      --border-light: #3f3f46;
     }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.6;min-height:100vh}
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ── Layout ── */
+    .app{display:grid;grid-template-columns:240px 1fr;grid-template-rows:56px 1fr;min-height:100vh}
+    .topbar{grid-column:1/-1;display:flex;align-items:center;gap:16px;padding:0 24px;background:var(--bg-secondary);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+    .topbar-logo{font-size:0.95rem;font-weight:700;letter-spacing:-0.3px;color:var(--text-primary)}
+    .topbar-logo span{color:var(--accent)}
+    .topbar-env{display:flex;align-items:center;gap:8px;margin-left:auto}
+    .topbar-env select,.topbar-env input{padding:6px 10px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.8rem}
+    .topbar-env input{min-width:220px}
+    .sidebar{background:var(--bg-secondary);border-right:1px solid var(--border);padding:16px 0;overflow-y:auto}
+    .sidebar-section{padding:0 12px;margin-bottom:4px}
+    .sidebar-label{font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:8px 8px 4px}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:0.85rem;color:var(--text-secondary);transition:all 0.15s;border:none;background:none;width:100%;text-align:left}
+    .nav-item:hover{background:var(--bg-tertiary);color:var(--text-primary)}
+    .nav-item.active{background:var(--accent-dim);color:var(--accent);font-weight:500}
+    .nav-item .icon{font-size:1rem;width:20px;text-align:center;flex-shrink:0}
+    .nav-badge{margin-left:auto;font-size:0.65rem;padding:2px 6px;border-radius:10px;background:var(--bg-tertiary);color:var(--text-muted)}
+    .nav-item.active .nav-badge{background:var(--accent-dim);color:var(--accent)}
+    .main{overflow-y:auto;padding:24px}
+    .tab-panel{display:none}
+    .tab-panel.active{display:block}
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      line-height: 1.6;
-      min-height: 100vh;
-    }
+    /* ── Cards ── */
+    .card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px}
+    .card-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+    .card-header h2{font-size:1rem;font-weight:600;flex:1}
+    .step-num{width:26px;height:26px;display:flex;align-items:center;justify-content:center;background:var(--accent);color:#fff;border-radius:50%;font-size:0.8rem;font-weight:700;flex-shrink:0}
+    .step-num.done{background:var(--success)}
+    .step-num.fail{background:var(--error)}
 
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      padding: 40px 20px;
-    }
+    /* ── Form ── */
+    .form-group{margin-bottom:14px}
+    .form-group label{display:block;font-size:0.72rem;color:var(--text-secondary);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px;font-weight:500}
+    .form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:7px;color:var(--text-primary);font-size:0.875rem;transition:border-color 0.15s}
+    .form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--accent)}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 
-    header {
-      text-align: center;
-      margin-bottom: 40px;
-    }
+    /* ── Buttons ── */
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border:none;border-radius:7px;font-size:0.875rem;font-weight:500;cursor:pointer;transition:all 0.15s;white-space:nowrap}
+    .btn-primary{background:var(--accent);color:#fff}
+    .btn-primary:hover{background:var(--accent-hover)}
+    .btn-success{background:var(--success);color:#fff}
+    .btn-success:hover{background:#16a34a}
+    .btn-secondary{background:var(--bg-tertiary);color:var(--text-primary);border:1px solid var(--border)}
+    .btn-secondary:hover{border-color:var(--border-light);background:var(--bg-secondary)}
+    .btn-ghost{background:transparent;color:var(--text-secondary);border:1px solid var(--border)}
+    .btn-ghost:hover{color:var(--text-primary);border-color:var(--border-light)}
+    .btn-danger{background:var(--error-dim);color:var(--error);border:1px solid rgba(239,68,68,0.2)}
+    .btn-danger:hover{background:var(--error);color:#fff}
+    .btn-full{width:100%}
+    .btn:disabled{opacity:0.4;cursor:not-allowed}
+    .btn-sm{padding:5px 12px;font-size:0.78rem}
+    .btn-group{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 
-    h1 {
-      font-size: 1.75rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
+    /* ── Badges ── */
+    .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:500}
+    .badge-success{background:var(--success-dim);color:var(--success)}
+    .badge-error{background:var(--error-dim);color:var(--error)}
+    .badge-warning{background:var(--warning-dim);color:var(--warning)}
+    .badge-info{background:var(--accent-dim);color:var(--accent)}
+    .badge-purple{background:var(--purple-dim);color:var(--purple)}
 
-    .subtitle {
-      color: var(--text-secondary);
-      font-size: 0.95rem;
-    }
+    /* ── Code / Info Boxes ── */
+    .code-box{background:var(--bg-tertiary);border-radius:8px;padding:14px;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:0.78rem;overflow-x:auto;position:relative;border:1px solid var(--border)}
+    .code-box pre{white-space:pre-wrap;word-break:break-all;color:var(--text-primary);margin:0}
+    .code-box .copy-btn{position:absolute;top:8px;right:8px}
+    .result-box{border-radius:8px;padding:14px;margin-top:12px;border-left:3px solid var(--border);background:var(--bg-tertiary);font-family:'SF Mono',Monaco,Consolas,monospace;font-size:0.78rem}
+    .result-box.ok{border-color:var(--success);background:var(--success-dim)}
+    .result-box.err{border-color:var(--error);background:var(--error-dim)}
+    .result-box.warn{border-color:var(--warning);background:var(--warning-dim)}
+    .result-box pre{white-space:pre-wrap;word-break:break-all;margin:0}
+    .result-label{font-size:0.7rem;color:var(--text-secondary);margin-bottom:6px;font-family:inherit;text-transform:uppercase;letter-spacing:0.5px}
+    .hidden{display:none!important}
 
-    .card {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-      margin-bottom: 20px;
-    }
+    /* ── Token Display ── */
+    .token-field{margin-bottom:12px}
+    .token-value{display:flex;align-items:flex-start;gap:8px}
+    .token-value textarea{flex:1;background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text-primary);font-family:monospace;font-size:0.72rem;resize:none}
 
-    .card-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
+    /* ── JWT Decoder ── */
+    .jwt-section{margin-top:8px}
+    .jwt-part{margin-bottom:12px}
+    .jwt-part-label{font-size:0.65rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:4px}
+    .jwt-payload-field{display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px solid var(--border);font-size:0.8rem}
+    .jwt-payload-field:last-child{border:none}
+    .jwt-key{color:var(--accent);font-family:monospace;min-width:140px;flex-shrink:0;font-size:0.75rem}
+    .jwt-val{color:var(--text-primary);word-break:break-all;font-family:monospace;font-size:0.75rem}
+    .jwt-val.uai{color:var(--purple);font-weight:600}
+    .jwt-val.exp-ok{color:var(--success)}
+    .jwt-val.exp-warn{color:var(--warning)}
+    .jwt-val.exp-bad{color:var(--error)}
 
-    .card-header h2 {
-      font-size: 1.1rem;
-      font-weight: 600;
-    }
+    /* ── User Card ── */
+    .user-card{display:flex;align-items:center;gap:14px;padding:14px;background:var(--bg-tertiary);border-radius:8px;margin-bottom:14px}
+    .user-avatar{width:44px;height:44px;background:linear-gradient(135deg,var(--accent),var(--purple));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:700;flex-shrink:0}
+    .user-meta h3{font-size:0.95rem;font-weight:600;margin-bottom:2px}
+    .user-meta p{color:var(--text-secondary);font-size:0.8rem}
+    .user-meta .uai-badge{font-family:monospace;font-size:0.7rem;color:var(--purple);background:var(--purple-dim);padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px}
 
-    .step-number {
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: var(--accent);
-      color: white;
-      border-radius: 50%;
-      font-size: 0.875rem;
-      font-weight: 600;
-    }
+    /* ── Flow Diagram ── */
+    .flow{display:flex;align-items:center;gap:6px;padding:14px;background:var(--bg-tertiary);border-radius:8px;margin-bottom:16px;flex-wrap:wrap;justify-content:center}
+    .flow-node{padding:6px 14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:0.75rem;text-align:center;transition:all 0.2s}
+    .flow-node.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+    .flow-node.done{border-color:var(--success);background:var(--success-dim);color:var(--success)}
+    .flow-arrow{color:var(--text-muted);font-size:0.9rem}
 
-    .step-number.completed {
-      background: var(--success);
-    }
+    /* ── Activity Log ── */
+    .log-panel{background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;max-height:260px;overflow-y:auto;font-family:monospace;font-size:0.75rem}
+    .log-row{display:flex;gap:10px;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,0.03);align-items:baseline}
+    .log-row:last-child{border:none}
+    .log-t{color:var(--text-muted);flex-shrink:0;font-size:0.68rem}
+    .log-method{flex-shrink:0;font-weight:600;min-width:44px}
+    .log-ok{color:var(--success)}
+    .log-err{color:var(--error)}
+    .log-warn{color:var(--warning)}
+    .log-inf{color:var(--accent)}
+    .log-url{color:var(--text-secondary);flex:1;word-break:break-all}
+    .log-status{flex-shrink:0;font-size:0.68rem;padding:1px 6px;border-radius:4px}
+    .log-status.s2xx{background:var(--success-dim);color:var(--success)}
+    .log-status.s4xx{background:var(--error-dim);color:var(--error)}
+    .log-status.s5xx{background:var(--warning-dim);color:var(--warning)}
+    .log-ms{color:var(--text-muted);font-size:0.68rem;flex-shrink:0}
 
-    .step-number.error {
-      background: var(--error);
-    }
+    /* ── Health Grid ── */
+    .health-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:8px}
+    .health-item{background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+    .health-item .val{font-size:1.3rem;font-weight:700;margin:4px 0}
+    .health-item .lbl{font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px}
 
-    .form-group {
-      margin-bottom: 16px;
-    }
+    /* ── Countdown ── */
+    .expiry-bar{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden}
+    .expiry-fill{height:100%;border-radius:2px;transition:width 1s linear,background 1s linear}
 
-    .form-group label {
-      display: block;
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
+    /* ── Sections ── */
+    .section-title{font-size:0.65rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+    .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:900px){.grid-2{grid-template-columns:1fr}.app{grid-template-columns:1fr}.sidebar{display:none}}
+    @media(max-width:640px){.form-row,.form-row-3{grid-template-columns:1fr}}
 
-    .form-group input, .form-group select, .form-group textarea {
-      width: 100%;
-      padding: 12px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-primary);
-      font-size: 0.9rem;
-    }
-
-    .form-group input:focus, .form-group select:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    .form-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 12px 24px;
-      border: none;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-      width: 100%;
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-hover);
-    }
-
-    .btn-success {
-      background: var(--success);
-      color: white;
-    }
-
-    .btn-secondary {
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
-      border: 1px solid var(--border);
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .info-box {
-      background: var(--bg-tertiary);
-      border-radius: 8px;
-      padding: 16px;
-      margin: 16px 0;
-      font-family: 'SF Mono', Monaco, monospace;
-      font-size: 0.8rem;
-      overflow-x: auto;
-    }
-
-    .info-box.success {
-      border-left: 3px solid var(--success);
-    }
-
-    .info-box.error {
-      border-left: 3px solid var(--error);
-    }
-
-    .info-box.pending {
-      border-left: 3px solid var(--warning);
-    }
-
-    .info-label {
-      color: var(--text-secondary);
-      font-size: 0.75rem;
-      margin-bottom: 4px;
-    }
-
-    .info-value {
-      word-break: break-all;
-      color: var(--text-primary);
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 0.8rem;
-      font-weight: 500;
-    }
-
-    .status-badge.success { background: rgba(34, 197, 94, 0.2); color: var(--success); }
-    .status-badge.error { background: rgba(239, 68, 68, 0.2); color: var(--error); }
-    .status-badge.pending { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-    .status-badge.info { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
-
-    .flow-diagram {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 20px;
-      background: var(--bg-tertiary);
-      border-radius: 8px;
-      margin: 20px 0;
-      flex-wrap: wrap;
-    }
-
-    .flow-step {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
-
-    .flow-box {
-      padding: 8px 16px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      font-size: 0.8rem;
-    }
-
-    .flow-box.active {
-      border-color: var(--accent);
-      background: rgba(59, 130, 246, 0.1);
-    }
-
-    .flow-box.completed {
-      border-color: var(--success);
-      background: rgba(34, 197, 94, 0.1);
-    }
-
-    .flow-arrow {
-      color: var(--text-secondary);
-      font-size: 1.2rem;
-    }
-
-    .log-panel {
-      background: var(--bg-tertiary);
-      border-radius: 8px;
-      max-height: 300px;
-      overflow-y: auto;
-      margin-top: 16px;
-    }
-
-    .log-entry {
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border);
-      font-family: 'SF Mono', Monaco, monospace;
-      font-size: 0.75rem;
-    }
-
-    .log-entry:last-child {
-      border-bottom: none;
-    }
-
-    .log-time {
-      color: var(--text-secondary);
-      margin-right: 8px;
-    }
-
-    .log-success { color: var(--success); }
-    .log-error { color: var(--error); }
-    .log-info { color: var(--accent); }
-
-    .hidden { display: none !important; }
-
-    .section-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 32px 0;
-    }
-
-    .config-bar {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-    }
-
-    .config-bar select, .config-bar input {
-      padding: 8px 12px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text-primary);
-      font-size: 0.85rem;
-    }
-
-    .token-display {
-      background: var(--bg-primary);
-      border-radius: 8px;
-      padding: 16px;
-      margin-top: 16px;
-    }
-
-    .token-field {
-      margin-bottom: 12px;
-    }
-
-    .token-field:last-child {
-      margin-bottom: 0;
-    }
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 16px;
-      background: var(--bg-tertiary);
-      border-radius: 8px;
-      margin-bottom: 16px;
-    }
-
-    .user-avatar {
-      width: 48px;
-      height: 48px;
-      background: var(--accent);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-
-    .user-details h3 {
-      font-size: 1rem;
-      margin-bottom: 4px;
-    }
-
-    .user-details p {
-      color: var(--text-secondary);
-      font-size: 0.85rem;
-    }
-
-    .actions {
-      display: flex;
-      gap: 12px;
-      margin-top: 16px;
-    }
-
-    .actions .btn {
-      flex: 1;
-    }
+    /* ── Password show/hide ── */
+    .pw-wrap{position:relative}
+    .pw-wrap input{padding-right:40px}
+    .pw-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:1rem;padding:0}
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>Auth Gateway E2E Test Client</h1>
-      <p class="subtitle">Simulates real OAuth/PKCE flow like CLI & IDE integrations</p>
-    </header>
+<div class="app">
 
-    <!-- Environment Config -->
-    <div class="config-bar">
-      <select id="environment" onchange="updateEnvironment()">
-        <option value="local">Local (localhost:4000)</option>
-        <option value="staging">Staging (auth-staging.lanonasis.com)</option>
-        <option value="production">Production (auth.lanonasis.com)</option>
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-logo">Auth<span>Gateway</span> <span style="color:var(--text-muted);font-weight:400;font-size:0.8rem">/ Test Suite</span></div>
+    <div class="topbar-env">
+      <select id="envSelect" onchange="onEnvChange()">
+        <option value="local">Local :4000</option>
+        <option value="staging">Staging</option>
+        <option value="production" selected>Production</option>
       </select>
-      <input type="text" id="authBaseUrl" value="http://localhost:4000" style="min-width: 280px;" />
-      <span class="status-badge" id="healthStatus">Checking...</span>
+      <input type="text" id="baseUrlInput" value="https://auth.lanonasis.com" oninput="checkHealth()" />
+      <span class="badge" id="healthBadge">●&nbsp;Checking</span>
     </div>
+  </header>
 
-    <!-- Flow Diagram -->
-    <div class="flow-diagram">
-      <div class="flow-step">
-        <div class="flow-box" id="flow-client">Client</div>
-      </div>
-      <span class="flow-arrow">→</span>
-      <div class="flow-step">
-        <div class="flow-box" id="flow-authorize">/oauth/authorize</div>
-      </div>
-      <span class="flow-arrow">→</span>
-      <div class="flow-step">
-        <div class="flow-box" id="flow-login">Login/Consent</div>
-      </div>
-      <span class="flow-arrow">→</span>
-      <div class="flow-step">
-        <div class="flow-box" id="flow-callback">Callback + Code</div>
-      </div>
-      <span class="flow-arrow">→</span>
-      <div class="flow-step">
-        <div class="flow-box" id="flow-exchange">Token Exchange</div>
-      </div>
-      <span class="flow-arrow">→</span>
-      <div class="flow-step">
-        <div class="flow-box" id="flow-authenticated">Authenticated</div>
-      </div>
+  <!-- Sidebar Nav -->
+  <nav class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Auth Flows</div>
+      <button class="nav-item active" onclick="showTab('pkce',this)">
+        <span class="icon">🔐</span> OAuth 2.0 PKCE
+        <span class="nav-badge" id="pkce-badge">4 steps</span>
+      </button>
+      <button class="nav-item" onclick="showTab('password',this)">
+        <span class="icon">🔑</span> Password Login
+        <span class="nav-badge">direct</span>
+      </button>
+      <button class="nav-item" onclick="showTab('otp',this)">
+        <span class="icon">📧</span> OTP / Magic Link
+        <span class="nav-badge">passwordless</span>
+      </button>
+      <button class="nav-item" onclick="showTab('apikey',this)">
+        <span class="icon">🗝️</span> API Key
+        <span class="nav-badge">lano_</span>
+      </button>
     </div>
-
-    <!-- Pre-Auth State (shown before authentication) -->
-    <div id="preAuthState">
-      <!-- Step 1: Register Client (Dynamic Registration) -->
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number" id="step1-status">1</div>
-          <h2>Register OAuth Client (RFC 7591)</h2>
-        </div>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-          First, we dynamically register an OAuth client - just like CLI/IDE tools do on first run.
-        </p>
-        <div class="form-group">
-          <label>Client Name</label>
-          <input type="text" id="clientName" value="E2E Test Client" />
-        </div>
-        <div class="form-group">
-          <label>Redirect URI (this page's callback)</label>
-          <input type="text" id="redirectUri" readonly />
-        </div>
-        <div class="form-group">
-          <label>Scopes</label>
-          <input type="text" id="scopes" value="memories:read memories:write mcp:connect" />
-        </div>
-        <button class="btn btn-primary" id="registerBtn" onclick="registerClient()">
-          Register Client
-        </button>
-        <div class="info-box hidden" id="clientInfo">
-          <div class="info-label">Client ID</div>
-          <div class="info-value" id="clientIdDisplay">-</div>
-        </div>
-      </div>
-
-      <!-- Step 2: Generate PKCE -->
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number" id="step2-status">2</div>
-          <h2>Generate PKCE Challenge</h2>
-        </div>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-          Generate code_verifier and code_challenge for secure token exchange (PKCE S256).
-        </p>
-        <button class="btn btn-primary" id="pkceBtn" onclick="generatePKCE()" disabled>
-          Generate PKCE
-        </button>
-        <div class="info-box hidden" id="pkceInfo">
-          <div style="margin-bottom: 12px;">
-            <div class="info-label">Code Verifier (stored locally)</div>
-            <div class="info-value" id="codeVerifierDisplay" style="font-size: 0.7rem;">-</div>
-          </div>
-          <div>
-            <div class="info-label">Code Challenge (sent to server)</div>
-            <div class="info-value" id="codeChallengeDisplay" style="font-size: 0.7rem;">-</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Step 3: Start OAuth Flow -->
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number" id="step3-status">3</div>
-          <h2>Start OAuth Authorization</h2>
-        </div>
-        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-          Redirect to auth gateway's /oauth/authorize endpoint. You'll see the real login page.
-        </p>
-        <div class="info-box pending" id="authUrlPreview">
-          <div class="info-label">Authorization URL (will redirect here)</div>
-          <div class="info-value" id="authUrlDisplay" style="font-size: 0.75rem;">Generate PKCE first...</div>
-        </div>
-        <button class="btn btn-primary" id="startAuthBtn" onclick="startOAuthFlow()" disabled>
-          Start OAuth Flow →
-        </button>
-      </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Inspect</div>
+      <button class="nav-item" onclick="showTab('inspector',this)">
+        <span class="icon">🔍</span> Token Inspector
+      </button>
+      <button class="nav-item" onclick="showTab('whoami',this)">
+        <span class="icon">👤</span> Whoami / Profile
+      </button>
+      <button class="nav-item" onclick="showTab('endpoints',this)">
+        <span class="icon">📡</span> Endpoint Tester
+      </button>
     </div>
-
-    <!-- Callback Processing (shown when returning from auth) -->
-    <div id="callbackState" class="hidden">
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number" id="step4-status">4</div>
-          <h2>Processing Callback</h2>
-        </div>
-        <div class="info-box pending" id="callbackInfo">
-          <div style="margin-bottom: 12px;">
-            <div class="info-label">Authorization Code</div>
-            <div class="info-value" id="authCodeDisplay">-</div>
-          </div>
-          <div>
-            <div class="info-label">State</div>
-            <div class="info-value" id="stateDisplay">-</div>
-          </div>
-        </div>
-        <div id="exchangeProgress">
-          <p style="color: var(--text-secondary); margin-bottom: 12px;">Exchanging code for tokens...</p>
-          <div class="info-box" id="exchangeResult"></div>
-        </div>
-      </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">System</div>
+      <button class="nav-item" onclick="showTab('health',this)">
+        <span class="icon">💚</span> Health &amp; Status
+      </button>
+      <button class="nav-item" onclick="showTab('log',this)">
+        <span class="icon">📋</span> Request Log
+        <span class="nav-badge" id="log-count">0</span>
+      </button>
     </div>
+  </nav>
 
-    <!-- Authenticated State (shown after successful auth) -->
-    <div id="authenticatedState" class="hidden">
-      <div class="card">
-        <div class="card-header">
-          <div class="step-number completed">✓</div>
-          <h2>Authentication Successful!</h2>
+  <!-- Main Content -->
+  <main class="main">
+
+    <!-- ====== TAB: OAuth PKCE ====== -->
+    <div class="tab-panel active" id="tab-pkce">
+      <div class="flow" id="pkce-flow">
+        <div class="flow-node" id="fn-client">Register</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node" id="fn-pkce">PKCE</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node" id="fn-auth">/authorize</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node" id="fn-login">Login</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node" id="fn-callback">Callback</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node" id="fn-exchange">Token</div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-node" id="fn-done">✓ Authed</div>
+      </div>
+
+      <!-- Pre-auth -->
+      <div id="pkce-preauth">
+        <!-- Step 1 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="step-num" id="s1">1</div>
+            <h2>Register OAuth Client <span style="color:var(--text-muted);font-weight:400;font-size:0.8rem">RFC 7591 Dynamic Registration</span></h2>
+          </div>
+          <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Dynamically registers a client — exactly what CLI &amp; IDE tools do on first run.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Client Name</label>
+              <input type="text" id="clientName" value="E2E Test Client" />
+            </div>
+            <div class="form-group">
+              <label>Scopes</label>
+              <input type="text" id="scopes" value="memories:read memories:write mcp:connect" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Redirect URI <span style="color:var(--text-muted)">(auto-set to this page)</span></label>
+            <input type="text" id="redirectUri" readonly />
+          </div>
+          <button class="btn btn-primary btn-full" id="registerBtn" onclick="registerClient()">Register Client</button>
+          <div class="result-box hidden" id="r-register"></div>
         </div>
 
-        <div class="user-info">
-          <div class="user-avatar" id="userAvatar">?</div>
-          <div class="user-details">
-            <h3 id="userEmail">user@example.com</h3>
-            <p id="userRole">Role: authenticated</p>
+        <!-- Step 2 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="step-num" id="s2">2</div>
+            <h2>Generate PKCE Challenge <span style="color:var(--text-muted);font-weight:400;font-size:0.8rem">S256</span></h2>
           </div>
-          <span class="status-badge success">Authenticated</span>
-        </div>
-
-        <div class="token-display">
-          <div class="token-field">
-            <div class="info-label">Access Token</div>
-            <textarea id="accessTokenDisplay" readonly rows="3" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.75rem;"></textarea>
-          </div>
-          <div class="token-field">
-            <div class="info-label">Refresh Token</div>
-            <textarea id="refreshTokenDisplay" readonly rows="2" style="width: 100%; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px; padding: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.75rem;"></textarea>
-          </div>
-          <div class="form-row" style="margin-top: 12px;">
-            <div>
-              <div class="info-label">Expires In</div>
-              <div id="expiresInDisplay" style="color: var(--text-primary);">-</div>
+          <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Creates <code style="color:var(--accent)">code_verifier</code> (stored locally) and <code style="color:var(--accent)">code_challenge</code> (sent to server).</p>
+          <button class="btn btn-primary btn-full" id="pkceBtn" onclick="generatePKCE()" disabled>Generate PKCE</button>
+          <div class="code-box hidden" id="pkce-display" style="margin-top:12px">
+            <div style="margin-bottom:10px">
+              <div class="result-label">code_verifier <span style="color:var(--warning)">(secret — stored in sessionStorage)</span></div>
+              <div id="cvDisplay" style="word-break:break-all;color:var(--warning);font-size:0.75rem"></div>
             </div>
             <div>
-              <div class="info-label">Token Type</div>
-              <div id="tokenTypeDisplay" style="color: var(--text-primary);">-</div>
+              <div class="result-label">code_challenge <span style="color:var(--success)">(sent in authorization request)</span></div>
+              <div id="ccDisplay" style="word-break:break-all;color:var(--success);font-size:0.75rem"></div>
             </div>
           </div>
         </div>
 
-        <div class="actions">
-          <button class="btn btn-secondary" onclick="verifyToken()">Verify Token</button>
-          <button class="btn btn-secondary" onclick="getSession()">Get Session</button>
-          <button class="btn btn-secondary" onclick="introspectToken()">Introspect</button>
-          <button class="btn btn-primary" onclick="logout()">Logout</button>
+        <!-- Step 3 -->
+        <div class="card">
+          <div class="card-header">
+            <div class="step-num" id="s3">3</div>
+            <h2>Start Authorization</h2>
+          </div>
+          <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Redirects to <code style="color:var(--accent)">/oauth/authorize</code> — you'll see the real login page.</p>
+          <div class="code-box" id="authUrlBox" style="margin-bottom:12px">
+            <div class="result-label">Authorization URL</div>
+            <div id="authUrlDisplay" style="color:var(--text-secondary);font-size:0.75rem;word-break:break-all">Generate PKCE first…</div>
+          </div>
+          <button class="btn btn-primary btn-full" id="startAuthBtn" onclick="startOAuthFlow()" disabled>Open Authorization Page →</button>
         </div>
-
-        <div class="info-box hidden" id="verifyResult" style="margin-top: 16px;"></div>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <h2>Test Another Flow</h2>
+      <!-- Callback processing -->
+      <div id="pkce-callback" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <div class="step-num" id="s4">4</div>
+            <h2>Callback — Exchanging Code for Tokens</h2>
+          </div>
+          <div class="code-box" id="callbackBox">
+            <div class="result-label">Authorization Code</div>
+            <div id="authCodeDisplay" style="word-break:break-all;color:var(--success)"></div>
+            <div class="result-label" style="margin-top:8px">State</div>
+            <div id="stateDisplay" style="word-break:break-all;color:var(--text-secondary)"></div>
+          </div>
+          <div class="result-box" id="exchangeResult" style="margin-top:12px"></div>
         </div>
-        <button class="btn btn-secondary" onclick="resetFlow()" style="width: 100%;">
-          Reset & Start New Flow
-        </button>
+      </div>
+
+      <!-- Authenticated state -->
+      <div id="pkce-authed" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <div class="step-num done">✓</div>
+            <h2>Authenticated via OAuth PKCE</h2>
+            <span class="badge badge-success">Active session</span>
+          </div>
+          <div class="user-card" id="pkce-user-card">
+            <div class="user-avatar" id="pkce-avatar">?</div>
+            <div class="user-meta">
+              <h3 id="pkce-email">—</h3>
+              <p id="pkce-role">Role: —</p>
+              <div class="uai-badge hidden" id="pkce-uai"></div>
+            </div>
+            <div style="margin-left:auto;text-align:right">
+              <div style="font-size:0.75rem;color:var(--text-muted)">Expires in</div>
+              <div id="pkce-expiry" style="font-size:1.1rem;font-weight:700;color:var(--success)">—</div>
+              <div class="expiry-bar"><div class="expiry-fill" id="pkce-expiry-fill" style="width:100%;background:var(--success)"></div></div>
+            </div>
+          </div>
+
+          <div class="token-field">
+            <div class="result-label">Access Token</div>
+            <div class="token-value">
+              <textarea id="pkce-access-token" readonly rows="3"></textarea>
+              <button class="btn btn-ghost btn-sm" onclick="copyText('pkce-access-token')">Copy</button>
+            </div>
+          </div>
+          <div class="token-field">
+            <div class="result-label">Refresh Token</div>
+            <div class="token-value">
+              <textarea id="pkce-refresh-token" readonly rows="2"></textarea>
+              <button class="btn btn-ghost btn-sm" onclick="copyText('pkce-refresh-token')">Copy</button>
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="whoami()">👤 Whoami</button>
+            <button class="btn btn-secondary" onclick="verifyToken()">✓ Verify</button>
+            <button class="btn btn-secondary" onclick="getSession()">🔗 Session</button>
+            <button class="btn btn-secondary" onclick="introspectToken()">🔬 Introspect</button>
+            <button class="btn btn-secondary" onclick="refreshAccessToken()">♻️ Refresh Token</button>
+            <button class="btn btn-danger" onclick="logoutOAuth()">Logout</button>
+          </div>
+          <div class="result-box hidden" id="pkce-action-result" style="margin-top:12px"></div>
+        </div>
+
+        <div class="card">
+          <button class="btn btn-ghost btn-full" onclick="resetPkce()">↺ Reset &amp; Start New Flow</button>
+        </div>
+      </div>
+
+      <!-- Error state -->
+      <div id="pkce-error" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <div class="step-num fail">✗</div>
+            <h2>Authorization Failed</h2>
+          </div>
+          <div class="result-box err" id="pkce-error-box"></div>
+          <button class="btn btn-primary btn-full" onclick="resetPkce()" style="margin-top:14px">Try Again</button>
+        </div>
       </div>
     </div>
 
-    <!-- Error State -->
-    <div id="errorState" class="hidden">
+    <!-- ====== TAB: Password Login ====== -->
+    <div class="tab-panel" id="tab-password">
       <div class="card">
         <div class="card-header">
-          <div class="step-number error">✗</div>
-          <h2>Authentication Failed</h2>
+          <span class="icon" style="font-size:1.3rem">🔑</span>
+          <h2>Password / Credentials Login</h2>
+          <span class="badge badge-info">POST /v1/auth/login</span>
         </div>
-        <div class="info-box error" id="errorInfo">
-          <div class="info-label">Error</div>
-          <div class="info-value" id="errorDisplay">-</div>
-        </div>
-        <button class="btn btn-primary" onclick="resetFlow()" style="margin-top: 16px;">
-          Try Again
-        </button>
-      </div>
-    </div>
-
-    <!-- OTP Flow Test -->
-    <div class="section-divider"></div>
-    <div class="card" id="otpFlowCard">
-      <div class="card-header">
-        <h2>OTP Flow Test (Passwordless)</h2>
-        <span class="status-badge info">Separate Flow</span>
-      </div>
-      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-        Test the OTP/Magic Link authentication flow - separate from OAuth/PKCE.
-      </p>
-
-      <div class="form-row">
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Direct email/password authentication. Returns gateway JWT with UAI embedded.</p>
         <div class="form-group">
           <label>Email</label>
-          <input type="email" id="otpEmail" placeholder="your@email.com" />
+          <input type="email" id="pw-email" placeholder="user@example.com" />
         </div>
         <div class="form-group">
-          <label>Type</label>
-          <select id="otpType">
-            <option value="email">6-digit OTP Code</option>
-            <option value="magiclink">Magic Link</option>
+          <label>Password</label>
+          <div class="pw-wrap">
+            <input type="password" id="pw-pass" placeholder="••••••••••" />
+            <button class="pw-toggle" onclick="togglePw('pw-pass',this)">👁</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Platform</label>
+            <select id="pw-platform">
+              <option value="web">web</option>
+              <option value="cli" selected>cli</option>
+              <option value="api">api</option>
+              <option value="mcp">mcp</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Project Scope (optional)</label>
+            <input type="text" id="pw-scope" placeholder="lanonasis-maas" />
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="passwordLogin()">Login with Password</button>
+        <div class="result-box hidden" id="pw-result"></div>
+
+        <div id="pw-authed" class="hidden" style="margin-top:16px">
+          <div class="user-card">
+            <div class="user-avatar" id="pw-avatar">?</div>
+            <div class="user-meta">
+              <h3 id="pw-email-display">—</h3>
+              <p id="pw-role-display">Role: —</p>
+              <div class="uai-badge hidden" id="pw-uai"></div>
+            </div>
+            <span class="badge badge-success" style="margin-left:auto">Authenticated</span>
+          </div>
+          <div class="token-field">
+            <div class="result-label">Access Token</div>
+            <div class="token-value">
+              <textarea id="pw-access-token" readonly rows="3"></textarea>
+              <button class="btn btn-ghost btn-sm" onclick="copyText('pw-access-token')">Copy</button>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="whoamiWith('pw')">👤 Whoami</button>
+            <button class="btn btn-secondary" onclick="verifyWith('pw')">✓ Verify</button>
+            <button class="btn btn-secondary" onclick="introspectWith('pw')">🔬 Introspect</button>
+            <button class="btn btn-secondary" onclick="inspectToken('pw-access-token')">🔍 Decode JWT</button>
+          </div>
+          <div class="result-box hidden" id="pw-action-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: OTP ====== -->
+    <div class="tab-panel" id="tab-otp">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">📧</span>
+          <h2>OTP / Magic Link (Passwordless)</h2>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="otpEmail" placeholder="your@email.com" />
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="otpType" onchange="onOtpTypeChange()">
+              <option value="email">6-digit OTP</option>
+              <option value="magiclink">Magic Link</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="sendOtp()" id="sendOtpBtn">Send OTP</button>
+        <div class="result-box hidden" id="otp-send-result" style="margin-top:12px"></div>
+
+        <div id="otp-verify-section" class="hidden" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+          <div class="form-group">
+            <label>OTP Code</label>
+            <input type="text" id="otpCode" placeholder="123456" maxlength="6"
+              style="font-size:1.4rem;text-align:center;letter-spacing:10px" />
+          </div>
+          <button class="btn btn-success btn-full" onclick="verifyOtp()">Verify OTP →</button>
+          <div class="result-box hidden" id="otp-verify-result" style="margin-top:12px"></div>
+        </div>
+
+        <div id="otp-authed" class="hidden" style="margin-top:16px">
+          <div class="user-card">
+            <div class="user-avatar" id="otp-avatar">?</div>
+            <div class="user-meta">
+              <h3 id="otp-email-display">—</h3>
+              <p id="otp-role-display">Role: —</p>
+            </div>
+            <span class="badge badge-success" style="margin-left:auto">Authenticated</span>
+          </div>
+          <div class="token-field">
+            <div class="result-label">Access Token</div>
+            <div class="token-value">
+              <textarea id="otp-access-token" readonly rows="3"></textarea>
+              <button class="btn btn-ghost btn-sm" onclick="copyText('otp-access-token')">Copy</button>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="whoamiWith('otp')">👤 Whoami</button>
+            <button class="btn btn-secondary" onclick="verifyWith('otp')">✓ Verify</button>
+            <button class="btn btn-secondary" onclick="inspectToken('otp-access-token')">🔍 Decode JWT</button>
+          </div>
+          <div class="result-box hidden" id="otp-action-result" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: API Key ====== -->
+    <div class="tab-panel" id="tab-apikey">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">🗝️</span>
+          <h2>API Key Validation</h2>
+          <span class="badge badge-info">POST /v1/auth/verify-api-key</span>
+        </div>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">
+          Test API key validation. Expected format: <code style="color:var(--accent)">lano_</code> prefix.<br>
+          Also accepts legacy <code style="color:var(--warning)">vx_</code> / <code style="color:var(--warning)">lns_</code> prefixes (deprecated).
+        </p>
+        <div class="form-group">
+          <label>API Key</label>
+          <div class="pw-wrap">
+            <input type="password" id="apiKeyInput" placeholder="lano_••••••••••" />
+            <button class="pw-toggle" onclick="togglePw('apiKeyInput',this)">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="testApiKey()">Validate API Key</button>
+        <div class="result-box hidden" id="apikey-result" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>API Key via Header Test</h2>
+          <span class="badge badge-purple">X-API-Key header</span>
+        </div>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Send API key as <code style="color:var(--accent)">X-API-Key</code> header and hit a protected endpoint.</p>
+        <div class="form-group">
+          <label>API Key</label>
+          <input type="text" id="apiKeyHeader" placeholder="lano_..." />
+        </div>
+        <div class="form-group">
+          <label>Endpoint to Test</label>
+          <select id="apiKeyEndpoint">
+            <option value="/v1/auth/me">GET /v1/auth/me (whoami)</option>
+            <option value="/v1/auth/session">GET /v1/auth/session</option>
+            <option value="/health">GET /health (public)</option>
           </select>
         </div>
+        <button class="btn btn-primary btn-full" onclick="testApiKeyEndpoint()">Test Endpoint with API Key</button>
+        <div class="result-box hidden" id="apikey-endpoint-result" style="margin-top:12px"></div>
       </div>
+    </div>
 
-      <button class="btn btn-primary" onclick="sendOtp()" id="sendOtpBtn">
-        Send OTP
-      </button>
-
-      <div class="info-box hidden" id="otpSendResult" style="margin-top: 16px;"></div>
-
-      <div id="otpVerifySection" class="hidden" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
-        <div class="form-group">
-          <label>Enter OTP Code</label>
-          <input type="text" id="otpCode" placeholder="123456" maxlength="6" style="font-size: 1.5rem; text-align: center; letter-spacing: 8px;" />
+    <!-- ====== TAB: Token Inspector ====== -->
+    <div class="tab-panel" id="tab-inspector">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">🔍</span>
+          <h2>JWT Decoder &amp; Inspector</h2>
         </div>
-        <button class="btn btn-success" onclick="verifyOtp()">
-          Verify OTP →
-        </button>
-        <div class="info-box hidden" id="otpVerifyResult" style="margin-top: 16px;"></div>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Paste any JWT to decode header, payload, and verify claims. Highlights UAI field.</p>
+        <div class="form-group">
+          <label>JWT Token</label>
+          <textarea id="inspectorInput" rows="4" placeholder="eyJhbGci…" style="font-family:monospace;font-size:0.78rem" oninput="decodeJwt(this.value)"></textarea>
+        </div>
+        <div id="jwt-decoded" class="hidden">
+          <div class="section-title">Header</div>
+          <div class="code-box" id="jwt-header-box" style="margin-bottom:12px"></div>
+          <div class="section-title">Payload</div>
+          <div id="jwt-payload-fields"></div>
+          <div class="section-title">Token Status</div>
+          <div id="jwt-status-box" class="code-box"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Quick Inspect from Active Sessions</h2>
+        </div>
+        <div class="btn-group" style="margin-top:0">
+          <button class="btn btn-secondary" onclick="loadTokenIntoInspector('pkce')">Load PKCE Token</button>
+          <button class="btn btn-secondary" onclick="loadTokenIntoInspector('pw')">Load Password Token</button>
+          <button class="btn btn-secondary" onclick="loadTokenIntoInspector('otp')">Load OTP Token</button>
+        </div>
       </div>
     </div>
 
-    <!-- API Key Test -->
-    <div class="card" id="apiKeyCard">
-      <div class="card-header">
-        <h2>API Key Validation Test</h2>
-        <span class="status-badge info">Direct API</span>
+    <!-- ====== TAB: Whoami ====== -->
+    <div class="tab-panel" id="tab-whoami">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">👤</span>
+          <h2>GET /v1/auth/me — User Profile</h2>
+          <span class="badge badge-purple">requireAuth</span>
+        </div>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">
+          Fetches the full authenticated user profile. Works for all three token types: gateway JWT, opaque OAuth PKCE token, and API key.
+        </p>
+        <div class="form-group">
+          <label>Bearer Token <span style="color:var(--text-muted)">(or use quick-load below)</span></label>
+          <div class="pw-wrap">
+            <input type="password" id="whoami-token" placeholder="Access token…" />
+            <button class="pw-toggle" onclick="togglePw('whoami-token',this)">👁</button>
+          </div>
+        </div>
+        <div class="btn-group" style="margin-top:0;margin-bottom:14px">
+          <button class="btn btn-ghost btn-sm" onclick="loadWhoamiToken('pkce')">Load PKCE token</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadWhoamiToken('pw')">Load password token</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadWhoamiToken('otp')">Load OTP token</button>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="runWhoami()">Fetch Profile</button>
+        <div class="result-box hidden" id="whoami-result" style="margin-top:12px"></div>
+
+        <div id="whoami-profile" class="hidden" style="margin-top:16px">
+          <div class="user-card">
+            <div class="user-avatar" id="wm-avatar">?</div>
+            <div class="user-meta">
+              <h3 id="wm-name">—</h3>
+              <p id="wm-email-p">—</p>
+              <div class="uai-badge" id="wm-uai">UAI: —</div>
+            </div>
+            <div style="margin-left:auto;text-align:right">
+              <span class="badge badge-success" id="wm-role-badge">—</span>
+              <br><span class="badge badge-purple" style="margin-top:4px" id="wm-plan-badge">—</span>
+            </div>
+          </div>
+          <div id="wm-fields"></div>
+        </div>
       </div>
-      <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">
-        Test API key validation - the issue you reported.
-      </p>
-
-      <div class="form-group">
-        <label>API Key</label>
-        <input type="text" id="testApiKey" placeholder="lano_... or pk_... or sk_..." />
-      </div>
-
-      <button class="btn btn-primary" onclick="testApiKeyValidation()">
-        Validate API Key
-      </button>
-
-      <div class="info-box hidden" id="apiKeyResult" style="margin-top: 16px;"></div>
     </div>
 
-    <!-- Activity Log -->
-    <div class="section-divider"></div>
-    <div class="card">
-      <div class="card-header">
-        <h2>Activity Log</h2>
-        <button class="btn btn-secondary" onclick="clearLog()" style="padding: 6px 12px; font-size: 0.8rem;">Clear</button>
-      </div>
-      <div class="log-panel" id="logPanel">
-        <div class="log-entry" style="color: var(--text-secondary);">Waiting for activity...</div>
+    <!-- ====== TAB: Endpoint Tester ====== -->
+    <div class="tab-panel" id="tab-endpoints">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">📡</span>
+          <h2>Endpoint Tester</h2>
+        </div>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">Fire arbitrary requests against any auth gateway endpoint.</p>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Method</label>
+            <select id="ep-method">
+              <option>GET</option>
+              <option selected>POST</option>
+              <option>PUT</option>
+              <option>DELETE</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Path</label>
+            <input type="text" id="ep-path" placeholder="/v1/auth/me" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Authorization <span style="color:var(--text-muted)">(Bearer token or API key)</span></label>
+          <input type="text" id="ep-auth" placeholder="Bearer eyJ… or lano_…" />
+        </div>
+        <div class="form-group">
+          <label>Request Body (JSON, optional)</label>
+          <textarea id="ep-body" rows="4" placeholder='{"key":"value"}' style="font-family:monospace;font-size:0.8rem"></textarea>
+        </div>
+        <div class="section-title">Quick Endpoints</div>
+        <div class="btn-group" style="margin-top:0;margin-bottom:14px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('GET','/v1/auth/me')">GET /me</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('GET','/v1/auth/session')">GET /session</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('POST','/v1/auth/verify')">POST /verify</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('POST','/oauth/introspect')">POST /introspect</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('GET','/health')">GET /health</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('POST','/v1/auth/logout')">POST /logout</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('POST','/oauth/token')">POST /oauth/token</button>
+          <button class="btn btn-ghost btn-sm" onclick="setEndpoint('POST','/register')">POST /register</button>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="runEndpoint()">Send Request</button>
+        <div class="result-box hidden" id="ep-result" style="margin-top:12px"></div>
       </div>
     </div>
-  </div>
 
-  <script>
-    // ========================================================================
-    // STATE
-    // ========================================================================
-    const STATE_KEY = 'auth_test_state';
-    let state = {
-      clientId: null,
-      clientSecret: null,
-      codeVerifier: null,
-      codeChallenge: null,
-      authState: null,
-      accessToken: null,
-      refreshToken: null,
-      user: null
+    <!-- ====== TAB: Health ====== -->
+    <div class="tab-panel" id="tab-health">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">💚</span>
+          <h2>System Health</h2>
+          <button class="btn btn-ghost btn-sm" onclick="checkHealth(true)">Refresh</button>
+        </div>
+        <div class="health-grid" id="health-grid">
+          <div class="health-item"><div class="val" id="h-status">—</div><div class="lbl">Status</div></div>
+          <div class="health-item"><div class="val" id="h-version">—</div><div class="lbl">Version</div></div>
+          <div class="health-item"><div class="val" id="h-uptime">—</div><div class="lbl">Uptime</div></div>
+          <div class="health-item"><div class="val" id="h-db">—</div><div class="lbl">Database</div></div>
+          <div class="health-item"><div class="val" id="h-oauth">—</div><div class="lbl">OAuth</div></div>
+          <div class="health-item"><div class="val" id="h-latency">—</div><div class="lbl">Latency</div></div>
+        </div>
+        <div class="result-box hidden" id="health-raw" style="margin-top:16px"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>All 10 Auth Methods — Coverage</h2></div>
+        <div id="auth-method-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">
+          <!-- filled by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: Request Log ====== -->
+    <div class="tab-panel" id="tab-log">
+      <div class="card">
+        <div class="card-header">
+          <h2>Request Log</h2>
+          <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportLog()">Export</button>
+        </div>
+        <div class="log-panel" id="logPanel" style="max-height:600px">
+          <div class="log-row"><span class="log-t">—</span><span class="log-inf">Waiting for activity…</span></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const SK = 'agw_test_v2';
+let S = {
+  pkce: { clientId:null,clientSecret:null,cv:null,cc:null,authState:null,at:null,rt:null,user:null,expAt:null },
+  pw:   { at:null,rt:null,user:null },
+  otp:  { at:null,rt:null,user:null },
+};
+let logEntries = [];
+let expiryTimer = null;
+
+function save(){ try{ sessionStorage.setItem(SK,JSON.stringify(S)); }catch(e){} }
+function load(){ try{ const d=sessionStorage.getItem(SK); if(d) S=JSON.parse(d); }catch(e){} }
+
+// ============================================================
+// INIT
+// ============================================================
+window.onload = function(){
+  load();
+  document.getElementById('redirectUri').value = pageUrl();
+  document.getElementById('baseUrlInput').value = 'https://auth.lanonasis.com';
+  document.getElementById('envSelect').value = 'production';
+
+  // Check for OAuth callback
+  const p = new URLSearchParams(location.search);
+  if(p.has('code')){ handleCallback(p); return; }
+  if(p.has('error')){ showPkceError(p.get('error'), p.get('error_description')); return; }
+
+  restoreUI();
+  checkHealth();
+  renderAuthMethodGrid();
+};
+
+function pageUrl(){
+  const u = new URL(location.href);
+  u.search=''; u.hash='';
+  return u.toString();
+}
+
+function getBase(){ return document.getElementById('baseUrlInput').value.replace(/\/$/,''); }
+
+function onEnvChange(){
+  const m = {local:'http://localhost:4000',staging:'https://auth-staging.lanonasis.com',production:'https://auth.lanonasis.com'};
+  document.getElementById('baseUrlInput').value = m[document.getElementById('envSelect').value] || '';
+  checkHealth();
+}
+
+function showTab(id,el){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  if(el) el.classList.add('active');
+}
+
+// ============================================================
+// HEALTH
+// ============================================================
+async function checkHealth(verbose){
+  const badge = document.getElementById('healthBadge');
+  badge.className='badge badge-warning'; badge.textContent='● Checking';
+  const t0=Date.now();
+  try{
+    const res = await fetch(getBase()+'/health');
+    const ms = Date.now()-t0;
+    const data = await res.json();
+    if(res.ok && (data.status==='ok'||data.status==='healthy')){
+      badge.className='badge badge-success'; badge.textContent='● Connected';
+    } else {
+      badge.className='badge badge-warning'; badge.textContent='● '+( data.status||'Degraded');
+    }
+    // Fill health tab
+    const fmt = v => v!=null ? String(v) : '—';
+    set('h-status', data.status||'ok');
+    set('h-version', data.version||data.app?.version||'—');
+    set('h-uptime', data.uptime ? fmtUptime(data.uptime) : '—');
+    set('h-db', data.database||data.db||'—');
+    set('h-oauth', data.oauth||data.services?.oauth||'—');
+    set('h-latency', ms+'ms');
+    if(verbose){
+      show('health-raw');
+      document.getElementById('health-raw').innerHTML=`<pre>${JSON.stringify(data,null,2)}</pre>`;
+    }
+    httpLog('GET','/health',res.status,ms,'');
+  } catch(err){
+    badge.className='badge badge-error'; badge.textContent='● Offline';
+    httpLog('GET','/health',0,Date.now()-t0,'error:'+err.message);
+  }
+}
+
+function fmtUptime(s){
+  if(typeof s==='string') return s;
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+  return h+'h '+m+'m';
+}
+
+// ============================================================
+// TAB: OAuth PKCE
+// ============================================================
+function restoreUI(){
+  if(S.pkce.clientId){
+    markStep('s1');
+    document.getElementById('pkceBtn').disabled=false;
+    document.getElementById('registerBtn').textContent='Registered ✓';
+  }
+  if(S.pkce.cv){
+    markStep('s2');
+    document.getElementById('cvDisplay').textContent=S.pkce.cv;
+    document.getElementById('ccDisplay').textContent=S.pkce.cc;
+    show('pkce-display');
+    document.getElementById('startAuthBtn').disabled=false;
+    updateAuthUrl();
+  }
+  if(S.pkce.at){ showPkceAuthed(); }
+}
+
+async function registerClient(){
+  const btn=document.getElementById('registerBtn');
+  btn.disabled=true; btn.textContent='Registering…';
+  const t0=Date.now();
+  try{
+    const body={
+      client_name: document.getElementById('clientName').value,
+      redirect_uris: [pageUrl()],
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      scope: document.getElementById('scopes').value,
+      token_endpoint_auth_method: 'none'
     };
+    const res = await fetch(getBase()+'/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data = await res.json();
+    httpLog('POST','/register',res.status,Date.now()-t0,res.ok?'':'error');
+    if(!res.ok) throw new Error(data.error_description||data.error||'Registration failed');
+    S.pkce.clientId=data.client_id; S.pkce.clientSecret=data.client_secret; save();
+    showResult('r-register','ok',data);
+    markStep('s1');
+    document.getElementById('pkceBtn').disabled=false;
+    document.getElementById('fn-client').classList.add('done');
+    btn.textContent='Registered ✓';
+  } catch(err){
+    showResult('r-register','err',{error:err.message});
+    btn.disabled=false; btn.textContent='Register Client';
+  }
+}
 
-    // ========================================================================
-    // INITIALIZATION
-    // ========================================================================
-    function init() {
-      // Set redirect URI to current page
-      const currentUrl = new URL(window.location.href);
-      currentUrl.search = '';
-      currentUrl.hash = '';
-      document.getElementById('redirectUri').value = currentUrl.toString();
+async function generatePKCE(){
+  const arr=new Uint8Array(32); crypto.getRandomValues(arr);
+  const cv=b64url(arr);
+  const enc=new TextEncoder();
+  const dig=await crypto.subtle.digest('SHA-256',enc.encode(cv));
+  const cc=b64url(new Uint8Array(dig));
+  const st=b64url(new Uint8Array(16).fill(0).map(()=>{crypto.getRandomValues(new Uint8Array(1)); return crypto.getRandomValues(new Uint8Array(1))[0];}));
+  const stArr=new Uint8Array(16); crypto.getRandomValues(stArr);
+  S.pkce.cv=cv; S.pkce.cc=cc; S.pkce.authState=b64url(stArr); save();
+  document.getElementById('cvDisplay').textContent=cv;
+  document.getElementById('ccDisplay').textContent=cc;
+  show('pkce-display');
+  markStep('s2');
+  document.getElementById('startAuthBtn').disabled=false;
+  document.getElementById('fn-pkce').classList.add('done');
+  updateAuthUrl();
+}
 
-      // Check for callback params (returning from auth)
-      const params = new URLSearchParams(window.location.search);
-      if (params.has('code')) {
-        handleCallback(params);
-        return;
+function b64url(buf){ return btoa(String.fromCharCode(...buf)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+
+function updateAuthUrl(){
+  if(!S.pkce.clientId||!S.pkce.cc) return;
+  const u=new URL(getBase()+'/oauth/authorize');
+  u.searchParams.set('response_type','code');
+  u.searchParams.set('client_id',S.pkce.clientId);
+  u.searchParams.set('redirect_uri',pageUrl());
+  u.searchParams.set('scope',document.getElementById('scopes').value);
+  u.searchParams.set('state',S.pkce.authState);
+  u.searchParams.set('code_challenge',S.pkce.cc);
+  u.searchParams.set('code_challenge_method','S256');
+  document.getElementById('authUrlDisplay').textContent=u.toString();
+  document.getElementById('authUrlDisplay').style.color='var(--success)';
+}
+
+function startOAuthFlow(){
+  document.getElementById('fn-auth').classList.add('active');
+  const u=new URL(getBase()+'/oauth/authorize');
+  u.searchParams.set('response_type','code');
+  u.searchParams.set('client_id',S.pkce.clientId);
+  u.searchParams.set('redirect_uri',pageUrl());
+  u.searchParams.set('scope',document.getElementById('scopes').value);
+  u.searchParams.set('state',S.pkce.authState);
+  u.searchParams.set('code_challenge',S.pkce.cc);
+  u.searchParams.set('code_challenge_method','S256');
+  location.href=u.toString();
+}
+
+async function handleCallback(params){
+  hide('pkce-preauth'); show('pkce-callback');
+  const code=params.get('code'), retState=params.get('state');
+  document.getElementById('authCodeDisplay').textContent=code;
+  document.getElementById('stateDisplay').textContent=retState;
+  load();
+  if(retState!==S.pkce.authState){
+    showPkceError('state_mismatch','The state parameter does not match. Possible CSRF attack.');
+    return;
+  }
+  document.getElementById('fn-callback').classList.add('done');
+  document.getElementById('fn-exchange').classList.add('active');
+  const t0=Date.now();
+  try{
+    const body=new URLSearchParams({
+      grant_type:'authorization_code', code,
+      redirect_uri:pageUrl(),
+      client_id:S.pkce.clientId,
+      code_verifier:S.pkce.cv
+    });
+    const res=await fetch(getBase()+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()});
+    const data=await res.json();
+    httpLog('POST','/oauth/token',res.status,Date.now()-t0,res.ok?'':'error');
+    document.getElementById('exchangeResult').innerHTML=`<pre>${JSON.stringify(data,null,2)}</pre>`;
+    document.getElementById('exchangeResult').className='result-box '+(res.ok?'ok':'err');
+    if(!res.ok) throw new Error(data.error_description||data.error||'Token exchange failed');
+    S.pkce.at=data.access_token; S.pkce.rt=data.refresh_token;
+    S.pkce.expAt=data.expires_in?Date.now()+data.expires_in*1000:null;
+    S.pkce.user=data.user||{};
+    save();
+    document.getElementById('fn-exchange').classList.remove('active');
+    document.getElementById('fn-exchange').classList.add('done');
+    document.getElementById('fn-done').classList.add('done');
+    history.replaceState({},document.title,location.pathname);
+    setTimeout(()=>showPkceAuthed(),400);
+  } catch(err){
+    showPkceError('token_exchange_failed',err.message);
+  }
+}
+
+function showPkceAuthed(){
+  hide('pkce-preauth'); hide('pkce-callback'); hide('pkce-error'); show('pkce-authed');
+  document.getElementById('pkce-access-token').value=S.pkce.at||'';
+  document.getElementById('pkce-refresh-token').value=S.pkce.rt||'';
+  // Decode to get user info
+  const pl=tryDecodeJwt(S.pkce.at);
+  const email=pl?.email||S.pkce.user?.email||'Unknown';
+  const role=pl?.role||S.pkce.user?.role||'authenticated';
+  const uai=pl?.uai;
+  set('pkce-email',email);
+  set('pkce-role','Role: '+role);
+  set('pkce-avatar',email.charAt(0).toUpperCase());
+  if(uai){ show('pkce-uai'); document.getElementById('pkce-uai').textContent='UAI: '+uai.slice(0,18)+'…'; }
+  startExpiryCountdown('pkce-expiry','pkce-expiry-fill',pl?.exp);
+  ['fn-client','fn-pkce','fn-auth','fn-login','fn-callback','fn-exchange','fn-done'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.classList.remove('active'); el.classList.add('done');
+  });
+}
+
+function showPkceError(error,desc){
+  hide('pkce-preauth'); hide('pkce-callback');
+  show('pkce-error');
+  document.getElementById('pkce-error-box').innerHTML=`<div class="result-label">Error: ${error}</div><pre>${desc||''}</pre>`;
+  document.getElementById('pkce-error-box').className='result-box err';
+}
+
+function resetPkce(){
+  S.pkce={clientId:null,clientSecret:null,cv:null,cc:null,authState:null,at:null,rt:null,user:null,expAt:null};
+  save();
+  history.replaceState({},document.title,location.pathname);
+  location.reload();
+}
+
+async function verifyToken(){
+  const t0=Date.now();
+  const res=await authedFetch('POST','/v1/auth/verify',null,S.pkce.at);
+  httpLog('POST','/v1/auth/verify',res.status,Date.now()-t0,'');
+  showResult('pkce-action-result',res.ok?'ok':'err',res.data);
+}
+
+async function getSession(){
+  const t0=Date.now();
+  const res=await authedFetch('GET','/v1/auth/session',null,S.pkce.at);
+  httpLog('GET','/v1/auth/session',res.status,Date.now()-t0,'');
+  showResult('pkce-action-result',res.ok?'ok':'err',res.data);
+}
+
+async function introspectToken(){
+  const t0=Date.now();
+  const res=await jsonFetch('POST','/oauth/introspect',{token:S.pkce.at});
+  httpLog('POST','/oauth/introspect',res.status,Date.now()-t0,'');
+  showResult('pkce-action-result',res.ok?'ok':'err',res.data);
+}
+
+async function refreshAccessToken(){
+  if(!S.pkce.rt){ showResult('pkce-action-result','err',{error:'No refresh token stored'}); return; }
+  const t0=Date.now();
+  const body=new URLSearchParams({grant_type:'refresh_token',refresh_token:S.pkce.rt,client_id:S.pkce.clientId});
+  const r=await fetch(getBase()+'/oauth/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body.toString()});
+  const data=await r.json();
+  httpLog('POST','/oauth/token (refresh)',r.status,Date.now()-t0,'');
+  if(r.ok){ S.pkce.at=data.access_token; if(data.refresh_token) S.pkce.rt=data.refresh_token; save(); document.getElementById('pkce-access-token').value=S.pkce.at; }
+  showResult('pkce-action-result',r.ok?'ok':'err',data);
+}
+
+async function logoutOAuth(){
+  const t0=Date.now();
+  const res=await authedFetch('POST','/v1/auth/logout',null,S.pkce.at);
+  httpLog('POST','/v1/auth/logout',res.status,Date.now()-t0,'');
+  showResult('pkce-action-result',res.ok?'ok':'warn',res.data);
+  if(res.ok) setTimeout(resetPkce,1200);
+}
+
+async function whoami(){
+  const t0=Date.now();
+  const res=await authedFetch('GET','/v1/auth/me',null,S.pkce.at);
+  httpLog('GET','/v1/auth/me',res.status,Date.now()-t0,'');
+  showResult('pkce-action-result',res.ok?'ok':'err',res.data);
+  if(res.ok){
+    const d=res.data;
+    set('pkce-email',d.email||d.user?.email||'—');
+    const uai=d.uai||d.auth_id||d.user?.uai;
+    if(uai){ show('pkce-uai'); document.getElementById('pkce-uai').textContent='UAI: '+uai; }
+  }
+}
+
+// ============================================================
+// TAB: Password Login
+// ============================================================
+async function passwordLogin(){
+  const email=document.getElementById('pw-email').value;
+  const pass=document.getElementById('pw-pass').value;
+  const platform=document.getElementById('pw-platform').value;
+  const scope=document.getElementById('pw-scope').value;
+  if(!email||!pass){ alert('Email and password required'); return; }
+  const t0=Date.now();
+  const res=await jsonFetch('POST','/v1/auth/login',{email,password:pass,platform,project_scope:scope||undefined});
+  httpLog('POST','/v1/auth/login',res.status,Date.now()-t0,'');
+  showResult('pw-result',res.ok?'ok':'err',res.data);
+  if(res.ok){
+    S.pw.at=res.data.access_token||res.data.token;
+    S.pw.rt=res.data.refresh_token;
+    S.pw.user=res.data.user||{};
+    save();
+    document.getElementById('pw-access-token').value=S.pw.at||'';
+    const pl=tryDecodeJwt(S.pw.at);
+    const uemail=pl?.email||S.pw.user?.email||email;
+    set('pw-email-display',uemail);
+    set('pw-role-display','Role: '+(pl?.role||'authenticated'));
+    set('pw-avatar',uemail.charAt(0).toUpperCase());
+    const uai=pl?.uai; if(uai){ show('pw-uai'); document.getElementById('pw-uai').textContent='UAI: '+uai.slice(0,18)+'…'; }
+    show('pw-authed');
+  }
+}
+
+async function whoamiWith(src){
+  const token=S[src]?.at; if(!token){ showResult(src+'-action-result','err',{error:'No token — authenticate first'}); return; }
+  const t0=Date.now();
+  const res=await authedFetch('GET','/v1/auth/me',null,token);
+  httpLog('GET','/v1/auth/me',res.status,Date.now()-t0,'');
+  showResult(src+'-action-result',res.ok?'ok':'err',res.data);
+}
+
+async function verifyWith(src){
+  const token=S[src]?.at; if(!token){ showResult(src+'-action-result','err',{error:'No token'}); return; }
+  const t0=Date.now();
+  const res=await authedFetch('POST','/v1/auth/verify',null,token);
+  httpLog('POST','/v1/auth/verify',res.status,Date.now()-t0,'');
+  showResult(src+'-action-result',res.ok?'ok':'err',res.data);
+}
+
+async function introspectWith(src){
+  const token=S[src]?.at; if(!token){ showResult(src+'-action-result','err',{error:'No token'}); return; }
+  const t0=Date.now();
+  const res=await jsonFetch('POST','/oauth/introspect',{token});
+  httpLog('POST','/oauth/introspect',res.status,Date.now()-t0,'');
+  showResult(src+'-action-result',res.ok?'ok':'err',res.data);
+}
+
+function inspectToken(inputId){
+  const val=document.getElementById(inputId).value;
+  if(!val) return;
+  document.getElementById('inspectorInput').value=val;
+  decodeJwt(val);
+  showTab('inspector',document.querySelector('.nav-item:nth-child(2)'));
+}
+
+// ============================================================
+// TAB: OTP
+// ============================================================
+function onOtpTypeChange(){
+  const t=document.getElementById('otpType').value;
+  document.getElementById('sendOtpBtn').textContent=t==='magiclink'?'Send Magic Link':'Send OTP';
+}
+
+async function sendOtp(){
+  const email=document.getElementById('otpEmail').value;
+  const type=document.getElementById('otpType').value;
+  if(!email){ alert('Email required'); return; }
+  const btn=document.getElementById('sendOtpBtn');
+  btn.disabled=true; btn.textContent='Sending…';
+  const t0=Date.now();
+  const res=await jsonFetch('POST','/otp/send',{email,type});
+  httpLog('POST','/otp/send',res.status,Date.now()-t0,'');
+  showResult('otp-send-result',res.ok?'ok':'err',res.data);
+  btn.disabled=false; btn.textContent=type==='magiclink'?'Resend Magic Link':'Resend OTP';
+  if(res.ok && type!=='magiclink') show('otp-verify-section');
+}
+
+async function verifyOtp(){
+  const email=document.getElementById('otpEmail').value;
+  const token=document.getElementById('otpCode').value;
+  const type=document.getElementById('otpType').value;
+  if(!token){ alert('OTP code required'); return; }
+  const t0=Date.now();
+  const res=await jsonFetch('POST','/otp/verify',{email,token,type});
+  httpLog('POST','/otp/verify',res.status,Date.now()-t0,'');
+  showResult('otp-verify-result',res.ok?'ok':'err',res.data);
+  if(res.ok && res.data.access_token){
+    S.otp.at=res.data.access_token; S.otp.rt=res.data.refresh_token; S.otp.user=res.data.user||{}; save();
+    document.getElementById('otp-access-token').value=S.otp.at;
+    const pl=tryDecodeJwt(S.otp.at);
+    const uemail=pl?.email||S.otp.user?.email||email;
+    set('otp-email-display',uemail); set('otp-role-display','Role: '+(pl?.role||'authenticated'));
+    set('otp-avatar',uemail.charAt(0).toUpperCase());
+    show('otp-authed');
+  }
+}
+
+// ============================================================
+// TAB: API Key
+// ============================================================
+async function testApiKey(){
+  const key=document.getElementById('apiKeyInput').value;
+  if(!key){ alert('API key required'); return; }
+  const t0=Date.now();
+  const res=await fetch(getBase()+'/v1/auth/verify-api-key',{method:'POST',headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify({api_key:key})});
+  const data=await res.json(); httpLog('POST','/v1/auth/verify-api-key',res.status,Date.now()-t0,'');
+  showResult('apikey-result',res.ok?'ok':'err',data);
+}
+
+async function testApiKeyEndpoint(){
+  const key=document.getElementById('apiKeyHeader').value;
+  const path=document.getElementById('apiKeyEndpoint').value;
+  if(!key){ alert('API key required'); return; }
+  const t0=Date.now();
+  const headers={'X-API-Key':key};
+  const res=await fetch(getBase()+path,{headers});
+  const data=await safeJson(res); httpLog('GET',path,res.status,Date.now()-t0,'');
+  showResult('apikey-endpoint-result',res.ok?'ok':'err',data);
+}
+
+// ============================================================
+// TAB: Token Inspector
+// ============================================================
+function loadTokenIntoInspector(src){
+  const t=S[src]?.at; if(!t){ alert('No token for this session'); return; }
+  document.getElementById('inspectorInput').value=t;
+  decodeJwt(t);
+}
+
+function decodeJwt(token){
+  if(!token||token.split('.').length!==3){ hide('jwt-decoded'); return; }
+  try{
+    const [hb64,pb64]=token.split('.');
+    const header=JSON.parse(atob(hb64.replace(/-/g,'+').replace(/_/g,'/')));
+    const payload=JSON.parse(atob(pb64.replace(/-/g,'+').replace(/_/g,'/')));
+    show('jwt-decoded');
+    document.getElementById('jwt-header-box').innerHTML=`<pre>${JSON.stringify(header,null,2)}</pre>`;
+    // Render payload fields
+    const now=Math.floor(Date.now()/1000);
+    let rows='';
+    const specialKeys=['uai','sub','email','role','exp','iat','plan','platform','project_scope','organization_id'];
+    const allKeys=[...specialKeys,...Object.keys(payload).filter(k=>!specialKeys.includes(k))];
+    for(const k of allKeys){
+      if(!(k in payload)) continue;
+      let v=payload[k];
+      let cls='jwt-val';
+      let display=typeof v==='object'?JSON.stringify(v):String(v);
+      if(k==='uai'){ cls='jwt-val uai'; display='🔑 '+display; }
+      else if(k==='exp'){
+        const rem=v-now;
+        if(rem>300) cls='jwt-val exp-ok';
+        else if(rem>0) cls='jwt-val exp-warn';
+        else cls='jwt-val exp-bad';
+        display=new Date(v*1000).toLocaleString()+` (${rem>0?'+'+rem+'s':'expired '+(-rem)+'s ago'})`;
+      } else if(k==='iat'){
+        display=new Date(v*1000).toLocaleString();
       }
-
-      if (params.has('error')) {
-        showError(params.get('error'), params.get('error_description'));
-        return;
-      }
-
-      // Restore state from storage
-      const savedState = sessionStorage.getItem(STATE_KEY);
-      if (savedState) {
-        state = JSON.parse(savedState);
-        restoreUI();
-      }
-
-      // Check health
-      checkHealth();
+      rows+=`<div class="jwt-payload-field"><span class="jwt-key">${k}</span><span class="${cls}">${display}</span></div>`;
     }
+    document.getElementById('jwt-payload-fields').innerHTML=`<div class="code-box">${rows}</div>`;
+    // Status
+    const exp=payload.exp;
+    const hasUai=!!payload.uai;
+    const expired=exp&&now>exp;
+    document.getElementById('jwt-status-box').innerHTML=`
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <span class="badge ${expired?'badge-error':'badge-success'}">${expired?'⚠ Expired':'✓ Valid'}</span>
+        <span class="badge ${hasUai?'badge-purple':'badge-warning'}">${hasUai?'✓ UAI embedded':'⚠ No UAI (legacy token)'}</span>
+        ${payload.platform?`<span class="badge badge-info">platform: ${payload.platform}</span>`:''}
+        ${payload.role?`<span class="badge badge-info">role: ${payload.role}</span>`:''}
+      </div>`;
+  } catch(e){ hide('jwt-decoded'); }
+}
 
-    function saveState() {
-      sessionStorage.setItem(STATE_KEY, JSON.stringify(state));
+// ============================================================
+// TAB: Whoami
+// ============================================================
+function loadWhoamiToken(src){
+  const t=S[src]?.at; if(!t){ alert('No token for this session'); return; }
+  document.getElementById('whoami-token').value=t;
+}
+
+async function runWhoami(){
+  const token=document.getElementById('whoami-token').value;
+  if(!token){ alert('Token required'); return; }
+  const t0=Date.now();
+  const res=await authedFetch('GET','/v1/auth/me',null,token);
+  httpLog('GET','/v1/auth/me',res.status,Date.now()-t0,'');
+  showResult('whoami-result',res.ok?'ok':'err',res.data);
+  if(res.ok){
+    const d=res.data;
+    const profile=d.user||d;
+    show('whoami-profile');
+    set('wm-avatar',(profile.email||'?').charAt(0).toUpperCase());
+    set('wm-name',profile.name||profile.email||'—');
+    set('wm-email-p',profile.email||'—');
+    document.getElementById('wm-uai').textContent='UAI: '+(profile.uai||profile.auth_id||d.uai||'—');
+    document.getElementById('wm-role-badge').textContent=profile.role||'—';
+    document.getElementById('wm-plan-badge').textContent='Plan: '+(profile.plan||profile.metadata?.plan||'—');
+    // Extra fields
+    const extra=['provider','platform','project_scope','last_sign_in_at','created_at'];
+    let html='<div class="code-box" style="margin-top:12px">';
+    for(const k of extra){
+      const v=profile[k]||profile.metadata?.[k];
+      if(v) html+=`<div class="jwt-payload-field"><span class="jwt-key">${k}</span><span class="jwt-val">${v}</span></div>`;
     }
+    html+='</div>';
+    document.getElementById('wm-fields').innerHTML=html;
+  }
+}
 
-    function restoreUI() {
-      if (state.clientId) {
-        document.getElementById('clientIdDisplay').textContent = state.clientId;
-        document.getElementById('clientInfo').classList.remove('hidden');
-        document.getElementById('step1-status').classList.add('completed');
-        document.getElementById('step1-status').textContent = '✓';
-        document.getElementById('pkceBtn').disabled = false;
-        document.getElementById('flow-client').classList.add('completed');
-      }
+// ============================================================
+// TAB: Endpoint Tester
+// ============================================================
+function setEndpoint(method,path){
+  document.getElementById('ep-method').value=method;
+  document.getElementById('ep-path').value=path;
+  // Auto-load active token if available
+  const t=S.pkce.at||S.pw.at||S.otp.at;
+  if(t && !document.getElementById('ep-auth').value) document.getElementById('ep-auth').value='Bearer '+t;
+}
 
-      if (state.codeVerifier) {
-        document.getElementById('codeVerifierDisplay').textContent = state.codeVerifier;
-        document.getElementById('codeChallengeDisplay').textContent = state.codeChallenge;
-        document.getElementById('pkceInfo').classList.remove('hidden');
-        document.getElementById('step2-status').classList.add('completed');
-        document.getElementById('step2-status').textContent = '✓';
-        document.getElementById('startAuthBtn').disabled = false;
-        updateAuthUrl();
-      }
+async function runEndpoint(){
+  const method=document.getElementById('ep-method').value;
+  const path=document.getElementById('ep-path').value.trim();
+  const auth=document.getElementById('ep-auth').value.trim();
+  const bodyRaw=document.getElementById('ep-body').value.trim();
+  if(!path){ alert('Path required'); return; }
+  const headers={};
+  if(auth){
+    if(auth.startsWith('Bearer ')||auth.startsWith('bearer ')) headers['Authorization']=auth;
+    else if(auth.startsWith('lano_')||auth.startsWith('vx_')||auth.startsWith('lns_')) headers['X-API-Key']=auth;
+    else headers['Authorization']='Bearer '+auth;
+  }
+  if(bodyRaw) headers['Content-Type']='application/json';
+  const t0=Date.now();
+  try{
+    const opts={method,headers};
+    if(bodyRaw&&method!=='GET') opts.body=bodyRaw;
+    const res=await fetch(getBase()+path,opts);
+    const data=await safeJson(res);
+    httpLog(method,path,res.status,Date.now()-t0,'');
+    showResult('ep-result',res.ok?'ok':(res.status>=500?'warn':'err'),data);
+  } catch(err){
+    showResult('ep-result','err',{error:err.message});
+  }
+}
 
-      if (state.accessToken) {
-        showAuthenticatedState();
-      }
+// ============================================================
+// AUTH METHOD GRID
+// ============================================================
+function renderAuthMethodGrid(){
+  const methods=[
+    {id:'oauth_pkce',label:'OAuth PKCE',tested:'pkce',note:'Full PKCE flow tab'},
+    {id:'password',label:'Password Login',tested:'pw',note:'Password tab'},
+    {id:'magic_link',label:'Magic Link',tested:'otp',note:'OTP/Magic tab'},
+    {id:'otp_email',label:'OTP Email',tested:'otp',note:'OTP/Magic tab'},
+    {id:'api_key',label:'API Key (lano_)',tested:'apikey',note:'API Key tab'},
+    {id:'supabase_jwt',label:'Supabase JWT',tested:null,note:'Social OAuth — use PKCE with social provider'},
+    {id:'oauth_token',label:'OAuth Token (opaque)',tested:null,note:'Auto-tested by requireAuth fix'},
+    {id:'mcp_token',label:'MCP Token',tested:null,note:'Via MCP session'},
+    {id:'sso_session',label:'SSO Session',tested:null,note:'Enterprise SSO (not yet exposed)'},
+    {id:'passkey',label:'Passkey / Device',tested:null,note:'Device code flow'},
+  ];
+  const grid=document.getElementById('auth-method-grid');
+  grid.innerHTML=methods.map(m=>`
+    <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="font-size:0.85rem;font-weight:600;color:var(--text-primary)">${m.label}</span>
+        <span class="badge ${m.tested?'badge-success':'badge-warning'}" style="font-size:0.62rem">${m.tested?'✓ testable':'partial'}</span>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted)">${m.id}</div>
+      <div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px">${m.note}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+async function authedFetch(method,path,body,token){
+  const headers={'Authorization':'Bearer '+token};
+  if(body) headers['Content-Type']='application/json';
+  try{
+    const res=await fetch(getBase()+path,{method,headers,body:body?JSON.stringify(body):undefined});
+    const data=await safeJson(res);
+    return {ok:res.ok,status:res.status,data};
+  } catch(err){ return {ok:false,status:0,data:{error:err.message}}; }
+}
+
+async function jsonFetch(method,path,body){
+  try{
+    const res=await fetch(getBase()+path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data=await safeJson(res);
+    return {ok:res.ok,status:res.status,data};
+  } catch(err){ return {ok:false,status:0,data:{error:err.message}}; }
+}
+
+async function safeJson(res){ try{ return await res.json(); }catch(e){ return {raw:await res.text().catch(()=>'')}; } }
+
+function tryDecodeJwt(token){
+  try{
+    if(!token||token.split('.').length!==3) return null;
+    return JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+  } catch(e){ return null; }
+}
+
+function showResult(id,type,data){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.className='result-box '+type;
+  el.innerHTML=`<pre>${typeof data==='string'?data:JSON.stringify(data,null,2)}</pre>`;
+  el.classList.remove('hidden');
+}
+
+function set(id,val){ const el=document.getElementById(id); if(el) el.textContent=val; }
+function show(id){ const el=document.getElementById(id); if(el) el.classList.remove('hidden'); }
+function hide(id){ const el=document.getElementById(id); if(el) el.classList.add('hidden'); }
+function markStep(id){ const el=document.getElementById(id); if(el){ el.classList.add('done'); el.textContent='✓'; } }
+
+function copyText(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const val=el.tagName==='TEXTAREA'?el.value:el.textContent;
+  navigator.clipboard.writeText(val).then(()=>{
+    const orig=el.closest('.token-value')?.querySelector('.btn')||null;
+    if(orig){ const t=orig.textContent; orig.textContent='Copied!'; setTimeout(()=>orig.textContent=t,1500); }
+  });
+}
+
+function togglePw(id,btn){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.type=el.type==='password'?'text':'password';
+  btn.textContent=el.type==='password'?'👁':'🙈';
+}
+
+// ============================================================
+// EXPIRY COUNTDOWN
+// ============================================================
+function startExpiryCountdown(labelId,barId,expUnix){
+  if(expiryTimer) clearInterval(expiryTimer);
+  if(!expUnix) return;
+  const total=expUnix-Math.floor(Date.now()/1000);
+  const tick=()=>{
+    const rem=expUnix-Math.floor(Date.now()/1000);
+    const label=document.getElementById(labelId);
+    const bar=document.getElementById(barId);
+    if(!label) return;
+    if(rem<=0){ label.textContent='Expired'; label.style.color='var(--error)'; if(bar){bar.style.width='0%';bar.style.background='var(--error)';} clearInterval(expiryTimer); return; }
+    const h=Math.floor(rem/3600),m=Math.floor((rem%3600)/60),s=rem%60;
+    label.textContent=h?`${h}h ${m}m`:`${m}m ${s}s`;
+    const pct=Math.max(0,Math.min(100,(rem/total)*100));
+    if(bar){
+      bar.style.width=pct+'%';
+      bar.style.background=pct>30?'var(--success)':pct>10?'var(--warning)':'var(--error)';
     }
-
-    // ========================================================================
-    // ENVIRONMENT
-    // ========================================================================
-    function updateEnvironment() {
-      const env = document.getElementById('environment').value;
-      const urls = {
-        local: 'http://localhost:4000',
-        staging: 'https://auth-staging.lanonasis.com',
-        production: 'https://auth.lanonasis.com'
-      };
-      document.getElementById('authBaseUrl').value = urls[env];
-      checkHealth();
-    }
-
-    function getBaseUrl() {
-      return document.getElementById('authBaseUrl').value.replace(/\/$/, '');
-    }
-
-    async function checkHealth() {
-      const badge = document.getElementById('healthStatus');
-      badge.className = 'status-badge pending';
-      badge.textContent = 'Checking...';
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/health`);
-        const data = await res.json();
-
-        if (res.ok && data.status === 'ok') {
-          badge.className = 'status-badge success';
-          badge.textContent = 'Connected';
-          log('Health check passed', 'success');
-        } else {
-          badge.className = 'status-badge pending';
-          badge.textContent = data.status || 'Degraded';
-          log(`Health: ${data.status}`, 'info');
-        }
-      } catch (err) {
-        badge.className = 'status-badge error';
-        badge.textContent = 'Offline';
-        log(`Health check failed: ${err.message}`, 'error');
-      }
-    }
-
-    // ========================================================================
-    // STEP 1: REGISTER CLIENT
-    // ========================================================================
-    async function registerClient() {
-      const btn = document.getElementById('registerBtn');
-      btn.disabled = true;
-      btn.textContent = 'Registering...';
-
-      log('Registering OAuth client (RFC 7591)...', 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            client_name: document.getElementById('clientName').value,
-            redirect_uris: [document.getElementById('redirectUri').value],
-            grant_types: ['authorization_code'],
-            response_types: ['code'],
-            scope: document.getElementById('scopes').value,
-            token_endpoint_auth_method: 'none'
-          })
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error_description || data.error || 'Registration failed');
-        }
-
-        state.clientId = data.client_id;
-        state.clientSecret = data.client_secret;
-        saveState();
-
-        document.getElementById('clientIdDisplay').textContent = data.client_id;
-        document.getElementById('clientInfo').classList.remove('hidden');
-        document.getElementById('clientInfo').classList.add('success');
-        document.getElementById('step1-status').classList.add('completed');
-        document.getElementById('step1-status').textContent = '✓';
-        document.getElementById('pkceBtn').disabled = false;
-        document.getElementById('flow-client').classList.add('completed');
-
-        log(`Client registered: ${data.client_id}`, 'success');
-        btn.textContent = 'Registered ✓';
-
-      } catch (err) {
-        log(`Registration failed: ${err.message}`, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Register Client';
-        alert(`Registration failed: ${err.message}`);
-      }
-    }
-
-    // ========================================================================
-    // STEP 2: GENERATE PKCE
-    // ========================================================================
-    async function generatePKCE() {
-      log('Generating PKCE code_verifier and code_challenge (S256)...', 'info');
-
-      // Generate code_verifier (43-128 chars, URL-safe)
-      const array = new Uint8Array(32);
-      crypto.getRandomValues(array);
-      const codeVerifier = base64UrlEncode(array);
-
-      // Generate code_challenge = SHA256(code_verifier)
-      const encoder = new TextEncoder();
-      const data = encoder.encode(codeVerifier);
-      const digest = await crypto.subtle.digest('SHA-256', data);
-      const codeChallenge = base64UrlEncode(new Uint8Array(digest));
-
-      state.codeVerifier = codeVerifier;
-      state.codeChallenge = codeChallenge;
-      state.authState = generateRandomState();
-      saveState();
-
-      document.getElementById('codeVerifierDisplay').textContent = codeVerifier;
-      document.getElementById('codeChallengeDisplay').textContent = codeChallenge;
-      document.getElementById('pkceInfo').classList.remove('hidden');
-      document.getElementById('pkceInfo').classList.add('success');
-      document.getElementById('step2-status').classList.add('completed');
-      document.getElementById('step2-status').textContent = '✓';
-      document.getElementById('startAuthBtn').disabled = false;
-
-      log(`PKCE generated. code_verifier stored in sessionStorage.`, 'success');
-
-      updateAuthUrl();
-    }
-
-    function base64UrlEncode(buffer) {
-      return btoa(String.fromCharCode.apply(null, buffer))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-    }
-
-    function generateRandomState() {
-      const array = new Uint8Array(16);
-      crypto.getRandomValues(array);
-      return base64UrlEncode(array);
-    }
-
-    function updateAuthUrl() {
-      const url = new URL(`${getBaseUrl()}/oauth/authorize`);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('client_id', state.clientId);
-      url.searchParams.set('redirect_uri', document.getElementById('redirectUri').value);
-      url.searchParams.set('scope', document.getElementById('scopes').value);
-      url.searchParams.set('state', state.authState);
-      url.searchParams.set('code_challenge', state.codeChallenge);
-      url.searchParams.set('code_challenge_method', 'S256');
-
-      document.getElementById('authUrlDisplay').textContent = url.toString();
-      document.getElementById('authUrlPreview').classList.remove('pending');
-      document.getElementById('authUrlPreview').classList.add('success');
-    }
-
-    // ========================================================================
-    // STEP 3: START OAUTH FLOW
-    // ========================================================================
-    function startOAuthFlow() {
-      log('Redirecting to /oauth/authorize...', 'info');
-
-      document.getElementById('flow-authorize').classList.add('active');
-
-      const url = new URL(`${getBaseUrl()}/oauth/authorize`);
-      url.searchParams.set('response_type', 'code');
-      url.searchParams.set('client_id', state.clientId);
-      url.searchParams.set('redirect_uri', document.getElementById('redirectUri').value);
-      url.searchParams.set('scope', document.getElementById('scopes').value);
-      url.searchParams.set('state', state.authState);
-      url.searchParams.set('code_challenge', state.codeChallenge);
-      url.searchParams.set('code_challenge_method', 'S256');
-
-      // Redirect!
-      window.location.href = url.toString();
-    }
-
-    // ========================================================================
-    // STEP 4: HANDLE CALLBACK
-    // ========================================================================
-    async function handleCallback(params) {
-      document.getElementById('preAuthState').classList.add('hidden');
-      document.getElementById('callbackState').classList.remove('hidden');
-
-      const code = params.get('code');
-      const returnedState = params.get('state');
-
-      document.getElementById('authCodeDisplay').textContent = code;
-      document.getElementById('stateDisplay').textContent = returnedState;
-
-      log(`Received callback with authorization code`, 'info');
-
-      // Restore state from storage
-      const savedState = sessionStorage.getItem(STATE_KEY);
-      if (savedState) {
-        state = JSON.parse(savedState);
-      }
-
-      // Verify state
-      if (returnedState !== state.authState) {
-        log('State mismatch! Possible CSRF attack.', 'error');
-        document.getElementById('callbackInfo').classList.add('error');
-        showError('state_mismatch', 'The state parameter does not match. Possible CSRF attack.');
-        return;
-      }
-
-      log('State verified. Exchanging code for tokens...', 'info');
-      document.getElementById('callbackInfo').classList.remove('pending');
-      document.getElementById('callbackInfo').classList.add('success');
-      document.getElementById('step4-status').classList.add('completed');
-      document.getElementById('step4-status').textContent = '✓';
-      document.getElementById('flow-callback').classList.add('completed');
-      document.getElementById('flow-exchange').classList.add('active');
-
-      // Exchange code for tokens
-      try {
-        const baseUrl = getBaseUrl();
-        const tokenUrl = `${baseUrl}/oauth/token`;
-
-        log(`POST ${tokenUrl}`, 'info');
-
-        const body = new URLSearchParams({
-          grant_type: 'authorization_code',
-          code: code,
-          redirect_uri: document.getElementById('redirectUri').value,
-          client_id: state.clientId,
-          code_verifier: state.codeVerifier
-        });
-
-        const res = await fetch(tokenUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: body.toString()
-        });
-
-        const data = await res.json();
-
-        document.getElementById('exchangeResult').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        if (!res.ok) {
-          throw new Error(data.error_description || data.error || 'Token exchange failed');
-        }
-
-        state.accessToken = data.access_token;
-        state.refreshToken = data.refresh_token;
-        state.user = data.user || { email: 'Unknown' };
-        saveState();
-
-        log('Token exchange successful!', 'success');
-        document.getElementById('flow-exchange').classList.remove('active');
-        document.getElementById('flow-exchange').classList.add('completed');
-        document.getElementById('flow-authenticated').classList.add('completed');
-
-        // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-
-        // Show authenticated state
-        setTimeout(() => showAuthenticatedState(), 500);
-
-      } catch (err) {
-        log(`Token exchange failed: ${err.message}`, 'error');
-        document.getElementById('exchangeResult').classList.add('error');
-        document.getElementById('exchangeResult').innerHTML = `<div style="color: var(--error);">Error: ${err.message}</div>`;
-      }
-    }
-
-    // ========================================================================
-    // AUTHENTICATED STATE
-    // ========================================================================
-    function showAuthenticatedState() {
-      document.getElementById('preAuthState').classList.add('hidden');
-      document.getElementById('callbackState').classList.add('hidden');
-      document.getElementById('errorState').classList.add('hidden');
-      document.getElementById('authenticatedState').classList.remove('hidden');
-
-      document.getElementById('accessTokenDisplay').value = state.accessToken || '';
-      document.getElementById('refreshTokenDisplay').value = state.refreshToken || '';
-
-      if (state.user) {
-        const email = state.user.email || 'Unknown';
-        document.getElementById('userEmail').textContent = email;
-        document.getElementById('userRole').textContent = `Role: ${state.user.role || 'authenticated'}`;
-        document.getElementById('userAvatar').textContent = email.charAt(0).toUpperCase();
-      }
-
-      // Decode JWT to show expiry
-      try {
-        const payload = JSON.parse(atob(state.accessToken.split('.')[1]));
-        const expiresIn = payload.exp ? Math.round(payload.exp - Date.now() / 1000) : 'N/A';
-        document.getElementById('expiresInDisplay').textContent = `${expiresIn}s`;
-        document.getElementById('tokenTypeDisplay').textContent = 'Bearer';
-
-        if (payload.email) {
-          document.getElementById('userEmail').textContent = payload.email;
-          document.getElementById('userAvatar').textContent = payload.email.charAt(0).toUpperCase();
-        }
-      } catch (e) {
-        document.getElementById('expiresInDisplay').textContent = 'N/A';
-      }
-
-      // Update all flow steps to completed
-      ['flow-client', 'flow-authorize', 'flow-login', 'flow-callback', 'flow-exchange', 'flow-authenticated'].forEach(id => {
-        document.getElementById(id).classList.add('completed');
-        document.getElementById(id).classList.remove('active');
-      });
-    }
-
-    // ========================================================================
-    // POST-AUTH ACTIONS
-    // ========================================================================
-    async function verifyToken() {
-      log('Verifying token via /v1/auth/verify...', 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/v1/auth/verify`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${state.accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        const data = await res.json();
-        const resultEl = document.getElementById('verifyResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
-        resultEl.innerHTML = `<div class="info-label">Verify Result (${res.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        log(res.ok ? 'Token verified successfully' : `Token verification failed: ${data.error}`, res.ok ? 'success' : 'error');
-      } catch (err) {
-        log(`Verify error: ${err.message}`, 'error');
-      }
-    }
-
-    async function getSession() {
-      log('Getting session via /v1/auth/session...', 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/v1/auth/session`, {
-          headers: { 'Authorization': `Bearer ${state.accessToken}` }
-        });
-
-        const data = await res.json();
-        const resultEl = document.getElementById('verifyResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
-        resultEl.innerHTML = `<div class="info-label">Session (${res.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        log(res.ok ? 'Session retrieved' : `Session error: ${data.error}`, res.ok ? 'success' : 'error');
-      } catch (err) {
-        log(`Session error: ${err.message}`, 'error');
-      }
-    }
-
-    async function introspectToken() {
-      log('Introspecting token via /oauth/introspect...', 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/oauth/introspect`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: state.accessToken })
-        });
-
-        const data = await res.json();
-        const resultEl = document.getElementById('verifyResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
-        resultEl.innerHTML = `<div class="info-label">Introspection (${res.status})</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        log(res.ok ? 'Token introspected' : `Introspection error: ${data.error}`, res.ok ? 'success' : 'error');
-      } catch (err) {
-        log(`Introspect error: ${err.message}`, 'error');
-      }
-    }
-
-    async function logout() {
-      log('Logging out via /v1/auth/logout...', 'info');
-
-      try {
-        await fetch(`${getBaseUrl()}/v1/auth/logout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${state.accessToken}` }
-        });
-
-        log('Logged out successfully', 'success');
-      } catch (err) {
-        log(`Logout error: ${err.message}`, 'error');
-      }
-
-      resetFlow();
-    }
-
-    // ========================================================================
-    // ERROR HANDLING
-    // ========================================================================
-    function showError(error, description) {
-      document.getElementById('preAuthState').classList.add('hidden');
-      document.getElementById('callbackState').classList.add('hidden');
-      document.getElementById('authenticatedState').classList.add('hidden');
-      document.getElementById('errorState').classList.remove('hidden');
-
-      document.getElementById('errorDisplay').innerHTML = `
-        <strong>${error}</strong><br/>
-        ${description || 'An error occurred during authentication.'}
-      `;
-
-      log(`Error: ${error} - ${description}`, 'error');
-    }
-
-    // ========================================================================
-    // RESET
-    // ========================================================================
-    function resetFlow() {
-      sessionStorage.removeItem(STATE_KEY);
-      state = {
-        clientId: null,
-        clientSecret: null,
-        codeVerifier: null,
-        codeChallenge: null,
-        authState: null,
-        accessToken: null,
-        refreshToken: null,
-        user: null
-      };
-
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Reload
-      window.location.reload();
-    }
-
-    // ========================================================================
-    // LOGGING
-    // ========================================================================
-    function log(message, type = 'info') {
-      const panel = document.getElementById('logPanel');
-      const time = new Date().toLocaleTimeString();
-      const typeClass = type === 'success' ? 'log-success' : type === 'error' ? 'log-error' : 'log-info';
-
-      const entry = document.createElement('div');
-      entry.className = 'log-entry';
-      entry.innerHTML = `<span class="log-time">${time}</span><span class="${typeClass}">${message}</span>`;
-
-      if (panel.querySelector('.log-entry').textContent.includes('Waiting')) {
-        panel.innerHTML = '';
-      }
-
-      panel.insertBefore(entry, panel.firstChild);
-    }
-
-    function clearLog() {
-      document.getElementById('logPanel').innerHTML = '<div class="log-entry" style="color: var(--text-secondary);">Log cleared</div>';
-    }
-
-    // ========================================================================
-    // OTP FLOW
-    // ========================================================================
-    async function sendOtp() {
-      const email = document.getElementById('otpEmail').value;
-      const type = document.getElementById('otpType').value;
-
-      if (!email) {
-        alert('Please enter an email address');
-        return;
-      }
-
-      const btn = document.getElementById('sendOtpBtn');
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
-
-      log(`Sending ${type === 'magiclink' ? 'magic link' : 'OTP code'} to ${email}...`, 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/otp/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, type })
-        });
-
-        const data = await res.json();
-        const resultEl = document.getElementById('otpSendResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
-        resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        if (res.ok) {
-          log(`OTP sent successfully to ${email}`, 'success');
-          document.getElementById('otpVerifySection').classList.remove('hidden');
-          btn.textContent = 'Resend OTP';
-        } else {
-          log(`OTP send failed: ${data.error || data.message}`, 'error');
-          btn.textContent = 'Send OTP';
-        }
-
-        btn.disabled = false;
-      } catch (err) {
-        log(`OTP send error: ${err.message}`, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Send OTP';
-      }
-    }
-
-    async function verifyOtp() {
-      const email = document.getElementById('otpEmail').value;
-      const token = document.getElementById('otpCode').value;
-      const type = document.getElementById('otpType').value;
-
-      if (!token) {
-        alert('Please enter the OTP code');
-        return;
-      }
-
-      log(`Verifying OTP code for ${email}...`, 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/otp/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, token, type })
-        });
-
-        const data = await res.json();
-        const resultEl = document.getElementById('otpVerifyResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
-        resultEl.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        if (res.ok) {
-          log('OTP verified successfully! Tokens received.', 'success');
-
-          // Store tokens and show authenticated state
-          if (data.access_token) {
-            state.accessToken = data.access_token;
-            state.refreshToken = data.refresh_token;
-            state.user = data.user;
-            saveState();
-
-            // Update the main authenticated display
-            document.getElementById('accessTokenDisplay').value = data.access_token;
-            document.getElementById('refreshTokenDisplay').value = data.refresh_token || '';
-          }
-        } else {
-          log(`OTP verification failed: ${data.error || data.message}`, 'error');
-        }
-      } catch (err) {
-        log(`OTP verify error: ${err.message}`, 'error');
-      }
-    }
-
-    // ========================================================================
-    // API KEY VALIDATION
-    // ========================================================================
-    async function testApiKeyValidation() {
-      const apiKey = document.getElementById('testApiKey').value;
-
-      if (!apiKey) {
-        alert('Please enter an API key');
-        return;
-      }
-
-      log(`Validating API key: ${apiKey.substring(0, 10)}...`, 'info');
-
-      try {
-        const res = await fetch(`${getBaseUrl()}/v1/auth/verify-api-key`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey
-          },
-          body: JSON.stringify({ api_key: apiKey })
-        });
-
-        const data = await res.json();
-        const resultEl = document.getElementById('apiKeyResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = `info-box ${res.ok ? 'success' : 'error'}`;
-        resultEl.innerHTML = `<div class="info-label">Status: ${res.status}</div><pre>${JSON.stringify(data, null, 2)}</pre>`;
-
-        log(res.ok ? 'API key is valid!' : `API key validation failed: ${data.error}`, res.ok ? 'success' : 'error');
-      } catch (err) {
-        log(`API key validation error: ${err.message}`, 'error');
-        const resultEl = document.getElementById('apiKeyResult');
-        resultEl.classList.remove('hidden');
-        resultEl.className = 'info-box error';
-        resultEl.innerHTML = `<div style="color: var(--error);">Error: ${err.message}</div>`;
-      }
-    }
-
-    // ========================================================================
-    // INIT
-    // ========================================================================
-    init();
-  </script>
+    label.style.color=pct>30?'var(--success)':pct>10?'var(--warning)':'var(--error)';
+  };
+  tick();
+  expiryTimer=setInterval(tick,1000);
+}
+
+// ============================================================
+// HTTP REQUEST LOG
+// ============================================================
+let logCount=0;
+function httpLog(method,path,status,ms,note){
+  logCount++;
+  set('log-count',String(logCount));
+  const row={method,path,status,ms,note,t:new Date().toLocaleTimeString()};
+  logEntries.unshift(row);
+  const panel=document.getElementById('logPanel');
+  const statusCls=status>=500?'s5xx':status>=400?'s4xx':status>=200?'s2xx':'';
+  const methodCls=method==='GET'?'log-inf':method==='POST'?'log-ok':'log-warn';
+  const el=document.createElement('div');
+  el.className='log-row';
+  el.innerHTML=`<span class="log-t">${row.t}</span><span class="log-method ${methodCls}">${method}</span><span class="log-url">${path}${note?' — '+note:''}</span>${status?`<span class="log-status ${statusCls}">${status}</span>`:''}<span class="log-ms">${ms}ms</span>`;
+  if(panel.querySelector('.log-row .log-inf')?.textContent.includes('Waiting')){
+    panel.innerHTML='';
+  }
+  panel.insertBefore(el,panel.firstChild);
+}
+
+function clearLog(){
+  logEntries=[];logCount=0;set('log-count','0');
+  document.getElementById('logPanel').innerHTML='<div class="log-row"><span class="log-t">—</span><span class="log-inf">Log cleared</span></div>';
+}
+
+function exportLog(){
+  const lines=logEntries.map(r=>`[${r.t}] ${r.method} ${r.path} → ${r.status} (${r.ms}ms)${r.note?' '+r.note:''}`).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/plain,'+encodeURIComponent(lines);
+  a.download='auth-gateway-log.txt';
+  a.click();
+}
+</script>
 </body>
 </html>
