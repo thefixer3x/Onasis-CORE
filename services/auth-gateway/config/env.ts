@@ -107,6 +107,13 @@ const envSchema = z.object({
   REDIS_PASSWORD: optionalNonEmptyString('REDIS_PASSWORD'),
 })
 
+// Backfill SERVICE_ROLE_DATABASE_URL from DIRECT_DATABASE_URL or DATABASE_URL
+// for deployments that pre-date the explicit env var requirement.
+if (!process.env.SERVICE_ROLE_DATABASE_URL) {
+  const fallback = process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL
+  if (fallback) process.env.SERVICE_ROLE_DATABASE_URL = fallback
+}
+
 const parsed = envSchema.safeParse(process.env)
 
 if (!parsed.success) {
