@@ -1,6 +1,6 @@
 import express from 'express'
 import { supabaseAdmin, supabaseAuth } from '../../db/client.js'
-import { generateTokenPair } from '../utils/jwt.js'
+import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -320,11 +320,12 @@ router.post('/login', async (req, res) => {
     })
 
     // Generate tokens
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       platform: 'web',
+      authMethod: 'password',
     })
 
     // Create session
@@ -444,11 +445,12 @@ router.post('/signup', async (req, res) => {
     })
 
     // Generate tokens
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       platform: 'web',
+      authMethod: 'password',
     })
 
     // Create session

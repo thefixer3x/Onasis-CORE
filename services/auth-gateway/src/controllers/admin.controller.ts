@@ -2,7 +2,7 @@ import type { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 import { dbPool } from '../../db/client.js'
-import { generateTokenPair } from '../utils/jwt.js'
+import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { logAuthEvent } from '../services/audit.service.js'
 
 /**
@@ -83,12 +83,13 @@ export async function adminBypassLogin(req: Request, res: Response) {
     }
 
     // Generate admin token (never expires)
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: admin.id,
       email: admin.email,
       role: 'admin_override',
       project_scope: 'admin',
       platform: 'web',
+      authMethod: 'api_key',
     })
 
     // Create admin session (never expires)

@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
 import { supabaseAdmin } from '../../db/client.js'
-import { generateTokenPair } from '../utils/jwt.js'
+import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -55,12 +55,13 @@ export async function mcpAuth(req: Request, res: Response) {
     })
 
     // Generate MCP-specific tokens
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       project_scope: 'mcp',
       platform: 'mcp',
+      authMethod: 'mcp_token',
     })
 
     // Create MCP session
@@ -157,12 +158,13 @@ export async function cliLogin(req: Request, res: Response) {
     })
 
     // Generate CLI-specific tokens
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       project_scope: 'cli',
       platform: 'cli',
+      authMethod: 'password',
     })
 
     // Create CLI session

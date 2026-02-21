@@ -15,7 +15,7 @@
 import express from 'express'
 import type { Request, Response } from 'express'
 import { supabaseAuth } from '../../db/client.js'
-import { generateTokenPair } from '../utils/jwt.js'
+import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -352,12 +352,13 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
     }
 
     // Generate auth-gateway tokens
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       project_scope: resolvedProjectScope,
-      platform
+      platform,
+      authMethod: 'otp_email',
     })
 
     // Create session

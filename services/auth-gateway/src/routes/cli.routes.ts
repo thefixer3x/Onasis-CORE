@@ -726,14 +726,15 @@ router.post("/cli-register", async (req, res): Promise<void> => {
     }
 
     // Generate API key/token for the new user
-    const { generateTokenPair } = await import("../utils/jwt.js");
+    const { generateTokenPairWithUAI } = await import("../utils/jwt.js");
     const { createSession } = await import("../services/session.service.js");
 
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user!.id,
       email: data.user!.email!,
       role: data.user!.role || "authenticated",
       platform: "cli",
+      authMethod: "password",
     });
 
     // Create session

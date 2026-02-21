@@ -21,7 +21,7 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import crypto from 'crypto'
 import { DeviceCodeCache } from '../services/cache.service.js'
-import { generateTokenPair } from '../utils/jwt.js'
+import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { createSession } from '../services/session.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { logger } from '../utils/logger.js'
@@ -550,12 +550,13 @@ export async function handleDeviceCodeGrant(
         })
         const resolvedProjectScope = projectScopeResolution.scope
 
-        const tokens = generateTokenPair({
+        const tokens = await generateTokenPairWithUAI({
           sub: deviceData.user_id,
           email: deviceData.email,
           role: 'authenticated',
           project_scope: resolvedProjectScope,
-          platform: 'cli'
+          platform: 'cli',
+          authMethod: 'passkey',
         })
 
         // Create session

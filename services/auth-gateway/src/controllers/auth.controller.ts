@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import type { Request, Response } from 'express'
 import { supabaseUsers } from '../../db/client.js'
-import { generateTokenPair } from '../utils/jwt.js'
+import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
 import { upsertUserAccount, findUserAccountById } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -385,12 +385,13 @@ export async function oauthCallback(req: Request, res: Response) {
       }
     }
 
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       project_scope: resolvedProjectScope,
       platform,
+      authMethod: 'supabase_jwt',
     })
 
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
@@ -719,12 +720,13 @@ export async function magicLinkExchange(req: Request, res: Response) {
       }
     }
 
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: user.id,
       email: user.email!,
       role: user.role || 'authenticated',
       project_scope: resolvedProjectScope,
       platform,
+      authMethod: 'magic_link',
     })
 
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
@@ -883,12 +885,13 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
     })
     const resolvedProjectScope = projectScopeResolution.scope
 
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: user.id,
       email: user.email!,
       role: user.role || 'authenticated',
       project_scope: resolvedProjectScope,
       platform,
+      authMethod: 'oauth_pkce',
     })
 
     // Create session in Neon
@@ -1026,12 +1029,13 @@ export async function login(req: Request, res: Response) {
     const resolvedProjectScope = projectScopeResolution.scope
 
     // Generate custom JWT tokens
-    const tokens = generateTokenPair({
+    const tokens = await generateTokenPairWithUAI({
       sub: data.user.id,
       email: data.user.email!,
       role: data.user.role || 'authenticated',
       project_scope: resolvedProjectScope,
       platform: platform as 'mcp' | 'cli' | 'web' | 'api',
+      authMethod: 'password',
     })
 
     // Create session
