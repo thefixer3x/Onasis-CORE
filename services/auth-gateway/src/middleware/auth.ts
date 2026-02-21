@@ -101,7 +101,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     try {
       payload = verifyToken(token)
     } catch (error) {
-      // JWT invalid, try API key fallback
+      // JWT invalid — will try opaque OAuth token next
     }
     if (payload) {
       try {
@@ -123,6 +123,47 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       // JWT tokens get full access by default
       req.scopes = ['*']
       return next()
+    }
+
+    // Not a JWT — try opaque OAuth access token (issued by /oauth/token PKCE flow)
+    // These are stored in auth_gateway.oauth_tokens and validated via introspection.
+    if (!token.includes('.')) {
+      try {
+        const { introspectToken } = await import('../services/oauth.service.js')
+        const introspection = await introspectToken(token)
+
+        if (introspection.active && introspection.user_id) {
+          // Hydrate email and role from Supabase user record
+          let email = ''
+          let role = 'authenticated'
+          let plan = 'free'
+
+          try {
+            const { supabaseUsers } = await import('../../db/client.js')
+            const { data: userData } = await supabaseUsers.auth.admin.getUserById(introspection.user_id)
+            if (userData?.user) {
+              email = userData.user.email ?? ''
+              role = (userData.user.user_metadata?.role as string) ?? 'authenticated'
+              plan = (userData.user.user_metadata?.plan as string) ?? 'free'
+            }
+          } catch {
+            // Supabase lookup failed — proceed with minimal info
+          }
+
+          req.user = buildUnifiedUserFromApiKey({
+            userId: introspection.user_id,
+            email,
+            role,
+            plan,
+            projectScope: introspection.client_id ?? 'lanonasis-maas',
+            permissions: introspection.scope ? introspection.scope.split(' ') : ['*'],
+          })
+          req.scopes = introspection.scope ? introspection.scope.split(' ') : ['*']
+          return next()
+        }
+      } catch {
+        // Introspection failed — fall through to API key check
+      }
     }
   }
 
