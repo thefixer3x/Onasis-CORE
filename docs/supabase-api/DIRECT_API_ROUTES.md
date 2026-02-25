@@ -47,9 +47,20 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-create" \
     "title": "API Configuration Guide",
     "content": "Step-by-step guide for configuring the API...",
     "memory_type": "knowledge",
-    "tags": ["api", "configuration", "guide"]
+    "tags": ["api", "configuration", "guide"],
+    "write_intent": "auto",
+    "idempotency_key": "session-2026-02-25-step-1",
+    "continuity_key": "session-2026-02-25"
   }'
 ```
+
+**Write-governance fields (optional):**
+
+- `write_intent`: `new` | `continue` | `auto` (default `auto`)
+- `idempotency_key`: prevents duplicate creates when retries occur
+- `continuity_key`: allows continuity routing so follow-up writes can update the latest related memory instead of creating a fragment
+
+**User ownership:** `user_id` is inferred from the authenticated token/API key context. Clients do not need to provide `user_id` in request payloads.
 
 **Example - Memory Get:**
 
@@ -68,7 +79,9 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-update" \
     "id": "UUID_HERE",
     "title": "Updated Title",
     "content": "Updated content triggers re-embedding",
-    "tags": ["updated", "example"]
+    "tags": ["updated", "example"],
+    "write_intent": "continue",
+    "continuity_key": "session-2026-02-25"
   }'
 ```
 
@@ -94,14 +107,14 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-search" \
   -d '{
     "query": "how to configure MCP",
     "limit": 10,
-    "threshold": 0.7,
+    "threshold": 0.55,
     "memory_type": "knowledge"
   }'
 ```
 
 **Example - Memory Search (GET):**
 ```bash
-curl "https://lanonasis.supabase.co/functions/v1/memory-search?query=how+to+configure+MCP&limit=10&threshold=0.7&type=knowledge" \
+curl "https://lanonasis.supabase.co/functions/v1/memory-search?query=how+to+configure+MCP&limit=10&threshold=0.55&type=knowledge" \
   -H "X-API-Key: $LANONASIS_API_KEY"
 ```
 
@@ -298,7 +311,7 @@ curl -X POST "https://lanonasis.supabase.co/rest/v1/rpc/search_memories" \
   -H "Content-Type: application/json" \
   -d '{
     "query_embedding": [0.1, 0.2, ...],
-    "match_threshold": 0.7,
+    "match_threshold": 0.55,
     "match_count": 10,
     "filter_organization_id": "org-uuid-here"
   }'
