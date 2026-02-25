@@ -40,6 +40,7 @@ type EmbeddingProvider = 'openai' | 'voyage';
 const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() || 'openai') as EmbeddingProvider;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const VOYAGE_API_KEY = Deno.env.get("VOYAGE_API_KEY");
+const AI_ROUTER_URL = Deno.env.get("AI_ROUTER_URL");
 
 // Get the appropriate API key based on provider
 function getEmbeddingApiKey(): string {
@@ -295,13 +296,53 @@ export async function setCache(
   });
 }
 
-// OpenAI chat completion (requires OPENAI_API_KEY regardless of embedding provider)
+// AI chat completion - uses AI Router if configured, otherwise OpenAI
 export async function chatCompletion(
   messages: Array<{ role: string; content: string }>,
   model: string = "gpt-4o-mini"
 ): Promise<{ content: string; tokensUsed: number; cost: number }> {
+  // Use AI Router if URL configured
+  if (AI_ROUTER_URL) {
+    const url = `${AI_ROUTER_URL}/api/v1/ai-chat`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    headers['X-Use-Case'] = 'memory-analysis';
+    
+    const body = {
+      messages,
+      temperature: 0.7,
+      max_tokens: 1000,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI Router error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+     const data = await response.json();
+     const content = data.response || data.message?.content || '';
+    const inputTokens = data.usage?.prompt_tokens || 0;
+    const outputTokens = data.usage?.completion_tokens || 0;
+    // Cost not provided by AI Router; default to 0 (vendor pricing not exposed)
+    const cost = 0;
+
+    return {
+      content,
+      tokensUsed: inputTokens + outputTokens,
+      cost,
+    };
+  }
+
+  // Fallback to OpenAI
   if (!OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY not configured for chat completions");
+    throw new Error("OPENAI_API_KEY not configured for chat completions (AI Router not configured)");
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
