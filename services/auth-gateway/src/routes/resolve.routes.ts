@@ -158,6 +158,28 @@ router.get('/', async (req: Request, res: Response) => {
     }
   }
 
+  // Priority 4: Opaque OAuth Token (via introspection)
+  if (!resolvedUAI) {
+    const token = extractBearerToken(req.headers.authorization)
+    if (token && token.length > 20) {
+      // Try OAuth introspection - this validates opaque tokens from auth.lanonasis.com
+      try {
+        const { introspectToken } = await import('../services/oauth.service.js')
+        const introspection = await introspectToken(token)
+        if (introspection.active && introspection.user_id) {
+          authMethod = 'oauth_token'
+          resolvedUAI = await resolveIdentityCached('oauth_token', introspection.user_id, {
+            platform: 'api',
+            ipAddress: clientIp,
+            userAgent,
+          })
+        }
+      } catch {
+        // Introspection failed, token not valid
+      }
+    }
+  }
+
   // No valid authentication
   if (!resolvedUAI || !resolvedUAI.authId) {
     res.status(401)

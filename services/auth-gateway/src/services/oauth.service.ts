@@ -6,6 +6,7 @@ import {
     hashToken,
 } from '../utils/pkce.js'
 import { OAuthClientCache, AuthCodeCache } from './cache.service.js'
+import { verifyToken } from '../utils/jwt.js'
 
 // Token TTLs can be configured via environment variables.
 // AUTH_CODE_TTL_SECONDS: Authorization code lifetime in seconds (default: 300)
@@ -667,6 +668,8 @@ export interface TokenIntrospectionResult {
     active: boolean
     client_id?: string
     user_id?: string
+    sub?: string
+    email?: string
     scope?: string
     token_type?: 'access' | 'refresh'
     exp?: number
@@ -675,6 +678,26 @@ export interface TokenIntrospectionResult {
 }
 
 export async function introspectToken(token: string): Promise<TokenIntrospectionResult> {
+    // Handle JWT tokens (3 dot-separated base64url parts) - issued by auth-gateway
+    // These are self-contained and not stored in oauth_tokens table
+    const isJWT = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)
+    if (isJWT) {
+        try {
+            const payload = verifyToken(token)
+            return {
+                active: true,
+                user_id: payload.sub,
+                sub: payload.sub,
+                email: payload.email,
+                scope: payload.role,
+                exp: payload.exp,
+                iat: payload.iat,
+            }
+        } catch {
+            return { active: false }
+        }
+    }
+
     const hashed = hashToken(token)
     const result = await dbPool.query(
         `
