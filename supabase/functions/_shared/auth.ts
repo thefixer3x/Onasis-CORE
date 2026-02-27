@@ -190,7 +190,7 @@ async function authenticateViaSupabase(
  * Check if a token looks like an API key
  */
 function isApiKeyFormat(token: string): boolean {
-  return /^(lano_|lms_|vibe_|sk_|pk_|master_)/.test(token);
+  return /^(lano_|lms_|lns_|vibe_|sk_|pk_|master_)/.test(token);
 }
 
 /**
