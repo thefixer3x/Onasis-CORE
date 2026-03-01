@@ -109,7 +109,7 @@ exports.handler = async function(event) {
       }
 
       // Optional: Verify with Supabase if it's a Supabase token
-      if (process.env.SUPABASE_URL
+      if (process.env.SUPABASE_URL) {
         try {
           const { data: user, error } = await supabase.auth.getUser(token);
           

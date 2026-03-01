@@ -115,6 +115,8 @@
 
 # MCP Protocol Routes
 # WebSocket and SSE routing - proxy to VPS MCP server via nginx (SSL terminated)
+/api/v1/tools               https://mcp.lanonasis.com/api/v1/tools                          200!
+/api/v1/tools/*             https://mcp.lanonasis.com/api/v1/tools/:splat                   200!
 /ws               https://mcp.lanonasis.com/ws                   200!
 /api/v1/ws        https://mcp.lanonasis.com/ws                   200!
 

@@ -235,8 +235,8 @@ async function routeRequest(path, method, headers, body, query) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.SUPABASE_ANON_KEY
-          "apikey": process.env.SUPABASE_ANON_KEY
+          "Authorization": `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+          "apikey": process.env.SUPABASE_ANON_KEY,
           "x-lanonasis-api-key": apiKey,
         },
         body: JSON.stringify({
