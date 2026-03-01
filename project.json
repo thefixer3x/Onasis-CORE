@@ -1,0 +1,10 @@
+{
+  "name": "onasis-core",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/onasis-core/src",
+  "projectType": "application",
+  "tags": [
+    "scope:platform",
+    "type:app"
+  ]
+}
