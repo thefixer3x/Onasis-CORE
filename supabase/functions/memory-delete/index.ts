@@ -5,17 +5,32 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { authenticate } from '../_shared/auth.ts';
+import { authenticate, createSupabaseClient } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
+import { extractRequestContext, writeAudit } from '../_shared/audit.ts';
 
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+  const reqCtx = extractRequestContext(req);
 
   try {
     const auth = await authenticate(req);
     if (!auth) {
+      writeAudit(createSupabaseClient(), {
+        action: 'memory.deleted',
+        resource_type: 'memory',
+        metadata: {
+          reason: 'authentication_required',
+        },
+        result: 'denied',
+        failure_reason: 'authentication_required',
+        route_source: 'edge_function',
+        actor_type: 'anonymous',
+        auth_source: 'anonymous',
+        ...reqCtx,
+      });
       return createErrorResponse(
         ErrorCode.AUTHENTICATION_ERROR,
         'Authentication required. Provide a valid API key or Bearer token.',
@@ -86,6 +101,26 @@ serve(async (req: Request) => {
 
     // Check ownership (unless master key)
     if (!auth.is_master && existing.user_id !== auth.user_id) {
+      writeAudit(supabase, {
+        user_id: auth.user_id,
+        organization_id: auth.organization_id,
+        action: 'memory.deleted',
+        resource_type: 'memory',
+        resource_id: memoryId,
+        metadata: {
+          owner_user_id: existing.user_id,
+          title: existing.title,
+        },
+        result: 'denied',
+        failure_reason: 'not_owner',
+        route_source: 'edge_function',
+        auth_source: auth.auth_source,
+        actor_id: auth.user_id,
+        actor_type: 'user',
+        api_key_id: auth.api_key_id,
+        project_scope: auth.project_scope,
+        ...reqCtx,
+      });
       return createErrorResponse(ErrorCode.AUTHORIZATION_ERROR, 'You can only delete your own memories', 403);
     }
 
@@ -97,17 +132,43 @@ serve(async (req: Request) => {
 
     if (deleteError) {
       console.error('Delete error:', deleteError);
+      writeAudit(supabase, {
+        user_id: auth.user_id,
+        organization_id: auth.organization_id,
+        action: 'memory.deleted',
+        resource_type: 'memory',
+        resource_id: memoryId,
+        metadata: { title: existing.title },
+        result: 'failure',
+        failure_reason: 'delete_failed',
+        route_source: 'edge_function',
+        auth_source: auth.auth_source,
+        actor_id: auth.user_id,
+        actor_type: 'user',
+        api_key_id: auth.api_key_id,
+        project_scope: auth.project_scope,
+        ...reqCtx,
+      });
       return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to delete memory', 500);
     }
 
     // Audit log (fire and forget)
-    supabase.from('audit_log').insert({
+    writeAudit(supabase, {
       user_id: auth.user_id,
+      organization_id: auth.organization_id,
       action: 'memory.deleted',
       resource_type: 'memory',
       resource_id: memoryId,
-      metadata: { title: existing.title }
-    }).then(() => {});
+      metadata: { title: existing.title },
+      result: 'success',
+      route_source: 'edge_function',
+      auth_source: auth.auth_source,
+      actor_id: auth.user_id,
+      actor_type: 'user',
+      api_key_id: auth.api_key_id,
+      project_scope: auth.project_scope,
+      ...reqCtx,
+    });
 
     return new Response(JSON.stringify({
       success: true,

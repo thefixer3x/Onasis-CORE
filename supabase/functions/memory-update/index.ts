@@ -5,9 +5,10 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { authenticate } from "../_shared/auth.ts";
+import { authenticate, createSupabaseClient } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
+import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
 
 type MemoryType =
   | "context"
@@ -146,6 +147,7 @@ async function findMemoryIdByMetadataKey(
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+  const reqCtx = extractRequestContext(req);
 
   if (req.method !== "POST" && req.method !== "PUT" && req.method !== "PATCH") {
     return createErrorResponse(
@@ -158,6 +160,19 @@ serve(async (req: Request) => {
   try {
     const auth = await authenticate(req);
     if (!auth) {
+      writeAudit(createSupabaseClient(), {
+        action: "memory.updated",
+        resource_type: "memory",
+        metadata: {
+          reason: "authentication_required",
+        },
+        result: "denied",
+        failure_reason: "authentication_required",
+        route_source: "edge_function",
+        actor_type: "anonymous",
+        auth_source: "anonymous",
+        ...reqCtx,
+      });
       return createErrorResponse(
         ErrorCode.AUTHENTICATION_ERROR,
         "Authentication required. Provide a valid API key or Bearer token.",
@@ -273,6 +288,25 @@ serve(async (req: Request) => {
 
     // Check if user owns the memory (unless master key)
     if (!auth.is_master && existing.user_id !== auth.user_id) {
+      writeAudit(supabase, {
+        user_id: auth.user_id,
+        organization_id: auth.organization_id,
+        action: "memory.updated",
+        resource_type: "memory",
+        resource_id: targetMemoryId,
+        metadata: {
+          owner_user_id: existing.user_id,
+        },
+        result: "denied",
+        failure_reason: "not_owner",
+        route_source: "edge_function",
+        auth_source: auth.auth_source,
+        actor_id: auth.user_id,
+        actor_type: "user",
+        api_key_id: auth.api_key_id,
+        project_scope: auth.project_scope,
+        ...reqCtx,
+      });
       return createErrorResponse(
         ErrorCode.AUTHORIZATION_ERROR,
         "You can only update your own memories",
@@ -369,6 +403,27 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error("Update error:", updateError);
+      writeAudit(supabase, {
+        user_id: auth.user_id,
+        organization_id: auth.organization_id,
+        action: "memory.updated",
+        resource_type: "memory",
+        resource_id: targetMemoryId,
+        metadata: {
+          fields_attempted: Object.keys(updateData).filter((k) =>
+            k !== "updated_at"
+          ),
+        },
+        result: "failure",
+        failure_reason: "update_failed",
+        route_source: "edge_function",
+        auth_source: auth.auth_source,
+        actor_id: auth.user_id,
+        actor_type: "user",
+        api_key_id: auth.api_key_id,
+        project_scope: auth.project_scope,
+        ...reqCtx,
+      });
       return createErrorResponse(
         ErrorCode.DATABASE_ERROR,
         `Failed to update memory: ${
@@ -384,17 +439,26 @@ serve(async (req: Request) => {
     }
 
     // Audit log (fire and forget)
-    supabase.from("audit_log").insert({
+    writeAudit(supabase, {
       user_id: auth.user_id,
-      action: "memory.updated",
-      resource_type: "memory",
+      organization_id: auth.organization_id,
+      action: 'memory.updated',
+      resource_type: 'memory',
       resource_id: targetMemoryId,
       metadata: {
         fields_updated: Object.keys(updateData),
         embedding_regenerated: embeddingGenerated,
         routed_by: routedBy,
       },
-    }).then(() => {});
+      result: 'success',
+      route_source: 'edge_function',
+      auth_source: auth.auth_source,
+      actor_id: auth.user_id,
+      actor_type: 'user',
+      api_key_id: auth.api_key_id,
+      project_scope: auth.project_scope,
+      ...reqCtx,
+    });
 
     return new Response(
       JSON.stringify({

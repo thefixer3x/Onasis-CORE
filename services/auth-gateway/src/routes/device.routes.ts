@@ -22,6 +22,7 @@ import type { Request, Response } from 'express'
 import crypto from 'crypto'
 import { DeviceCodeCache } from '../services/cache.service.js'
 import { generateTokenPairWithUAI } from '../utils/jwt.js'
+import { auditCorrelation } from '../utils/correlation.js'
 import { createSession } from '../services/session.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { logger } from '../utils/logger.js'
@@ -131,7 +132,8 @@ router.post('/device', async (req: Request, res: Response): Promise<void> => {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
-      metadata: { client_id: clientId, user_code: userCode }
+      metadata: { client_id: clientId, user_code: userCode },
+      ...auditCorrelation(req),
     })
 
     logger.info('Device code requested', { clientId, userCode })
@@ -375,7 +377,8 @@ router.post('/device/authorize', async (req: Request, res: Response): Promise<vo
         user_agent: req.headers['user-agent'],
         success: false,
         error_message: error?.message || 'Invalid OTP',
-        metadata: { user_code: userCode }
+        metadata: { user_code: userCode },
+        ...auditCorrelation(req),
       })
 
       res.status(400).json({
@@ -410,7 +413,8 @@ router.post('/device/authorize', async (req: Request, res: Response): Promise<vo
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
-      metadata: { user_code: userCode, client_id: deviceData.client_id }
+      metadata: { user_code: userCode, client_id: deviceData.client_id },
+      ...auditCorrelation(req),
     })
 
     logger.info('Device authorized', { userId: data.user.id, userCode })
@@ -588,7 +592,8 @@ export async function handleDeviceCodeGrant(
             project_scope: resolvedProjectScope,
             project_scope_validated: projectScopeResolution.validated,
             project_scope_reason: projectScopeResolution.reason
-          }
+          },
+          ...auditCorrelation(req),
         })
 
         logger.info('Device token issued', { userId: deviceData.user_id, clientId })

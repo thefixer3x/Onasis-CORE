@@ -9,6 +9,12 @@ declare global {
       csrfToken?: string
       originalState?: string
       uai?: UAIContext
+      /**
+       * Request correlation ID. Set by the requestCorrelation middleware
+       * (utils/correlation.ts) or generated lazily by requireAuth/resolve routes.
+       * Propagated as X-Request-ID response header for downstream tracing.
+       */
+      requestId?: string
     }
   }
 }

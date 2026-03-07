@@ -64,11 +64,18 @@ export const standardCors = cors({
     allowedHeaders: [
         'Content-Type',
         'Authorization',
+        'X-Request-ID',
         'x-project-scope',
         'X-Project-Scope',
         'X-Requested-With'
     ],
     exposedHeaders: [
+        'X-Request-ID',
+        'X-Auth-Source',
+        'X-Actor-Id',
+        'X-Actor-Type',
+        'X-API-Key-Id',
+        'X-Project-Scope',
         'X-RateLimit-Limit',
         'X-RateLimit-Remaining',
         'X-RateLimit-Reset'

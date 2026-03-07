@@ -38,6 +38,7 @@ import { validateSessionCookie } from './middleware/session.js'
 import { standardCors } from './middleware/cors.js'
 import { uaiRouter, requireUAI } from './middleware/uai-router.middleware.js'
 import { startCacheCleanup, getCacheStats } from './services/uai-session-cache.service.js'
+import { requestCorrelation } from './utils/correlation.js'
 
 const app = express()
 const isTestEnv = process.env.NODE_ENV === 'test'
@@ -181,6 +182,7 @@ if (!isTestEnv) {
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(requestCorrelation)
 
 // XSS Protection (aligned with SHA-256 security standards)
 app.use(xssSanitizer)

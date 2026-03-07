@@ -18,6 +18,7 @@ import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.j
 import { validateAPIKey } from '../services/api-key.service.js'
 import { resolveUAICached, type UAIResolutionResult } from '../services/uai-session-cache.service.js'
 import { type AuthMethod } from '../services/identity-resolution.service.js'
+import { extractOrGenerateRequestId } from '../utils/correlation.js'
 
 const router = Router()
 
@@ -32,6 +33,12 @@ interface UAIResolutionResponse {
   fromCache?: boolean  // Indicates if UAI was served from cache
   error?: string
   code?: string
+  // Phase 0.5 attribution
+  requestId?: string
+  authSource?: string
+  actorId?: string
+  actorType?: string
+  apiKeyId?: string
 }
 
 /**
@@ -105,8 +112,14 @@ router.get('/', async (req: Request, res: Response) => {
   const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || ''
   const userAgent = req.headers['user-agent'] || ''
 
+  // Generate/preserve correlation ID for this request
+  const requestId = req.requestId ?? extractOrGenerateRequestId(req)
+  req.requestId = requestId
+  res.set('X-Request-ID', requestId)
+
   let resolvedUAI: UAIResolutionResult | null = null
   let authMethod: AuthMethod | null = null
+  let resolvedApiKeyId: string | undefined
 
   // Priority 1: SSO Session Cookie
   const ssoPayload = checkSSOCookie(req)
@@ -145,6 +158,7 @@ router.get('/', async (req: Request, res: Response) => {
         const validation = await validateAPIKey(apiKey)
         if (validation.valid && validation.userId) {
           authMethod = 'api_key'
+          resolvedApiKeyId = validation.keyId
           // Use the API key hash as identifier for caching
           resolvedUAI = await resolveIdentityCached('api_key', validation.userId, {
             platform: 'api',
@@ -199,6 +213,22 @@ router.get('/', async (req: Request, res: Response) => {
   res.set('X-UAI-Email', resolvedUAI.email || '')
   res.set('X-UAI-From-Cache', resolvedUAI.fromCache ? 'true' : 'false')
 
+  // Phase 0.5: propagate attribution context so downstream services can write
+  // attributable audit rows without re-resolving identity.
+  // X-Request-ID is already set above.
+  res.set('X-Auth-Source', authMethod || 'unknown')
+  res.set('X-Actor-Id', resolvedUAI.authId)
+  res.set('X-Actor-Type', 'user')                            // agent/service types are future work
+  if (resolvedApiKeyId) {
+    res.set('X-API-Key-Id', resolvedApiKeyId)
+  }
+  // project_scope is not yet on UAIResolutionResult; carried via X-Project-Scope
+  // from the caller's JWT claim or api_key.project_scope if available in req.user
+  const projectScope = req.user?.project_scope ?? (req.user?.app_metadata as Record<string, unknown> | undefined)?.project_scope
+  if (typeof projectScope === 'string' && projectScope) {
+    res.set('X-Project-Scope', projectScope)
+  }
+
   // Return success
   res.status(200).json({
     success: true,
@@ -208,6 +238,12 @@ router.get('/', async (req: Request, res: Response) => {
     credentialId: resolvedUAI.credentialId,
     email: resolvedUAI.email || undefined,
     fromCache: resolvedUAI.fromCache,
+    // Phase 0.5 attribution fields in response body
+    requestId,
+    authSource: authMethod || undefined,
+    actorId: resolvedUAI.authId,
+    actorType: 'user',
+    ...(resolvedApiKeyId ? { apiKeyId: resolvedApiKeyId } : {}),
   } satisfies UAIResolutionResponse)
 })
 

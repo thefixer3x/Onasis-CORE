@@ -18,6 +18,7 @@ export interface AuthContext {
   is_master: boolean;
   api_key_id?: string;
   auth_source?: 'api_key' | 'auth_gateway' | 'supabase';
+  project_scope?: string;
 }
 
 /**
@@ -127,15 +128,22 @@ async function authenticateViaAuthGateway(
       .eq('id', userId)
       .single();
 
+    // Fail closed: if org cannot be resolved, reject the request
+    if (!userData?.organization_id) {
+      console.log('[auth] No organization_id found for user, denying access:', userId);
+      return null;
+    }
+
     console.log(`[auth] Auth-gateway validation successful for user: ${userId}`);
 
     return {
       user_id: userId,
-      organization_id: userData?.organization_id || userId,
+      organization_id: userData.organization_id,
       access_level: data.scope?.split(' ')[0] || 'authenticated',
       email: userData?.email || data.email || '',
       is_master: data.scope?.includes('admin') || false,
       auth_source: 'auth_gateway',
+      project_scope: data.project_scope || undefined,
     };
   } catch (error) {
     // Auth-gateway unavailable or network error - fall back to Supabase
@@ -243,6 +251,12 @@ async function authenticateApiKey(
     return null;
   }
 
+  // Fail closed: reject if org cannot be resolved
+  if (!userData.organization_id) {
+    console.error('[auth] No organization_id for API key user, denying access:', keyData.user_id);
+    return null;
+  }
+
   const organizationId = userData.organization_id;
   const email = userData?.email || '';
 
@@ -268,7 +282,8 @@ async function authenticateApiKey(
     access_level: keyData.access_level || 'authenticated',
     email: email,
     is_master: isMaster,
-    api_key_id: keyData.id
+    api_key_id: keyData.id,
+    project_scope: keyData.project_scope || undefined,
   };
 }
 
@@ -281,7 +296,7 @@ async function findApiKeyByPlaintext(
 ): Promise<ApiKeyRecord | null> {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, user_id, access_level, name, is_active, expires_at')
+    .select('id, user_id, access_level, name, is_active, expires_at, project_scope')
     .eq('key', apiKey)
     .maybeSingle();
 
@@ -301,7 +316,7 @@ async function findApiKeyByHash(
 ): Promise<ApiKeyRecord | null> {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, user_id, access_level, name, is_active, expires_at')
+    .select('id, user_id, access_level, name, is_active, expires_at, project_scope')
     .eq('key_hash', keyHash)
     .maybeSingle();
 
@@ -319,6 +334,7 @@ interface ApiKeyRecord {
   name: string;
   is_active: boolean;
   expires_at?: string;
+  project_scope?: string;
 }
 
 /**

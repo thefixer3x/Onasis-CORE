@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
 import { validateAPIKey } from '../services/api-key.service.js'
 import { findSessionByToken } from '../services/session.service.js'
+import { generateRequestId } from '../utils/correlation.js'
 
 /**
  * Unified user type for auth-gateway middleware
@@ -24,6 +25,12 @@ export interface UnifiedUser {
   email?: string;
   user_metadata?: Record<string, unknown>;
   app_metadata?: Record<string, unknown>;
+
+  // Phase 0.5 attribution — propagated to audit writes and resolve headers
+  /** DB id of the API key used to authenticate, when applicable. */
+  apiKeyId?: string;
+  /** Authentication method that resolved this identity. */
+  authSource?: 'jwt' | 'oauth_token' | 'api_key' | 'sso';
 }
 
 const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
@@ -58,6 +65,8 @@ const buildUnifiedUserFromApiKey = (options: {
   projectScope?: string
   permissions?: string[]
   userMetadata?: Record<string, unknown>
+  apiKeyId?: string
+  authSource?: UnifiedUser['authSource']
 }): UnifiedUser => ({
   userId: options.userId,
   organizationId: options.organizationId ?? 'unknown',
@@ -71,6 +80,8 @@ const buildUnifiedUserFromApiKey = (options: {
     project_scope: options.projectScope,
     permissions: options.permissions,
   },
+  apiKeyId: options.apiKeyId,
+  authSource: options.authSource,
 })
 
 const getProjectScope = (user?: UnifiedUser): string | undefined => {
@@ -114,9 +125,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           code: 'SESSION_UNAVAILABLE',
         })
       }
-      req.user = buildUnifiedUserFromJwt(payload)
+      const jwtUser = buildUnifiedUserFromJwt(payload)
+      jwtUser.authSource = 'jwt'
+      req.user = jwtUser
       // JWT tokens get full access by default
       req.scopes = ['*']
+      if (!req.requestId) req.requestId = generateRequestId()
       return next()
     }
 
@@ -168,8 +182,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             plan,
             projectScope: introspection.client_id ?? 'lanonasis-maas',
             permissions: introspection.scope ? introspection.scope.split(' ') : ['*'],
+            authSource: 'oauth_token',
           })
           req.scopes = introspection.scope ? introspection.scope.split(' ') : ['*']
+          if (!req.requestId) req.requestId = generateRequestId()
           return next()
         }
       } catch {
@@ -193,6 +209,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
         const projectScope = validation.projectScope || 'unknown'
         const organizationId = validation.organizationId
+        const keyId = validation.keyId
         const plan = typeof userData?.user?.user_metadata?.plan === 'string'
           ? userData.user.user_metadata.plan
           : 'free'
@@ -210,6 +227,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             plan,
             projectScope,
             permissions: validation.permissions,
+            apiKeyId: keyId,
+            authSource: 'api_key',
           })
         } else {
           // Create full user payload from API key validation and user data
@@ -222,8 +241,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             projectScope,
             permissions: validation.permissions,
             userMetadata: userData.user.user_metadata ?? {},
+            apiKeyId: keyId,
+            authSource: 'api_key',
           })
         }
+        if (!req.requestId) req.requestId = generateRequestId()
         return next()
       }
     } catch (error) {

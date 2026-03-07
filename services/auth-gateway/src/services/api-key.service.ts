@@ -593,6 +593,8 @@ export async function validateAPIKey(apiKey: string): Promise<{
   projectScope?: string
   permissions?: string[]
   reason?: string
+  /** DB primary key of the matched api_key record. Used for audit attribution. */
+  keyId?: string
 }> {
   try {
     if (!apiKey || typeof apiKey !== 'string') {
@@ -765,6 +767,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
             keyRecord.project_id ||
             keyRecord.organization_id,
           permissions,
+          keyId: keyRecord.id ?? undefined,
         }
       }
     }

@@ -5,6 +5,7 @@ import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
 import { upsertUserAccount, findUserAccountById } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
+import { auditCorrelation } from '../utils/correlation.js'
 import * as apiKeyService from '../services/api-key.service.js'
 import { OAuthStateCache } from '../services/cache.service.js'
 import { resolveProjectScope } from '../services/project-scope.service.js'
@@ -290,6 +291,7 @@ export async function oauthProvider(req: Request, res: Response) {
     user_agent: req.headers['user-agent'],
     success: true,
     metadata: { provider: providerKey, project_scope: projectScope },
+    ...auditCorrelation(req),
   })
 
   return res.redirect(data.url)
@@ -420,6 +422,11 @@ export async function oauthCallback(req: Request, res: Response) {
         project_scope_validated: projectScopeResolution.validated,
         project_scope_reason: projectScopeResolution.reason,
       },
+      actor_id: data.user.id,
+      actor_type: 'user',
+      auth_source: 'oauth_token',
+      project_scope: resolvedProjectScope,
+      ...auditCorrelation(req),
     })
 
     if (platform === 'web') {
@@ -474,6 +481,7 @@ export async function oauthCallback(req: Request, res: Response) {
       success: false,
       error_message: error instanceof Error ? error.message : 'Unknown error',
       metadata: { provider: stateData.provider },
+      ...auditCorrelation(req),
     })
 
     return res.redirect(
@@ -558,6 +566,7 @@ export async function requestMagicLink(req: Request, res: Response) {
         email,
         project_scope: projectScope,
       },
+      ...auditCorrelation(req),
     })
 
     return res.status(400).json({
@@ -577,6 +586,7 @@ export async function requestMagicLink(req: Request, res: Response) {
       project_scope: projectScope,
       redirect_uri: redirectUri,
     },
+    ...auditCorrelation(req),
   })
 
   return res.json({
@@ -661,6 +671,7 @@ export async function magicLinkExchange(req: Request, res: Response) {
         success: false,
         error_message: error?.message || 'Invalid token',
         metadata: { email: stateData.email },
+        ...auditCorrelation(req),
       })
 
       return res.status(401).json({
@@ -678,6 +689,7 @@ export async function magicLinkExchange(req: Request, res: Response) {
         success: false,
         error_message: 'Magic link email mismatch',
         metadata: { email: stateData.email, user_email: user.email },
+        ...auditCorrelation(req),
       })
 
       return res.status(401).json({
@@ -755,6 +767,11 @@ export async function magicLinkExchange(req: Request, res: Response) {
         project_scope_validated: projectScopeResolution.validated,
         project_scope_reason: projectScopeResolution.reason,
       },
+      actor_id: user.id,
+      actor_type: 'user',
+      auth_source: 'jwt',
+      project_scope: resolvedProjectScope,
+      ...auditCorrelation(req),
     })
 
     if (platform === 'web') {
@@ -824,6 +841,7 @@ export async function magicLinkExchange(req: Request, res: Response) {
       success: false,
       error_message: error instanceof Error ? error.message : 'Unknown error',
       metadata: { email: stateData.email },
+      ...auditCorrelation(req),
     })
 
     return res.status(500).json({
@@ -927,6 +945,11 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
         project_scope_validated: projectScopeResolution.validated,
         project_scope_reason: projectScopeResolution.reason,
       },
+      actor_id: user.id,
+      actor_type: 'user',
+      auth_source: 'jwt',
+      project_scope: resolvedProjectScope,
+      ...auditCorrelation(req),
     })
 
     logger.info('Token exchange successful', {
@@ -963,6 +986,7 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
       user_agent: req.headers['user-agent'],
       success: false,
       error_message: error instanceof Error ? error.message : 'Unknown error',
+      ...auditCorrelation(req),
     })
 
     return res.status(500).json({
@@ -1003,6 +1027,7 @@ export async function login(req: Request, res: Response) {
         success: false,
         error_message: error?.message || 'Invalid credentials',
         metadata: { email },
+        ...auditCorrelation(req),
       })
 
       return res.status(401).json({
@@ -1064,6 +1089,11 @@ export async function login(req: Request, res: Response) {
         project_scope_validated: projectScopeResolution.validated,
         project_scope_reason: projectScopeResolution.reason,
       },
+      actor_id: data.user.id,
+      actor_type: 'user',
+      auth_source: 'jwt',
+      project_scope: resolvedProjectScope,
+      ...auditCorrelation(req),
     })
 
     // Set HTTP-only session cookie for web platform
@@ -1141,6 +1171,10 @@ export async function logout(req: Request, res: Response) {
         ip_address: req.ip,
         user_agent: req.headers['user-agent'],
         success: true,
+        actor_id: req.user.sub,
+        actor_type: 'user',
+        auth_source: req.user.authSource,
+        ...auditCorrelation(req),
       })
     }
 

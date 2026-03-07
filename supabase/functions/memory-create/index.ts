@@ -9,6 +9,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { authenticate, createSupabaseClient } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
+import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
 
 type MemoryType =
   | "context"
@@ -210,11 +211,25 @@ serve(async (req: Request) => {
   // Handle CORS preflight
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+  const reqCtx = extractRequestContext(req);
 
   try {
     // Authenticate
     const auth = await authenticate(req);
     if (!auth) {
+      writeAudit(createSupabaseClient(), {
+        action: "memory.created",
+        resource_type: "memory",
+        metadata: {
+          reason: "authentication_required",
+        },
+        result: "denied",
+        failure_reason: "authentication_required",
+        route_source: "edge_function",
+        actor_type: "anonymous",
+        auth_source: "anonymous",
+        ...reqCtx,
+      });
       const response = createErrorResponse(
         ErrorCode.AUTHENTICATION_ERROR,
         "Authentication required. Provide a valid API key or Bearer token.",
@@ -390,6 +405,26 @@ serve(async (req: Request) => {
 
         if (updateError) {
           console.error("Continuity update error:", updateError);
+          writeAudit(supabase, {
+            user_id: auth.user_id,
+            organization_id: auth.organization_id,
+            action: "memory.created",
+            resource_type: "memory",
+            resource_id: existing.id,
+            metadata: {
+              title,
+              routed_by: "continuity",
+            },
+            result: "failure",
+            failure_reason: "continuity_update_failed",
+            route_source: "edge_function",
+            auth_source: auth.auth_source,
+            actor_id: auth.user_id,
+            actor_type: "user",
+            api_key_id: auth.api_key_id,
+            project_scope: auth.project_scope,
+            ...reqCtx,
+          });
           const response = createErrorResponse(
             ErrorCode.DATABASE_ERROR,
             "Failed to apply continuity update",
@@ -428,6 +463,24 @@ serve(async (req: Request) => {
         }
 
         if (attempt === MAX_CONTINUITY_RETRIES) {
+          writeAudit(supabase, {
+            user_id: auth.user_id,
+            organization_id: auth.organization_id,
+            action: "memory.created",
+            resource_type: "memory",
+            metadata: {
+              routed_by: "continuity",
+            },
+            result: "failure",
+            failure_reason: "continuity_conflict",
+            route_source: "edge_function",
+            auth_source: auth.auth_source,
+            actor_id: auth.user_id,
+            actor_type: "user",
+            api_key_id: auth.api_key_id,
+            project_scope: auth.project_scope,
+            ...reqCtx,
+          });
           const response = createErrorResponse(
             ErrorCode.DATABASE_ERROR,
             "Continuity update conflict: please retry",
@@ -514,6 +567,25 @@ serve(async (req: Request) => {
       }
 
       console.error("Insert error:", error);
+      writeAudit(supabase, {
+        user_id: auth.user_id,
+        organization_id: auth.organization_id,
+        action: "memory.created",
+        resource_type: "memory",
+        metadata: {
+          title: body.title,
+          memory_type: memoryType,
+        },
+        result: "failure",
+        failure_reason: "insert_failed",
+        route_source: "edge_function",
+        auth_source: auth.auth_source,
+        actor_id: auth.user_id,
+        actor_type: "user",
+        api_key_id: auth.api_key_id,
+        project_scope: auth.project_scope,
+        ...reqCtx,
+      });
       const response = createErrorResponse(
         ErrorCode.DATABASE_ERROR,
         "Failed to create memory",
@@ -527,21 +599,26 @@ serve(async (req: Request) => {
     }
 
     // Create audit log entry (fire and forget)
-    supabase
-      .from("audit_log")
-      .insert({
-        user_id: auth.user_id,
-        organization_id: auth.organization_id,
-        action: "memory.created",
-        resource_type: "memory",
-        resource_id: memory.id,
-        metadata: {
-          title: body.title,
-          memory_type: memoryType,
-          has_embedding: !!embedding,
-        },
-      })
-      .then(() => {});
+    writeAudit(supabase, {
+      user_id: auth.user_id,
+      organization_id: auth.organization_id,
+      action: 'memory.created',
+      resource_type: 'memory',
+      resource_id: memory.id,
+      metadata: {
+        title: body.title,
+        memory_type: memoryType,
+        has_embedding: !!embedding,
+      },
+      result: 'success',
+      route_source: 'edge_function',
+      auth_source: auth.auth_source,
+      actor_id: auth.user_id,
+      actor_type: 'user',
+      api_key_id: auth.api_key_id,
+      project_scope: auth.project_scope,
+      ...reqCtx,
+    });
 
     // Return success response (exclude embedding from response for cleaner output)
     const { embedding: _embedding, ...memoryWithoutEmbedding } = memory;

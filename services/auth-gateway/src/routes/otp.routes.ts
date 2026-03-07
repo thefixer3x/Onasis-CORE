@@ -16,6 +16,7 @@ import express from 'express'
 import type { Request, Response } from 'express'
 import { supabaseAuth } from '../../db/client.js'
 import { generateTokenPairWithUAI } from '../utils/jwt.js'
+import { auditCorrelation } from '../utils/correlation.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -175,7 +176,8 @@ router.post('/send', async (req: Request, res: Response): Promise<void> => {
         user_agent: req.headers['user-agent'],
         success: false,
         error_message: error.message,
-        metadata: { email: email.substring(0, 3) + '***', type }
+        metadata: { email: email.substring(0, 3) + '***', type },
+        ...auditCorrelation(req),
       })
 
       res.status(400).json({
@@ -196,7 +198,8 @@ router.post('/send', async (req: Request, res: Response): Promise<void> => {
         email: email.substring(0, 3) + '***',
         type,
         project_scope: projectScope
-      }
+      },
+      ...auditCorrelation(req),
     })
 
     logger.info('OTP sent successfully', {
@@ -302,7 +305,8 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
         user_agent: req.headers['user-agent'],
         success: false,
         error_message: error?.message || 'Invalid OTP',
-        metadata: { email: email.substring(0, 3) + '***', type: verifyType }
+        metadata: { email: email.substring(0, 3) + '***', type: verifyType },
+        ...auditCorrelation(req),
       })
 
       res.status(400).json({
@@ -388,7 +392,8 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
         project_scope: resolvedProjectScope,
         project_scope_validated: projectScopeResolution.validated,
         project_scope_reason: projectScopeResolution.reason
-      }
+      },
+      ...auditCorrelation(req),
     })
 
     logger.info('OTP verification successful', {
@@ -423,7 +428,8 @@ router.post('/verify', async (req: Request, res: Response): Promise<void> => {
       user_agent: req.headers['user-agent'],
       success: false,
       error_message: error instanceof Error ? error.message : 'Unknown error',
-      metadata: { email: email.substring(0, 3) + '***' }
+      metadata: { email: email.substring(0, 3) + '***' },
+      ...auditCorrelation(req),
     })
 
     res.status(500).json({

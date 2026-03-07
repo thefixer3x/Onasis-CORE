@@ -1,6 +1,7 @@
 import express from 'express'
 import { supabaseAdmin, supabaseAuth } from '../../db/client.js'
 import { generateTokenPairWithUAI } from '../utils/jwt.js'
+import { auditCorrelation } from '../utils/correlation.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -304,6 +305,7 @@ router.post('/login', async (req, res) => {
         success: false,
         error_message: error?.message || 'Invalid credentials',
         metadata: { email },
+        ...auditCorrelation(req),
       })
 
       return res.redirect('/web/login?error=' + encodeURIComponent(error?.message || 'Invalid credentials') + '&return_to=' + encodeURIComponent(return_to || ''))
@@ -348,6 +350,7 @@ router.post('/login', async (req, res) => {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
+      ...auditCorrelation(req),
     })
 
     // Set HTTP-only session cookies
@@ -425,6 +428,7 @@ router.post('/signup', async (req, res) => {
         success: false,
         error_message: error.message,
         metadata: { email },
+        ...auditCorrelation(req),
       })
 
       return res.redirect('/web/login?error=' + encodeURIComponent(error.message) + '&return_to=' + encodeURIComponent(return_to || ''))
@@ -473,6 +477,7 @@ router.post('/signup', async (req, res) => {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
+      ...auditCorrelation(req),
     })
 
     // Set HTTP-only session cookies

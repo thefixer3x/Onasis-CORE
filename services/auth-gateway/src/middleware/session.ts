@@ -47,6 +47,7 @@ export async function validateSessionCookie(
             project_scope: payload.project_scope,
             platform: payload.platform,
             email: payload.email,
+            authSource: 'sso',
         }
         next()
     } catch (error) {

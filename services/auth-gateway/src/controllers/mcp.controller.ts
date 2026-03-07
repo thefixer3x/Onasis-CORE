@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import { supabaseAdmin } from '../../db/client.js'
 import { generateTokenPairWithUAI } from '../utils/jwt.js'
+import { auditCorrelation } from '../utils/correlation.js'
 import { createSession } from '../services/session.service.js'
 import { upsertUserAccount } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
@@ -37,6 +38,7 @@ export async function mcpAuth(req: Request, res: Response) {
         success: false,
         error_message: error?.message || 'Invalid credentials',
         metadata: { email, client_id },
+        ...auditCorrelation(req),
       })
 
       return res.status(401).json({
@@ -88,6 +90,7 @@ export async function mcpAuth(req: Request, res: Response) {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
+      ...auditCorrelation(req),
     })
 
     return res.json({
@@ -140,6 +143,7 @@ export async function cliLogin(req: Request, res: Response) {
         success: false,
         error_message: error?.message || 'Invalid credentials',
         metadata: { email },
+        ...auditCorrelation(req),
       })
 
       return res.status(401).json({
@@ -188,6 +192,7 @@ export async function cliLogin(req: Request, res: Response) {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
+      ...auditCorrelation(req),
     })
 
     // Set HTTP-only session cookie for OAuth flow continuation
