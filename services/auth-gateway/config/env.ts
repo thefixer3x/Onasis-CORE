@@ -33,6 +33,8 @@ const envSchema = z.object({
   DATABASE_URL: urlString('DATABASE_URL'),
   DIRECT_DATABASE_URL: optionalUrlString('DIRECT_DATABASE_URL'),
   SERVICE_ROLE_DATABASE_URL: urlString('SERVICE_ROLE_DATABASE_URL'),
+  // Legacy replica alias retained temporarily for backwards-compatible parsing.
+  // Runtime services should use DATABASE_URL for the auth-gateway primary.
   NEON_DATABASE_URL: optionalUrlString('NEON_DATABASE_URL'),
   SUPABASE_URL: urlString('SUPABASE_URL'),
   SUPABASE_AUTH_URL: optionalUrlString('SUPABASE_AUTH_URL'),

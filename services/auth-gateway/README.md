@@ -1,11 +1,11 @@
-# Auth Gateway (Neon Template)
+# Auth Gateway
 
-This folder contains the self-contained authentication gateway template designed to integrate with a Neon-hosted Postgres instance that already mirrors Supabase role semantics.
+This folder contains the self-contained authentication gateway service for LanOnasis. It now runs against the dedicated auth-gateway Supabase/Postgres database, while the main application data remains in the main Supabase database.
 
 ## Goals
 
 - Centralise all authentication logic for dashboards, CLI, MCP, and API clients.
-- Operate against Neon (`super-night-54410645`) using the `auth_gateway` schema.
+- Operate against the auth-gateway database using the `auth_gateway` schema and related security tables.
 - Provide an extensible scaffold for additional projects by keeping all code within `services/auth-gateway/`.
 
 ## Contents
@@ -13,7 +13,7 @@ This folder contains the self-contained authentication gateway template designed
 - `package.json` – Template dependencies and scripts
 - `tsconfig.json` – TypeScript configuration
 - `.env.example` – Required environment variables (sanitised placeholders)
-- `db/` – Database connection helpers for Neon + Supabase admin operations
+- `db/` – Database connection helpers for the auth-gateway DB plus Supabase admin operations
 - `config/` – Runtime configuration loaders and constants
 - `src/` – Express server, routes, controllers, and domain logic
 - `migrations/` – Database schema for `auth_gateway`

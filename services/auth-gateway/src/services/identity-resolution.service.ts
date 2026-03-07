@@ -477,11 +477,11 @@ let identityServiceInstance: IdentityResolutionService | null = null
  */
 export function getIdentityService(): IdentityResolutionService {
   if (!identityServiceInstance) {
-    const neonDbUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL || ""
-    if (!neonDbUrl) {
-      throw new Error('NEON_DATABASE_URL or DATABASE_URL environment variable is required for identity resolution service')
+    const authGatewayDbUrl = process.env.DATABASE_URL || ""
+    if (!authGatewayDbUrl) {
+      throw new Error('DATABASE_URL environment variable is required for identity resolution service')
     }
-    identityServiceInstance = new IdentityResolutionService(neonDbUrl)
+    identityServiceInstance = new IdentityResolutionService(authGatewayDbUrl)
   }
   return identityServiceInstance
 }

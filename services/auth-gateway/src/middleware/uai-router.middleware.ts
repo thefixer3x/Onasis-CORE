@@ -36,13 +36,6 @@ import { validateAPIKey } from '../services/api-key.service.js'
 import { resolveUAICached, type UAIResolutionResult } from '../services/uai-session-cache.service.js'
 import type { AuthMethod } from '../services/identity-resolution.service.js'
 
-// Extend Express Request to include UAI
-declare module 'express-serve-static-core' {
-  interface Request {
-    uai?: UAIContext
-  }
-}
-
 /**
  * UAI Context - attached to every authenticated request
  */

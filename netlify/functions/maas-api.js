@@ -854,15 +854,8 @@ app.post("/api/v1/memory", async (req, res) => {
 
     const userId = req.user?.user_id || req.user?.id;
 
-    // Require organization_id - use env fallback, no hardcoded IDs
-    if (!organizationId) {
-      organizationId = process.env.DEFAULT_ORG_ID;
-      if (organizationId) {
-        console.warn("[maas-api] Using DEFAULT_ORG_ID from env for memory creation");
-      }
-    }
-
-    // Fail if organization_id still not resolved
+    // Fail closed if organization_id cannot be resolved.
+    // Falling back to an environment default can route writes into the wrong tenant.
     if (!organizationId) {
       console.error("[maas-api] Organization ID resolution failed:", {
         hasUser: !!req.user,

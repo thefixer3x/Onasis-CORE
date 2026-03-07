@@ -89,7 +89,8 @@ const envSchema = z.object({
   // Auth service base URL
   AUTH_BASE_URL: z.string().url().optional(),
 
-  // Neon database URL (alternative to DATABASE_URL)
+  // Legacy replica alias retained temporarily for backwards-compatible parsing.
+  // Runtime services should use DATABASE_URL for the auth-gateway primary.
   NEON_DATABASE_URL: z.string().optional(),
 
   // Webhook secret for sync endpoints

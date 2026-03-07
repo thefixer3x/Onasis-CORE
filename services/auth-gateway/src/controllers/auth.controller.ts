@@ -866,7 +866,7 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
       })
     }
 
-    // Sync user to Neon database
+    // Sync user to the auth-gateway database
     await upsertUserAccount({
       user_id: user.id,
       email: user.email!,
@@ -894,7 +894,7 @@ export async function exchangeSupabaseToken(req: Request, res: Response) {
       authMethod: 'oauth_pkce',
     })
 
-    // Create session in Neon
+    // Create session in the auth-gateway database
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
     await createSession({
       user_id: user.id,

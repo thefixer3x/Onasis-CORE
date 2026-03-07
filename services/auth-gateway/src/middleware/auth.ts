@@ -26,18 +26,10 @@ export interface UnifiedUser {
   app_metadata?: Record<string, unknown>;
 }
 
-// Extend Express Request type to include user and scopes
-declare module 'express' {
-  interface Request {
-    user?: UnifiedUser
-    scopes?: string[]  // API key scopes/permissions
-  }
-}
-
 const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
   // Primary identifiers
   userId: payload.sub,
-  organizationId: payload.project_scope ?? 'unknown',
+  organizationId: payload.organization_id ?? 'unknown',
   role: payload.role,
   // Extract plan from JWT claims: check user_metadata, app_metadata, or direct claim
   plan: (payload.user_metadata?.plan as string) || (payload.app_metadata?.plan as string) || payload.plan || 'free',
@@ -51,6 +43,7 @@ const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
   id: payload.sub,
   email: payload.email,
   app_metadata: {
+    organization_id: payload.organization_id,
     project_scope: payload.project_scope,
     platform: payload.platform,
   },
@@ -58,6 +51,7 @@ const buildUnifiedUserFromJwt = (payload: JWTPayload): UnifiedUser => ({
 
 const buildUnifiedUserFromApiKey = (options: {
   userId: string
+  organizationId?: string
   email: string
   role: string
   plan: string
@@ -66,13 +60,14 @@ const buildUnifiedUserFromApiKey = (options: {
   userMetadata?: Record<string, unknown>
 }): UnifiedUser => ({
   userId: options.userId,
-  organizationId: options.projectScope ?? 'unknown',
+  organizationId: options.organizationId ?? 'unknown',
   role: options.role,
   plan: options.plan,
   id: options.userId,
   email: options.email,
   user_metadata: options.userMetadata ?? {},
   app_metadata: {
+    organization_id: options.organizationId,
     project_scope: options.projectScope,
     permissions: options.permissions,
   },
@@ -83,7 +78,7 @@ const getProjectScope = (user?: UnifiedUser): string | undefined => {
   const appMeta = user.app_metadata as Record<string, unknown> | undefined
   const projectScope = appMeta?.project_scope
   if (typeof projectScope === 'string') return projectScope
-  return user.organizationId
+  return user.project_scope
 }
 
 /**
@@ -150,8 +145,24 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             // Supabase lookup failed — proceed with minimal info
           }
 
+          let organizationId: string | undefined
+          try {
+            const { supabaseUsers } = await import('../../db/client.js')
+            const { data: userRecord } = await supabaseUsers
+              .from('users')
+              .select('organization_id')
+              .eq('id', introspection.user_id)
+              .maybeSingle()
+            if (typeof userRecord?.organization_id === 'string') {
+              organizationId = userRecord.organization_id
+            }
+          } catch {
+            // Organization lookup failed — continue with unknown org context
+          }
+
           req.user = buildUnifiedUserFromApiKey({
             userId: introspection.user_id,
+            organizationId,
             email,
             role,
             plan,
@@ -181,6 +192,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
         const { data: userData, error: userError } = await supabaseUsers.auth.admin.getUserById(validation.userId)
 
         const projectScope = validation.projectScope || 'unknown'
+        const organizationId = validation.organizationId
         const plan = typeof userData?.user?.user_metadata?.plan === 'string'
           ? userData.user.user_metadata.plan
           : 'free'
@@ -192,6 +204,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           // Fallback: use minimal payload if user lookup fails
           req.user = buildUnifiedUserFromApiKey({
             userId: validation.userId,
+            organizationId,
             email: `${validation.userId}@api-key.local`,
             role,
             plan,
@@ -202,6 +215,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           // Create full user payload from API key validation and user data
           req.user = buildUnifiedUserFromApiKey({
             userId: validation.userId,
+            organizationId,
             email: userData.user.email || `${validation.userId}@api-key.local`,
             role,
             plan,

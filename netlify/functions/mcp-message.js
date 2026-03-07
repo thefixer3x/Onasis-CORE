@@ -321,37 +321,18 @@ export default async function handler(event) {
       };
     }
 
-    // Extract context from connection (in production, validate from store)
-    const context = {
-      connectionId,
-      organizationId: 'ADMIN_ORG', // TODO: Get from connection store
-      vendorOrgId: 'uuid-here',    // TODO: Get from connection store
-      vendorCode: 'ADMIN_ORG',     // TODO: Get from connection store
-      userId: null                 // TODO: Get from auth
-    };
-
-    // Handle message based on type
-    if (message.type === 'request' && message.method) {
-      const result = await handleToolCall(message.method, message.params || {}, context);
-      
-      return {
-        statusCode: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        },
-        body: JSON.stringify({
-          id: message.id,
-          type: 'response',
-          result,
-          timestamp: new Date().toISOString()
-        })
-      };
-    }
-
+    // Fail closed until connection/auth context is loaded from a trusted store.
+    // Hardcoded admin-like defaults here allow writes outside authenticated user scope.
     return {
-      statusCode: 200,
-      body: JSON.stringify({ success: true })
+      statusCode: 501,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({
+        error: 'MCP message endpoint is disabled until authenticated connection context is implemented safely',
+        code: 'MCP_CONTEXT_UNIMPLEMENTED'
+      })
     };
 
   } catch (error) {

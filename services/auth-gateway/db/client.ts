@@ -3,6 +3,8 @@ import ws from 'ws'
 import { createClient } from '@supabase/supabase-js'
 import { env } from '../config/env.js'
 
+// The active write target is the auth-gateway database behind DATABASE_URL.
+// We keep the serverless Postgres driver because it matches the deployed connection shape.
 neonConfig.webSocketConstructor = ws as unknown as typeof WebSocket
 
 export const dbPool = new Pool({

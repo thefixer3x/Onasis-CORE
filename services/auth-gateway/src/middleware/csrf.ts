@@ -201,11 +201,3 @@ export function setCSRFCookie(req: Request, res: Response, next: NextFunction): 
 
     next()
 }
-
-// Extend Express Request interface
-declare module 'express-serve-static-core' {
-    interface Request {
-        csrfToken?: string
-        originalState?: string
-    }
-}

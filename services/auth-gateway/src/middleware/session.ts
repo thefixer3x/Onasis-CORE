@@ -40,7 +40,7 @@ export async function validateSessionCookie(
         // Attach user to request (convert JWTPayload to UnifiedUser)
         req.user = {
             userId: payload.sub,
-            organizationId: payload.project_scope ?? 'unknown',
+            organizationId: payload.organization_id ?? 'unknown',
             role: payload.role,
             plan: payload.plan || 'free',
             sub: payload.sub,

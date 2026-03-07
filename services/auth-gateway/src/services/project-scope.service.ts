@@ -11,6 +11,15 @@ export interface ProjectScopeResolution {
   reason?: string
 }
 
+const fallbackWithReason = (
+  fallbackScope: string,
+  reason: string
+): ProjectScopeResolution => ({
+  scope: fallbackScope,
+  validated: false,
+  reason,
+})
+
 export async function resolveProjectScope(options: {
   requestedScope?: string
   fallbackScope?: string
@@ -58,7 +67,7 @@ export async function resolveProjectScope(options: {
         context: options.context,
         error,
       })
-      return { scope: requestedScope, validated: false, reason: 'membership_lookup_failed' }
+      return fallbackWithReason(fallbackScope, 'membership_lookup_failed')
     }
   }
 
@@ -100,12 +109,14 @@ export async function resolveProjectScope(options: {
       context: options.context,
       error,
     })
+    return fallbackWithReason(fallbackScope, 'project_lookup_failed')
   }
 
-  logger.info('Project scope accepted without validation', {
+  logger.warn('Project scope fell back to default because it could not be validated', {
     userId: options.userId,
     requestedScope,
+    fallbackScope,
     context: options.context,
   })
-  return { scope: requestedScope, validated: false, reason: 'unverified_scope' }
+  return fallbackWithReason(fallbackScope, 'unverified_scope')
 }

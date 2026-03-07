@@ -589,6 +589,7 @@ export async function updateApiKeyUsage(key_id: string): Promise<void> {
 export async function validateAPIKey(apiKey: string): Promise<{
   valid: boolean
   userId?: string
+  organizationId?: string
   projectScope?: string
   permissions?: string[]
   reason?: string
@@ -757,6 +758,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
         return {
           valid: true,
           userId: keyRecord.user_id || keyRecord.owner_id || keyRecord.created_by,
+          organizationId: keyRecord.organization_id,
           projectScope:
             keyRecord.project_scope ||
             keyRecord.access_level ||

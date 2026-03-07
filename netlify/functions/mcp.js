@@ -481,184 +481,43 @@ async function handleAuth(event) {
   }
 }
 
-/**
- * Handle user sign in and create API key
- */
-async function handleSignIn(email, password, clientId, source) {
-  // Authenticate user
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
+const LEGACY_MCP_AUTH_DISABLED_ERROR = 'Legacy MCP API key issuance is disabled until organization-bound key creation is implemented';
 
-  if (authError) {
-    throw new Error('Invalid email or password');
-  }
-
-  const userId = authData.user.id;
-
-  // Get user's organization
-  const { data: userOrg } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('user_id', userId)
-    .single();
-
-  if (!userOrg) {
-    throw new Error('User organization not found');
-  }
-
-  // Get vendor organization for API key creation
-  const { data: vendorOrg } = await supabase
-    .from('vendor_organizations')
-    .select('id, vendor_code')
-    .eq('vendor_code', 'ADMIN_ORG') // Default to admin org for now
-    .single();
-
-  if (!vendorOrg) {
-    throw new Error('Vendor organization not found');
-  }
-
-  // Create API key for this client
-  const apiKey = await createApiKeyForClient(vendorOrg.id, clientId, source, email);
-
+function buildLegacyAuthDisabledResponse() {
   return {
-    statusCode: 200,
+    statusCode: 503,
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*'
     },
     body: JSON.stringify({
-      success: true,
-      userId,
-      organizationId: userOrg.organization_id,
-      apiKey
+      error: LEGACY_MCP_AUTH_DISABLED_ERROR,
+      code: 'LEGACY_MCP_AUTH_DISABLED'
     })
   };
+}
+
+/**
+ * Handle user sign in and create API key
+ */
+async function handleSignIn(email, password, clientId, source) {
+  console.warn('Blocking legacy MCP sign-in API key issuance', { email, clientId, source });
+  return buildLegacyAuthDisabledResponse();
 }
 
 /**
  * Handle user sign up and create first API key
  */
 async function handleSignUp(name, email, password, organizationName, clientId, source) {
-  // Create user account
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: name
-      }
-    }
-  });
-
-  if (authError) {
-    throw new Error(authError.message);
-  }
-
-  const userId = authData.user.id;
-
-  // Create organization if provided, otherwise use personal
-  const orgName = organizationName || \`\${name}'s Organization\`;
-  
-  const { data: newOrg, error: orgError } = await supabase
-    .from('organizations')
-    .insert({
-      name: orgName,
-      slug: generateSlug(orgName),
-      plan: 'free'
-    })
-    .select()
-    .single();
-
-  if (orgError) {
-    throw new Error('Failed to create organization');
-  }
-
-  // Add user to organization
-  const { error: userOrgError } = await supabase
-    .from('profiles')
-    .insert({
-      user_id: userId,
-      organization_id: newOrg.id,
-      email,
-      role: 'admin'
-    });
-
-  if (userOrgError) {
-    throw new Error('Failed to setup user organization');
-  }
-
-  // Get or create vendor organization
-  let { data: vendorOrg } = await supabase
-    .from('vendor_organizations')
-    .select('id, vendor_code')
-    .eq('vendor_code', 'ADMIN_ORG')
-    .single();
-
-  if (!vendorOrg) {
-    // Create vendor org if it doesn't exist
-    const { data: newVendorOrg } = await supabase
-      .from('vendor_organizations')
-      .insert({
-        vendor_code: 'ADMIN_ORG',
-        organization_name: 'Onasis Admin Organization',
-        organization_type: 'enterprise',
-        contact_email: 'admin@example.com',
-        billing_tier: 'enterprise',
-        status: 'active'
-      })
-      .select()
-      .single();
-    
-    vendorOrg = newVendorOrg;
-  }
-
-  // Create first API key
-  const apiKey = await createApiKeyForClient(vendorOrg.id, clientId, source, email);
-
-  return {
-    statusCode: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*'
-    },
-    body: JSON.stringify({
-      success: true,
-      userId,
-      organizationId: newOrg.id,
-      apiKey,
-      isNewUser: true
-    })
-  };
+  console.warn('Blocking legacy MCP sign-up API key issuance', { email, clientId, source, organizationName, name });
+  return buildLegacyAuthDisabledResponse();
 }
 
 /**
  * Create API key for client
  */
 async function createApiKeyForClient(vendorOrgId, clientId, source, email) {
-  const keyName = \`\${source === 'cli' ? 'CLI' : 'MCP'} Key - \${clientId.substring(0, 8)}\`;
-  
-  // Generate API key using the onasis-core function
-  const { data, error } = await supabase.rpc('generate_vendor_api_key', {
-    p_vendor_org_id: vendorOrgId,
-    p_key_name: keyName,
-    p_key_type: 'live',
-    p_environment: 'production'
-  });
-
-  if (error || !data || !data[0]) {
-    throw new Error('Failed to create API key');
-  }
-
-  return {
-    key_id: data[0].key_id,
-    key_secret: data[0].key_secret,
-    name: keyName,
-    created_for: email,
-    client_id: clientId,
-    source
-  };
+  throw new Error(LEGACY_MCP_AUTH_DISABLED_ERROR);
 }
 
 /**
