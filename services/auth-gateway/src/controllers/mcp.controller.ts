@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express'
-import { supabaseAdmin } from '../../db/client.js'
+import { supabaseAdmin, supabaseUsers } from '../../db/client.js'
 import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { auditCorrelation } from '../utils/correlation.js'
 import { createSession } from '../services/session.service.js'
@@ -37,7 +37,14 @@ export async function mcpAuth(req: Request, res: Response) {
         user_agent: req.headers['user-agent'],
         success: false,
         error_message: error?.message || 'Invalid credentials',
-        metadata: { email, client_id },
+        auth_source: 'mcp_password',
+        actor_type: 'anonymous',
+        project_scope: 'mcp',
+        metadata: {
+          email,
+          client_id,
+          route_source: 'auth_gateway_mcp',
+        },
         ...auditCorrelation(req),
       })
 
@@ -55,6 +62,12 @@ export async function mcpAuth(req: Request, res: Response) {
       raw_metadata: data.user.user_metadata || {},
       last_sign_in_at: data.user.last_sign_in_at || null,
     })
+
+    const { data: userOrg } = await supabaseUsers
+      .from('users')
+      .select('organization_id')
+      .eq('id', data.user.id)
+      .single()
 
     // Generate MCP-specific tokens
     const tokens = await generateTokenPairWithUAI({
@@ -90,6 +103,15 @@ export async function mcpAuth(req: Request, res: Response) {
       ip_address: req.ip,
       user_agent: req.headers['user-agent'],
       success: true,
+      organization_id: userOrg?.organization_id,
+      auth_source: 'mcp_password',
+      actor_id: data.user.id,
+      actor_type: 'user',
+      project_scope: 'mcp',
+      metadata: {
+        client_id,
+        route_source: 'auth_gateway_mcp',
+      },
       ...auditCorrelation(req),
     })
 

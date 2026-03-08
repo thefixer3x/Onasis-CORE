@@ -92,6 +92,9 @@ DECLARE
     END,
     CASE WHEN v_success THEN 'success' ELSE 'error' END
   );
+  v_is_mcp BOOLEAN := COALESCE(v_payload->>'platform', '') = 'mcp'
+    OR COALESCE(v_payload->>'event_type', '') LIKE 'mcp_%'
+    OR p_event_type = 'McpAuditLogged';
   v_projected BOOLEAN := false;
 BEGIN
   IF p_event_type NOT IN ('AuthEventLogged', 'OAuthAuditLogged') THEN
@@ -149,6 +152,7 @@ BEGIN
     COALESCE(
       v_metadata->>'auth_source',
       CASE
+        WHEN v_is_mcp THEN 'mcp_password'
         WHEN p_event_type = 'OAuthAuditLogged' THEN 'oauth'
         ELSE 'auth_gateway'
       END
@@ -168,6 +172,7 @@ BEGIN
     COALESCE(
       v_metadata->>'route_source',
       CASE
+        WHEN v_is_mcp THEN 'auth_gateway_mcp'
         WHEN p_event_type = 'OAuthAuditLogged' THEN 'auth_gateway_oauth'
         ELSE 'auth_gateway'
       END
