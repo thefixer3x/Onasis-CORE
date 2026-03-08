@@ -8,6 +8,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { authenticate } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
+import { extractRequestContext, writeAudit } from '../_shared/audit.ts';
 
 interface BulkDeleteRequest {
   ids: string[];
@@ -17,6 +18,7 @@ interface BulkDeleteRequest {
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+  const reqCtx = extractRequestContext(req);
 
   if (req.method !== 'POST' && req.method !== 'DELETE') {
     return createErrorResponse(ErrorCode.VALIDATION_ERROR, 'Method not allowed. Use POST or DELETE.', 405);
@@ -129,9 +131,9 @@ serve(async (req: Request) => {
       return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to delete memories', 500);
     }
 
-    // Audit log (fire and forget)
-    supabase.from('audit_log').insert({
+    writeAudit(supabase, {
       user_id: auth.user_id,
+      organization_id: auth.organization_id,
       action: 'memory.bulk_deleted',
       resource_type: 'memory',
       metadata: {
@@ -139,8 +141,16 @@ serve(async (req: Request) => {
         count: deletedCount,
         not_found: notFoundIds,
         not_authorized: notAuthorizedIds
-      }
-    }).then(() => {});
+      },
+      api_key_id: auth.api_key_id,
+      auth_source: auth.auth_source,
+      actor_id: auth.user_id,
+      actor_type: 'user',
+      project_scope: auth.project_scope,
+      route_source: 'edge_function',
+      result: 'success',
+      ...reqCtx,
+    });
 
     return new Response(JSON.stringify({
       success: true,
