@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { logger } from '../utils/logger.js'
+import { auditCorrelation } from '../utils/correlation.js'
 import {
     OAuthServiceError,
     createAuthorizationCode,
@@ -74,6 +75,14 @@ function parseScope(scope?: string): string[] | undefined {
         .split(' ')
         .map((value) => value.trim())
         .filter(Boolean)
+}
+
+function oauthAuditMetadata(req: Request, extra: Record<string, unknown> = {}) {
+    return {
+        route_source: 'auth_gateway_oauth',
+        ...auditCorrelation(req),
+        ...extra,
+    }
 }
 
 function sendOAuthError(res: Response, error: unknown) {
@@ -217,6 +226,7 @@ export async function authorize(req: Request, res: Response) {
             ip_address: req.ip,
             user_agent: req.get('user-agent') || undefined,
             success: true,
+            metadata: oauthAuditMetadata(req),
         })
 
         const redirectUrl = new URL(payload.redirect_uri)
@@ -246,6 +256,7 @@ export async function authorize(req: Request, res: Response) {
             success: false,
             error_code: error instanceof OAuthServiceError ? error.oauthError : 'server_error',
             error_description: error instanceof Error ? error.message : 'Unknown error',
+            metadata: oauthAuditMetadata(req),
         })
         return sendOAuthError(res, error)
     }
@@ -308,6 +319,7 @@ export async function token(req: Request, res: Response) {
                 ip_address: req.ip,
                 user_agent: req.get('user-agent') || undefined,
                 success: true,
+                metadata: oauthAuditMetadata(req),
             })
 
             return res.json({
@@ -362,6 +374,7 @@ export async function token(req: Request, res: Response) {
                 ip_address: req.ip,
                 user_agent: req.get('user-agent') || undefined,
                 success: true,
+                metadata: oauthAuditMetadata(req),
             })
 
             return res.json({
@@ -386,6 +399,7 @@ export async function token(req: Request, res: Response) {
             success: false,
             error_code: error instanceof OAuthServiceError ? error.oauthError : 'server_error',
             error_description: error instanceof Error ? error.message : 'Unknown error',
+            metadata: oauthAuditMetadata(req),
         })
         return sendOAuthError(res, error)
     }
@@ -415,7 +429,10 @@ export async function revoke(req: Request, res: Response) {
             error_description: outcome.revoked ? undefined : 'Token not found',
             ip_address: req.ip,
             user_agent: req.get('user-agent') || undefined,
-            metadata: outcome.tokenType ? { token_type: outcome.tokenType } : undefined,
+            metadata: oauthAuditMetadata(
+                req,
+                outcome.tokenType ? { token_type: outcome.tokenType } : {}
+            ),
         })
 
         return res.status(200).json({ revoked: outcome.revoked })
@@ -427,6 +444,7 @@ export async function revoke(req: Request, res: Response) {
             error_description: error instanceof Error ? error.message : 'Unknown error',
             ip_address: req.ip,
             user_agent: req.get('user-agent') || undefined,
+            metadata: oauthAuditMetadata(req),
         })
         return sendOAuthError(res, error)
     }
@@ -453,6 +471,7 @@ export async function introspect(req: Request, res: Response) {
             error_description: error instanceof Error ? error.message : 'Unknown error',
             ip_address: req.ip,
             user_agent: req.get('user-agent') || undefined,
+            metadata: oauthAuditMetadata(req),
         })
         // RFC 7662 dictates returning { active: false } on error
         return res.json({ active: false })

@@ -1,10 +1,12 @@
 import { dbPool } from '../../db/client.js'
+import type { PoolClient } from 'pg'
 import {
     CodeChallengeMethod,
     generateOpaqueToken,
     hashAuthorizationCode,
     hashToken,
 } from '../utils/pkce.js'
+import { appendEventWithOutbox } from './event.service.js'
 import { OAuthClientCache, AuthCodeCache } from './cache.service.js'
 import { verifyToken } from '../utils/jwt.js'
 
@@ -736,8 +738,20 @@ export async function introspectToken(token: string): Promise<TokenIntrospection
 }
 
 export async function logOAuthEvent(event: OAuthAuditEvent): Promise<void> {
+    const metadata = {
+        ...(event.metadata || {}),
+        ...(event.ip_address ? { ip_address: event.ip_address } : {}),
+        ...(event.user_agent ? { user_agent: event.user_agent } : {}),
+        auth_source: 'oauth',
+        route_source: (event.metadata?.route_source as string | undefined) || 'auth_gateway_oauth',
+        ...(event.user_id ? { actor_id: event.user_id, actor_type: 'user' } : {}),
+    }
+
+    const client = await dbPool.connect()
     try {
-        await dbPool.query(
+        await client.query('BEGIN')
+
+        await client.query(
             `
         INSERT INTO auth_gateway.oauth_audit_log (
           event_type, client_id, user_id, ip_address, user_agent,
@@ -757,10 +771,37 @@ export async function logOAuthEvent(event: OAuthAuditEvent): Promise<void> {
                 event.success,
                 event.error_code || null,
                 event.error_description || null,
-                event.metadata || {},
+                metadata,
             ]
         )
+
+        await appendEventWithOutbox(
+            {
+                aggregate_type: event.user_id ? 'user' : 'client',
+                aggregate_id: event.user_id || event.client_id || 'anonymous',
+                event_type: 'OAuthAuditLogged',
+                event_type_version: 1,
+                payload: {
+                    event_type: event.event_type,
+                    success: event.success,
+                    client_id: event.client_id,
+                    user_id: event.user_id,
+                    scope: event.scope ?? null,
+                    redirect_uri: event.redirect_uri,
+                    grant_type: event.grant_type,
+                    error_code: event.error_code,
+                    error_description: event.error_description,
+                },
+                metadata,
+            },
+            client as PoolClient
+        )
+
+        await client.query('COMMIT')
     } catch (error) {
+        await client.query('ROLLBACK')
         console.error('Failed to write OAuth audit log entry', error)
+    } finally {
+        client.release()
     }
 }

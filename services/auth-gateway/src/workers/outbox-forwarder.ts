@@ -47,20 +47,28 @@ function validateCredentials(): void {
  * IMPORTANT: Uses supabaseUsers (Main DB), NOT supabaseAdmin (Auth-Gateway DB)
  */
 async function deliverToSupabase(row: PendingOutboxRow) {
-  const { error } = await supabaseUsers.from('auth_events').upsert({
-    event_id: row.event_id,
-    aggregate_type: row.aggregate_type,
-    aggregate_id: row.aggregate_id,
-    version: row.version,
-    event_type: row.event_type,
-    event_type_version: row.event_type_version ?? 1,
-    payload: row.payload ?? {},
-    metadata: row.metadata ?? {},
-    occurred_at: row.occurred_at,
+  const { data, error } = await supabaseUsers.rpc('apply_auth_event', {
+    p_event_id: row.event_id,
+    p_aggregate_type: row.aggregate_type,
+    p_aggregate_id: row.aggregate_id,
+    p_version: row.version,
+    p_event_type: row.event_type,
+    p_event_type_version: row.event_type_version ?? 1,
+    p_payload: row.payload ?? {},
+    p_metadata: row.metadata ?? {},
+    p_occurred_at: row.occurred_at,
   })
 
   if (error) {
     throw new Error(error.message)
+  }
+
+  if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+    const message =
+      typeof data.error === 'string'
+        ? data.error
+        : `apply_auth_event returned an unsuccessful response for ${row.event_id}`
+    throw new Error(message)
   }
 }
 
