@@ -27,6 +27,78 @@ export interface AuditLogEntry {
   actor_type?: string
   /** Application routing scope from auth-gateway (not the tenant boundary). */
   project_scope?: string
+  /** Logical ingress surface for central audit analysis. */
+  route_source?: string
+}
+
+function getMetadataString(metadata: Record<string, unknown> | undefined, key: string): string | undefined {
+  const value = metadata?.[key]
+  return typeof value === 'string' && value.trim() ? value : undefined
+}
+
+function inferAuthSource(entry: AuditLogEntry): string | undefined {
+  if (entry.auth_source) return entry.auth_source
+
+  if (entry.event_type.startsWith('mcp_') || entry.platform === 'mcp') return 'mcp_password'
+  if (entry.event_type.startsWith('cli_') || entry.platform === 'cli') return 'password'
+  if (entry.event_type.startsWith('otp_')) return 'otp'
+  if (entry.event_type.startsWith('device_')) return 'device_code'
+  if (entry.event_type.startsWith('magic_link_')) return 'magic_link'
+  if (
+    entry.event_type.startsWith('oauth_') ||
+    entry.event_type === 'authorize_request' ||
+    entry.event_type.startsWith('token_')
+  ) {
+    return 'oauth'
+  }
+
+  if (entry.event_type === 'login_success' || entry.event_type === 'login_failed') {
+    return 'password'
+  }
+
+  return undefined
+}
+
+function inferRouteSource(entry: AuditLogEntry, authSource?: string): string {
+  if (entry.route_source) return entry.route_source
+
+  const metadataRouteSource = getMetadataString(entry.metadata, 'route_source')
+  if (metadataRouteSource) return metadataRouteSource
+
+  if (entry.event_type.startsWith('mcp_') || entry.platform === 'mcp' || authSource === 'mcp_password') {
+    return 'auth_gateway_mcp'
+  }
+  if (entry.event_type.startsWith('cli_') || entry.platform === 'cli') {
+    return 'auth_gateway_cli'
+  }
+  if (entry.event_type.startsWith('otp_')) {
+    return 'auth_gateway_otp'
+  }
+  if (entry.event_type.startsWith('device_')) {
+    return 'auth_gateway_device'
+  }
+  if (entry.event_type.startsWith('magic_link_')) {
+    return 'auth_gateway_magic_link'
+  }
+  if (
+    entry.event_type.startsWith('oauth_') ||
+    entry.event_type === 'authorize_request' ||
+    entry.event_type.startsWith('token_') ||
+    authSource === 'oauth'
+  ) {
+    return 'auth_gateway_oauth'
+  }
+  if (
+    entry.event_type === 'login_success' ||
+    entry.event_type === 'login_failed' ||
+    entry.event_type === 'signup_success' ||
+    entry.event_type === 'signup_failed' ||
+    entry.event_type === 'logout'
+  ) {
+    return 'auth_gateway_web'
+  }
+
+  return 'auth_gateway'
 }
 
 /**
@@ -37,6 +109,9 @@ export async function logAuthEvent(entry: AuditLogEntry): Promise<void> {
   try {
     await client.query('BEGIN')
 
+    const authSource = inferAuthSource(entry)
+    const routeSource = inferRouteSource(entry, authSource)
+
     // Merge Phase 0.5 attribution fields into metadata so existing writes are
     // backward-compatible until auth_gateway.audit_log gains these columns.
     const enrichedMetadata = {
@@ -44,10 +119,11 @@ export async function logAuthEvent(entry: AuditLogEntry): Promise<void> {
       ...(entry.request_id     ? { request_id:     entry.request_id     } : {}),
       ...(entry.organization_id ? { organization_id: entry.organization_id } : {}),
       ...(entry.api_key_id     ? { api_key_id:     entry.api_key_id     } : {}),
-      ...(entry.auth_source    ? { auth_source:    entry.auth_source    } : {}),
+      ...(authSource          ? { auth_source:    authSource          } : {}),
       ...(entry.actor_id       ? { actor_id:       entry.actor_id       } : {}),
       ...(entry.actor_type     ? { actor_type:     entry.actor_type     } : {}),
       ...(entry.project_scope  ? { project_scope:  entry.project_scope  } : {}),
+      ...(routeSource         ? { route_source:   routeSource         } : {}),
     }
 
     // Local audit table for immediate visibility
@@ -91,10 +167,11 @@ export async function logAuthEvent(entry: AuditLogEntry): Promise<void> {
           ...(entry.request_id ? { request_id: entry.request_id } : {}),
           ...(entry.organization_id ? { organization_id: entry.organization_id } : {}),
           ...(entry.api_key_id ? { api_key_id: entry.api_key_id } : {}),
-          ...(entry.auth_source ? { auth_source: entry.auth_source } : {}),
+          ...(authSource ? { auth_source: authSource } : {}),
           ...(entry.actor_id ? { actor_id: entry.actor_id } : {}),
           ...(entry.actor_type ? { actor_type: entry.actor_type } : {}),
           ...(entry.project_scope ? { project_scope: entry.project_scope } : {}),
+          ...(routeSource ? { route_source: routeSource } : {}),
         },
       },
       client
