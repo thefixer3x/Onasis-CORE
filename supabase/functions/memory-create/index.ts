@@ -10,6 +10,7 @@ import { authenticate, createSupabaseClient } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
+import { suggestTopicKey, isValidTopicKey, normalizeTopicKey } from "../_shared/topic-key.ts";
 
 type MemoryType =
   | "context"
@@ -23,11 +24,12 @@ type WriteIntent = "new" | "continue" | "auto";
 interface CreateMemoryRequest {
   title: string;
   content: string;
-  memory_type?: MemoryType; // Preferred field name
-  type?: MemoryType; // Also accept 'type' for backwards compatibility
+  memory_type?: MemoryType;
+  type?: MemoryType;
   tags?: string[];
   metadata?: Record<string, unknown>;
   topic_id?: string;
+  topic_key?: string;
   continuity_key?: string;
   idempotency_key?: string;
   write_intent?: WriteIntent;
@@ -177,7 +179,7 @@ async function findExistingByMetadataKey(
   const query = supabase
     .from("memory_entries")
     .select(
-      "id, title, content, memory_type, tags, metadata, user_id, organization_id, topic_id, created_at, updated_at",
+      "id, title, content, memory_type, tags, metadata, topic_key, user_id, organization_id, topic_id, created_at, updated_at",
     )
     .eq("user_id", auth.user_id)
     .eq(`metadata->>${key}`, value)
@@ -287,6 +289,14 @@ serve(async (req: Request) => {
       );
     }
 
+    // Validate topic_key if provided
+    const rawTopicKey = body.topic_key;
+    if (rawTopicKey !== undefined && !isValidTopicKey(rawTopicKey)) {
+      errors.push(
+        "topic_key must be a valid format (e.g., architecture/slug, decision/slug, session/YYYY-MM-DD/slug)",
+      );
+    }
+
     if (errors.length > 0) {
       const response = createErrorResponse(
         ErrorCode.VALIDATION_ERROR,
@@ -386,6 +396,16 @@ serve(async (req: Request) => {
 
         if (body.topic_id) {
           updateData.topic_id = body.topic_id;
+        }
+
+        const continuityTopicKey = normalizeTopicKey(rawTopicKey) ||
+          suggestTopicKey({
+            memory_type: mergedMemoryType,
+            title,
+            metadata: mergedMetadata,
+          });
+        if (continuityTopicKey) {
+          updateData.topic_key = continuityTopicKey;
         }
 
         if (embedding) {
@@ -523,6 +543,24 @@ serve(async (req: Request) => {
       insertData.topic_id = body.topic_id;
     }
 
+    // Handle topic_key: use provided value or generate suggestion
+    // topic_key is additive - only set if explicitly provided or can be suggested
+    const normalizedTopicKey = normalizeTopicKey(rawTopicKey);
+    if (normalizedTopicKey) {
+      // Explicit topic_key provided and validated
+      insertData.topic_key = normalizedTopicKey;
+    } else {
+      // Try to suggest a topic key (conservative, additive approach)
+      const suggestedTopicKey = suggestTopicKey({
+        memory_type: memoryType,
+        title: body.title,
+        metadata: body.metadata,
+      });
+      if (suggestedTopicKey) {
+        insertData.topic_key = suggestedTopicKey;
+      }
+    }
+
     if (embedding) {
       // Store in provider-appropriate column
       if (provider === "voyage") {
@@ -609,6 +647,7 @@ serve(async (req: Request) => {
         title: body.title,
         memory_type: memoryType,
         has_embedding: !!embedding,
+        topic_key: insertData.topic_key ?? null,
       },
       result: 'success',
       route_source: 'edge_function',

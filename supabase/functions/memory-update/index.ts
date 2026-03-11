@@ -9,6 +9,7 @@ import { authenticate, createSupabaseClient } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
+import { suggestTopicKey, isValidTopicKey, normalizeTopicKey } from "../_shared/topic-key.ts";
 
 type MemoryType =
   | "context"
@@ -27,6 +28,7 @@ interface UpdateMemoryRequest {
   type?: MemoryType;
   tags?: string[];
   metadata?: Record<string, unknown>;
+  topic_key?: string;
   continuity_key?: string;
   idempotency_key?: string;
   write_intent?: WriteIntent;
@@ -200,6 +202,15 @@ serve(async (req: Request) => {
         `write_intent must be one of: ${VALID_WRITE_INTENTS.join(", ")}`,
       );
     }
+
+    // Validate topic_key if provided
+    const rawTopicKey = body.topic_key;
+    if (rawTopicKey !== undefined && !isValidTopicKey(rawTopicKey)) {
+      validationErrors.push(
+        "topic_key must be a valid format (e.g., architecture/slug, decision/slug, session/YYYY-MM-DD/slug)",
+      );
+    }
+
     if (validationErrors.length > 0) {
       return createErrorResponse(
         ErrorCode.VALIDATION_ERROR,
@@ -216,13 +227,14 @@ serve(async (req: Request) => {
       !memoryType &&
       !body.tags &&
       !body.metadata &&
+      !body.topic_key &&
       !body.continuity_key &&
       !body.idempotency_key &&
       body.write_intent === undefined
     ) {
       return createErrorResponse(
         ErrorCode.VALIDATION_ERROR,
-        "At least one field to update is required (title, content, memory_type/type, tags, metadata, or write-control fields)",
+        "At least one field to update is required (title, content, memory_type/type, tags, metadata, topic_key, or write-control fields)",
         400,
       );
     }
@@ -268,7 +280,7 @@ serve(async (req: Request) => {
     const existingQuery = supabase
       .from("memory_entries")
       .select(
-        "id, title, content, memory_type, tags, metadata, user_id, organization_id",
+        "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id",
       )
       .eq("id", targetMemoryId);
 
@@ -325,6 +337,25 @@ serve(async (req: Request) => {
       updateData.type = memoryType;
     }
     if (body.tags) updateData.tags = body.tags;
+
+    // Handle topic_key: use provided value or generate suggestion if title/memory_type changed
+    if (body.topic_key !== undefined) {
+      // Explicit topic_key provided
+      const normalizedTopicKey = normalizeTopicKey(body.topic_key);
+      if (normalizedTopicKey) {
+        updateData.topic_key = normalizedTopicKey;
+      }
+    } else if (body.title || memoryType) {
+      // Suggest topic key if title or memory_type changed
+      const suggestedTopicKey = suggestTopicKey({
+        memory_type: memoryType || existing.memory_type,
+        title: body.title || existing.title,
+        metadata: body.metadata,
+      });
+      if (suggestedTopicKey) {
+        updateData.topic_key = suggestedTopicKey;
+      }
+    }
 
     const shouldUpdateMetadata = !!body.metadata ||
       !!writeControl.idempotency_key || !!writeControl.continuity_key ||
@@ -397,7 +428,7 @@ serve(async (req: Request) => {
       .update(updateData)
       .eq("id", targetMemoryId)
       .select(
-        "id, title, content, memory_type, tags, metadata, user_id, organization_id, created_at, updated_at",
+        "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id, created_at, updated_at",
       )
       .single();
 
