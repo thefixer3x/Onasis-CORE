@@ -17,6 +17,13 @@ interface ListParams {
   sortBy?: 'created_at' | 'updated_at' | 'title';
   sortOrder?: 'asc' | 'desc';
   search?: string;
+  include_deleted?: boolean;
+}
+
+function parseBooleanParam(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
 }
 
 serve(async (req: Request) => {
@@ -47,7 +54,8 @@ serve(async (req: Request) => {
         tags: url.searchParams.get('tags')?.split(',').filter(Boolean) || undefined,
         sortBy: (url.searchParams.get('sortBy') as ListParams['sortBy']) || 'updated_at',
         sortOrder: (url.searchParams.get('sortOrder') as ListParams['sortOrder']) || 'desc',
-        search: url.searchParams.get('search') || undefined
+        search: url.searchParams.get('search') || undefined,
+        include_deleted: parseBooleanParam(url.searchParams.get('include_deleted'))
       };
     }
 
@@ -56,6 +64,7 @@ serve(async (req: Request) => {
     const offset = Math.max(params.offset || 0, 0);
     const sortBy = params.sortBy || 'updated_at';
     const sortOrder = params.sortOrder || 'desc';
+    const includeDeleted = parseBooleanParam(params.include_deleted);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -70,6 +79,10 @@ serve(async (req: Request) => {
     // Apply organization scope (unless master key)
     if (!auth.is_master) {
       query = query.eq('organization_id', auth.organization_id);
+    }
+
+    if (!includeDeleted) {
+      query = query.is('deleted_at', null);
     }
 
     // Apply filters
@@ -126,6 +139,7 @@ serve(async (req: Request) => {
         type: params.type || null,
         tags: params.tags || null,
         search: params.search || null,
+        include_deleted: includeDeleted,
         sort_by: sortBy,
         sort_order: sortOrder
       },

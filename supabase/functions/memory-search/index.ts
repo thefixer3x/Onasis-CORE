@@ -45,6 +45,42 @@ interface SearchRequest {
   threshold?: number;
   limit?: number;
   tags?: string[];
+  response_mode?: "full" | "compact" | "timeline";
+}
+
+interface SearchMemoryRow {
+  id: string;
+  title?: string;
+  content?: string;
+  memory_type?: string;
+  tags?: string[];
+  topic_key?: string | null;
+  topic_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  similarity_score?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface CompactSearchResult {
+  id: string;
+  title: string;
+  tags: string[];
+  similarity_score: number | null;
+  topic_key?: string;
+  preview: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface TimelineSearchResult {
+  id: string;
+  title: string;
+  similarity_score: number | null;
+  topic_key?: string;
+  preview: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 function normalizeThreshold(input: number | undefined): number {
@@ -67,6 +103,20 @@ function normalizeTypes(memoryType?: string, memoryTypes?: string[]): string[] {
     }
   }
   return Array.from(set);
+}
+
+function normalizeResponseMode(
+  input: string | undefined,
+): "full" | "compact" | "timeline" {
+  return input === "compact" || input === "timeline" ? input : "full";
+}
+
+function boundedLimit(
+  requestedLimit: number | undefined,
+  responseMode: "full" | "compact" | "timeline",
+): number {
+  const normalized = Math.min(requestedLimit ?? 10, 100);
+  return responseMode === "timeline" ? Math.min(normalized, 25) : normalized;
 }
 
 function tokenizeQuery(input: string): string[] {
@@ -108,6 +158,84 @@ function tagOverlapScore(memoryTags: string[] | undefined, filterTags: string[] 
   return Math.min(0.62, Number((0.38 + overlapCount * 0.08).toFixed(3)));
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function topicKeyFromRow(row: SearchMemoryRow): string | undefined {
+  if (stringValue(row.topic_key)) {
+    return stringValue(row.topic_key);
+  }
+  const metadata = asRecord(row.metadata);
+  return stringValue(metadata.topic_key) ||
+    stringValue(metadata.topicKey) ||
+    stringValue(metadata.topic_slug) ||
+    stringValue(metadata.topicSlug);
+}
+
+function truncatePreview(content: string | undefined, maxLength: number): string {
+  const normalized = (content || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+}
+
+function compactResult(row: SearchMemoryRow): CompactSearchResult {
+  return {
+    id: row.id,
+    title: row.title?.trim() || "Untitled memory",
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    similarity_score: typeof row.similarity_score === "number"
+      ? row.similarity_score
+      : null,
+    ...(topicKeyFromRow(row) ? { topic_key: topicKeyFromRow(row) } : {}),
+    preview: truncatePreview(row.content, 180),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function timelineResult(row: SearchMemoryRow): TimelineSearchResult {
+  return {
+    id: row.id,
+    title: row.title?.trim() || "Untitled memory",
+    similarity_score: typeof row.similarity_score === "number"
+      ? row.similarity_score
+      : null,
+    ...(topicKeyFromRow(row) ? { topic_key: topicKeyFromRow(row) } : {}),
+    preview: truncatePreview(row.content, 96),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function shapeResults(
+  rows: SearchMemoryRow[],
+  responseMode: "full" | "compact" | "timeline",
+): SearchMemoryRow[] | CompactSearchResult[] | TimelineSearchResult[] {
+  if (responseMode === "compact") {
+    return rows.map(compactResult);
+  }
+
+  if (responseMode === "timeline") {
+    return rows
+      .map(timelineResult)
+      .sort((a, b) => {
+        const left = b.updated_at || b.created_at || "";
+        const right = a.updated_at || a.created_at || "";
+        return left.localeCompare(right);
+      });
+  }
+
+  return rows;
+}
+
 async function runSemanticSearch(
   supabase: ReturnType<typeof createSupabaseClient>,
   rpcFunction: string,
@@ -124,6 +252,40 @@ async function runSemanticSearch(
     filter_organization_id: organizationId,
     filter_type: filterType,
   });
+}
+
+async function hydrateTopicKeys(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  rows: SearchMemoryRow[],
+): Promise<SearchMemoryRow[]> {
+  if (rows.length === 0) return rows;
+
+  const ids = [...new Set(rows.map((row) => row.id).filter(Boolean))];
+  if (ids.length === 0) return rows;
+
+  const { data, error } = await supabase
+    .from("memory_entries")
+    .select("id, topic_key")
+    .in("id", ids);
+
+  if (error || !Array.isArray(data)) {
+    if (error) {
+      console.warn("Failed to hydrate topic keys for search results:", error.message);
+    }
+    return rows;
+  }
+
+  const topicKeyById = new Map<string, string>();
+  for (const row of data as Array<{ id: string; topic_key?: string | null }>) {
+    if (row.topic_key) {
+      topicKeyById.set(row.id, row.topic_key);
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    topic_key: row.topic_key ?? topicKeyById.get(row.id) ?? null,
+  }));
 }
 
 serve(async (req: Request) => {
@@ -170,6 +332,7 @@ serve(async (req: Request) => {
           ? url.searchParams.get("tags")!.split(",").map((t) => t.trim())
             .filter(Boolean)
           : undefined,
+        response_mode: url.searchParams.get("response_mode") || undefined,
       };
     } else if (req.method === "POST") {
       body = await req.json();
@@ -202,6 +365,7 @@ serve(async (req: Request) => {
     const provider = getProvider();
     const providerConfig = PROVIDER_CONFIG[provider];
     const apiKey = getApiKey(provider);
+    const responseMode = normalizeResponseMode(body.response_mode);
 
     if (!apiKey) {
       console.error(`${provider.toUpperCase()} API key not configured`);
@@ -254,7 +418,7 @@ serve(async (req: Request) => {
     // Search via provider-specific RPC function
     const supabase = createSupabaseClient();
     const threshold = normalizeThreshold(body.threshold);
-    const limit = Math.min(body.limit ?? 10, 100);
+    const limit = boundedLimit(body.limit, responseMode);
     const typeFilters = normalizeTypes(body.memory_type, body.memory_types);
     const primaryFilterType = typeFilters.length === 1 ? typeFilters[0] : null;
 
@@ -343,9 +507,10 @@ serve(async (req: Request) => {
       let lexicalQuery = supabase
         .from("memory_entries")
         .select(
-          "id,title,content,memory_type,tags,metadata,user_id,organization_id,created_at,updated_at",
+          "id,title,content,memory_type,tags,topic_key,metadata,user_id,organization_id,created_at,updated_at",
         )
         .eq("organization_id", auth.organization_id)
+        .is("deleted_at", null)
         .order("updated_at", { ascending: false })
         .limit(Math.min(Math.max(limit * 8, 40), 200));
 
@@ -379,10 +544,16 @@ serve(async (req: Request) => {
       }
     }
 
+    filteredResults = await hydrateTopicKeys(
+      supabase,
+      filteredResults as SearchMemoryRow[],
+    );
+
     // Build response (no vendor details exposed per vendor-abstraction guideline)
     const responseBody = {
-      data: filteredResults,
+      data: shapeResults(filteredResults as SearchMemoryRow[], responseMode),
       query: body.query,
+      response_mode: responseMode,
       threshold: thresholdUsed,
       requested_threshold: threshold,
       search_strategy: searchStrategy,

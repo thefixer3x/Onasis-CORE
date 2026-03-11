@@ -1,6 +1,6 @@
 /**
  * Memory Delete Edge Function
- * Deletes a single memory by ID
+ * Soft deletes a single memory by ID
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -9,6 +9,12 @@ import { authenticate, createSupabaseClient } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
 import { extractRequestContext, writeAudit } from '../_shared/audit.ts';
+
+function parseBooleanParam(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
 
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
@@ -51,14 +57,23 @@ serve(async (req: Request) => {
       memoryId = url.searchParams.get('id');
     }
 
+    let body: { id?: string; include_deleted?: unknown } | null = null;
+
     if (!memoryId && (req.method === 'POST' || req.method === 'DELETE')) {
       try {
-        const body = await req.json();
-        memoryId = body.id;
+        const parsedBody = await req.json() as { id?: string; include_deleted?: unknown };
+        body = parsedBody;
+        if (typeof parsedBody.id === 'string') {
+          memoryId = parsedBody.id;
+        }
       } catch {
         // Body might be empty for DELETE
       }
     }
+
+    const includeDeleted =
+      parseBooleanParam(url.searchParams.get('include_deleted')) ||
+      parseBooleanParam(body?.include_deleted);
 
     if (!memoryId) {
       return createErrorResponse(
@@ -86,11 +101,15 @@ serve(async (req: Request) => {
     // First verify the memory exists and user has access
     const existingQuery = supabase
       .from('memory_entries')
-      .select('id, title, user_id, organization_id')
+      .select('id, title, user_id, organization_id, deleted_at')
       .eq('id', memoryId);
 
     if (!auth.is_master) {
       existingQuery.eq('organization_id', auth.organization_id);
+    }
+
+    if (!includeDeleted) {
+      existingQuery.is('deleted_at', null);
     }
 
     const { data: existing, error: fetchError } = await existingQuery.single();
@@ -124,32 +143,36 @@ serve(async (req: Request) => {
       return createErrorResponse(ErrorCode.AUTHORIZATION_ERROR, 'You can only delete your own memories', 403);
     }
 
-    // Delete the memory
-    const { error: deleteError } = await supabase
-      .from('memory_entries')
-      .delete()
-      .eq('id', memoryId);
+    if (!existing.deleted_at) {
+      const { error: deleteError } = await supabase
+        .from('memory_entries')
+        .update({
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memoryId);
 
-    if (deleteError) {
-      console.error('Delete error:', deleteError);
-      writeAudit(supabase, {
-        user_id: auth.user_id,
-        organization_id: auth.organization_id,
-        action: 'memory.deleted',
-        resource_type: 'memory',
-        resource_id: memoryId,
-        metadata: { title: existing.title },
-        result: 'failure',
-        failure_reason: 'delete_failed',
-        route_source: 'edge_function',
-        auth_source: auth.auth_source,
-        actor_id: auth.user_id,
-        actor_type: 'user',
-        api_key_id: auth.api_key_id,
-        project_scope: auth.project_scope,
-        ...reqCtx,
-      });
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to delete memory', 500);
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        writeAudit(supabase, {
+          user_id: auth.user_id,
+          organization_id: auth.organization_id,
+          action: 'memory.deleted',
+          resource_type: 'memory',
+          resource_id: memoryId,
+          metadata: { title: existing.title },
+          result: 'failure',
+          failure_reason: 'delete_failed',
+          route_source: 'edge_function',
+          auth_source: auth.auth_source,
+          actor_id: auth.user_id,
+          actor_type: 'user',
+          api_key_id: auth.api_key_id,
+          project_scope: auth.project_scope,
+          ...reqCtx,
+        });
+        return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to delete memory', 500);
+      }
     }
 
     // Audit log (fire and forget)
@@ -159,7 +182,11 @@ serve(async (req: Request) => {
       action: 'memory.deleted',
       resource_type: 'memory',
       resource_id: memoryId,
-      metadata: { title: existing.title },
+      metadata: {
+        title: existing.title,
+        soft_deleted: true,
+        already_deleted: Boolean(existing.deleted_at),
+      },
       result: 'success',
       route_source: 'edge_function',
       auth_source: auth.auth_source,

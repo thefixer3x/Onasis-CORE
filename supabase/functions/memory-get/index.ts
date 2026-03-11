@@ -9,6 +9,12 @@ import { authenticate } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
 
+function parseBooleanParam(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return false;
+  return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase());
+}
+
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -39,10 +45,13 @@ serve(async (req: Request) => {
       memoryId = url.searchParams.get('id');
     }
 
+    let includeDeleted = parseBooleanParam(url.searchParams.get('include_deleted'));
+
     // Try request body for POST
     if (!memoryId && req.method === 'POST') {
       const body = await req.json();
       memoryId = body.id;
+      includeDeleted = includeDeleted || parseBooleanParam(body.include_deleted);
     }
 
     if (!memoryId) {
@@ -71,12 +80,16 @@ serve(async (req: Request) => {
     // Fetch memory with organization scope
     const query = supabase
       .from('memory_entries')
-      .select('id, title, content, memory_type, tags, metadata, user_id, organization_id, topic_id, created_at, updated_at, last_accessed, access_count')
+      .select('id, title, content, memory_type, tags, metadata, user_id, organization_id, topic_id, created_at, updated_at, last_accessed, access_count, deleted_at')
       .eq('id', memoryId);
 
     // Apply org scope unless master key
     if (!auth.is_master) {
       query.eq('organization_id', auth.organization_id);
+    }
+
+    if (!includeDeleted) {
+      query.is('deleted_at', null);
     }
 
     const { data: memory, error } = await query.single();
@@ -94,17 +107,21 @@ serve(async (req: Request) => {
     }
 
     // Update access tracking (fire and forget)
-    supabase
-      .from('memory_entries')
-      .update({
-        last_accessed: new Date().toISOString(),
-        access_count: (memory.access_count || 0) + 1
-      })
-      .eq('id', memoryId)
-      .then(() => {});
+    if (!memory.deleted_at) {
+      supabase
+        .from('memory_entries')
+        .update({
+          last_accessed: new Date().toISOString(),
+          access_count: (memory.access_count || 0) + 1
+        })
+        .eq('id', memoryId)
+        .then(() => {});
+    }
+
+    const { deleted_at: _deletedAt, ...responseMemory } = memory;
 
     return new Response(JSON.stringify({
-      data: memory,
+      data: responseMemory,
       message: 'Memory retrieved successfully'
     }), {
       status: 200,

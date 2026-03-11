@@ -1,6 +1,6 @@
 /**
  * Memory Bulk Delete Edge Function
- * Deletes multiple memories by IDs
+ * Soft deletes multiple memories by IDs
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -73,7 +73,7 @@ serve(async (req: Request) => {
     // First, verify which memories exist and user has access to
     let verifyQuery = supabase
       .from('memory_entries')
-      .select('id, title, user_id, organization_id')
+      .select('id, title, user_id, organization_id, deleted_at')
       .in('id', body.ids);
 
     if (!auth.is_master) {
@@ -93,6 +93,7 @@ serve(async (req: Request) => {
     // Filter to only memories the user owns (unless master key)
     let deletableIds: string[] = [];
     const notAuthorizedIds: string[] = [];
+    const alreadyDeletedIds: string[] = [];
 
     if (auth.is_master) {
       deletableIds = body.ids.filter(id => existingIds.has(id));
@@ -105,6 +106,14 @@ serve(async (req: Request) => {
         }
       }
     }
+
+    for (const memory of existing || []) {
+      if (memory.deleted_at && deletableIds.includes(memory.id)) {
+        alreadyDeletedIds.push(memory.id);
+      }
+    }
+
+    const activeDeletableIds = deletableIds.filter((id) => !alreadyDeletedIds.includes(id));
 
     if (deletableIds.length === 0) {
       return new Response(JSON.stringify({
@@ -120,15 +129,23 @@ serve(async (req: Request) => {
       });
     }
 
-    // Perform bulk delete
-    const { error: deleteError, count: deletedCount } = await supabase
-      .from('memory_entries')
-      .delete({ count: 'exact' })
-      .in('id', deletableIds);
+    let deletedCount = 0;
+    if (activeDeletableIds.length > 0) {
+      const now = new Date().toISOString();
+      const { error: deleteError, count } = await supabase
+        .from('memory_entries')
+        .update({
+          deleted_at: now,
+          updated_at: now,
+        }, { count: 'exact' })
+        .in('id', activeDeletableIds);
 
-    if (deleteError) {
-      console.error('Delete error:', deleteError);
-      return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to delete memories', 500);
+      if (deleteError) {
+        console.error('Delete error:', deleteError);
+        return createErrorResponse(ErrorCode.DATABASE_ERROR, 'Failed to delete memories', 500);
+      }
+
+      deletedCount = count || activeDeletableIds.length;
     }
 
     writeAudit(supabase, {
@@ -137,8 +154,10 @@ serve(async (req: Request) => {
       action: 'memory.bulk_deleted',
       resource_type: 'memory',
       metadata: {
-        deleted_ids: deletableIds,
+        deleted_ids: activeDeletableIds,
         count: deletedCount,
+        soft_deleted: true,
+        already_deleted_ids: alreadyDeletedIds,
         not_found: notFoundIds,
         not_authorized: notAuthorizedIds
       },
@@ -156,7 +175,8 @@ serve(async (req: Request) => {
       success: true,
       message: `Successfully deleted ${deletedCount} memories`,
       deleted_count: deletedCount,
-      deleted_ids: deletableIds,
+      deleted_ids: activeDeletableIds,
+      already_deleted: alreadyDeletedIds.length > 0 ? alreadyDeletedIds : undefined,
       not_found: notFoundIds.length > 0 ? notFoundIds : undefined,
       not_authorized: notAuthorizedIds.length > 0 ? notAuthorizedIds : undefined
     }), {
