@@ -559,7 +559,7 @@ async function handleSignUp(name, email, password, organizationName, clientId, s
   const userId = authData.user.id;
 
   // Create organization if provided, otherwise use personal
-  const orgName = organizationName || \`\${name}'s Organization\`;
+  const orgName = organizationName || `${name}'s Organization`;
   
   const { data: newOrg, error: orgError } = await supabase
     .from('organizations')
@@ -637,7 +637,7 @@ async function handleSignUp(name, email, password, organizationName, clientId, s
  * Create API key for client
  */
 async function createApiKeyForClient(vendorOrgId, clientId, source, email) {
-  const keyName = \`\${source === 'cli' ? 'CLI' : 'MCP'} Key - \${clientId.substring(0, 8)}\`;
+  const keyName = `${source === 'cli' ? 'CLI' : 'MCP'} Key - ${clientId.substring(0, 8)}`;
   
   // Generate API key using the onasis-core function
   const { data, error } = await supabase.rpc('generate_vendor_api_key', {
