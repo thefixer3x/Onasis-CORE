@@ -19,6 +19,7 @@ type MemoryType =
   | "personal"
   | "workflow";
 type WriteIntent = "new" | "continue" | "auto";
+type RevisionPolicy = "none" | "important_only" | "always";
 
 interface UpdateMemoryRequest {
   id?: string;
@@ -32,6 +33,9 @@ interface UpdateMemoryRequest {
   continuity_key?: string;
   idempotency_key?: string;
   write_intent?: WriteIntent;
+  create_revision?: boolean;
+  revision_policy?: RevisionPolicy;
+  change_reason?: string;
 }
 const VALID_MEMORY_TYPES: MemoryType[] = [
   "context",
@@ -42,6 +46,7 @@ const VALID_MEMORY_TYPES: MemoryType[] = [
   "workflow",
 ];
 const VALID_WRITE_INTENTS: WriteIntent[] = ["new", "continue", "auto"];
+const VALID_REVISION_POLICIES: RevisionPolicy[] = ["none", "important_only", "always"];
 
 // Embedding provider configuration
 type EmbeddingProvider = "openai" | "voyage";
@@ -211,6 +216,14 @@ serve(async (req: Request) => {
       );
     }
 
+    // Validate revision_policy if provided
+    const revisionPolicy = body.revision_policy ?? "important_only";
+    if (!VALID_REVISION_POLICIES.includes(revisionPolicy)) {
+      validationErrors.push(
+        `revision_policy must be one of: ${VALID_REVISION_POLICIES.join(", ")}`,
+      );
+    }
+
     if (validationErrors.length > 0) {
       return createErrorResponse(
         ErrorCode.VALIDATION_ERROR,
@@ -280,7 +293,7 @@ serve(async (req: Request) => {
     const existingQuery = supabase
       .from("memory_entries")
       .select(
-        "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id",
+        "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id, revision_count",
       )
       .eq("id", targetMemoryId);
 
@@ -369,6 +382,49 @@ serve(async (req: Request) => {
       );
     }
 
+    // Determine if we should create a revision snapshot
+    const createRevisionExplicit = body.create_revision ?? false;
+    const revisionPolicy = body.revision_policy ?? "important_only";
+    const changeReason = body.change_reason?.trim() || null;
+    const titleChanged = body.title !== undefined && body.title !== existing.title;
+    const contentChanged = body.content !== undefined &&
+      body.content !== existing.content;
+    const isImportantChange = titleChanged || contentChanged;
+
+    let shouldCreateRevision = false;
+    switch (revisionPolicy) {
+      case "always":
+        shouldCreateRevision = true;
+        break;
+      case "important_only":
+        shouldCreateRevision = isImportantChange;
+        break;
+      case "none":
+      default:
+        shouldCreateRevision = false;
+    }
+    // Override if explicitly requested
+    if (createRevisionExplicit) {
+      shouldCreateRevision = true;
+    }
+
+    // Prepare revision data if needed (will be created after successful update)
+    const currentRevisionCount = (existing as any).revision_count || 0;
+    const nextRevisionNumber = currentRevisionCount + 1;
+    const revisionData = shouldCreateRevision
+      ? {
+          memory_id: targetMemoryId,
+          organization_id: auth.organization_id,
+          revision_number: nextRevisionNumber,
+          title: existing.title,
+          content: existing.content,
+          tags: existing.tags || [],
+          metadata: existing.metadata || {},
+          changed_by: auth.user_id,
+          change_reason: changeReason,
+        }
+      : null;
+
     // If content changed, regenerate embedding via configured provider
     let embeddingGenerated = false;
     if (body.content && body.content !== existing.content) {
@@ -423,12 +479,12 @@ serve(async (req: Request) => {
     }
 
     // Perform update
-    const { data: updated, error: updateError } = await supabase
+    let { data: updated, error: updateError } = await supabase
       .from("memory_entries")
       .update(updateData)
       .eq("id", targetMemoryId)
       .select(
-        "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id, created_at, updated_at",
+        "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id, revision_count, created_at, updated_at",
       )
       .single();
 
@@ -469,6 +525,56 @@ serve(async (req: Request) => {
       );
     }
 
+    // Create revision snapshot if policy required it
+    let revisionCreated = false;
+    if (revisionData) {
+      const { error: revisionError } = await supabase
+        .from("memory_revisions")
+        .insert(revisionData);
+
+      if (revisionError) {
+        console.warn("Failed to create revision snapshot:", revisionError);
+        // Don't fail the update if revision creation fails - log and continue
+      } else {
+        const {
+          data: revisionCountUpdated,
+          error: revisionCountError,
+        } = await supabase
+          .from("memory_entries")
+          .update({ revision_count: nextRevisionNumber })
+          .eq("id", targetMemoryId)
+          .select(
+            "id, title, content, memory_type, tags, topic_key, metadata, user_id, organization_id, revision_count, created_at, updated_at",
+          )
+          .single();
+
+        if (revisionCountError) {
+          console.warn(
+            "Failed to persist revision_count after creating revision:",
+            revisionCountError,
+          );
+          const { error: rollbackError } = await supabase
+            .from("memory_revisions")
+            .delete()
+            .eq("memory_id", targetMemoryId)
+            .eq("revision_number", nextRevisionNumber);
+
+          if (rollbackError) {
+            console.warn(
+              "Failed to roll back revision after revision_count error:",
+              rollbackError,
+            );
+          }
+        } else {
+          updated = revisionCountUpdated;
+          revisionCreated = true;
+          console.log(
+            `Revision ${nextRevisionNumber} created for memory ${targetMemoryId}`,
+          );
+        }
+      }
+    }
+
     // Audit log (fire and forget)
     writeAudit(supabase, {
       user_id: auth.user_id,
@@ -480,6 +586,8 @@ serve(async (req: Request) => {
         fields_updated: Object.keys(updateData),
         embedding_regenerated: embeddingGenerated,
         routed_by: routedBy,
+        revision_created: revisionCreated,
+        revision_number: revisionCreated ? nextRevisionNumber : null,
       },
       result: 'success',
       route_source: 'edge_function',
@@ -496,6 +604,8 @@ serve(async (req: Request) => {
         data: updated,
         message: "Memory updated successfully",
         embedding_regenerated: embeddingGenerated,
+        revision_created: revisionCreated,
+        revision_number: revisionCreated ? nextRevisionNumber : null,
         routed_by: routedBy,
       }),
       {
