@@ -168,7 +168,7 @@ if (!isTestEnv) {
   app.use('/admin/bypass-login', authLimiter)
 
   // Smart rate limiter for /oauth/token - use lenient limit for device_code polling
-  app.use('/oauth/token', express.urlencoded({ extended: true }), (req, res, next) => {
+  app.use('/oauth/token', express.json(), express.urlencoded({ extended: true }), (req, res, next) => {
     const grantType = req.body?.grant_type
     if (grantType === 'urn:ietf:params:oauth:grant-type:device_code') {
       // Device code polling needs frequent requests
