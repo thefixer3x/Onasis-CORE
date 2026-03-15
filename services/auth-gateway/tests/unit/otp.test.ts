@@ -39,6 +39,11 @@ vi.mock('../../src/utils/jwt.js', () => ({
     access_token: `acc-${payload.sub}`,
     refresh_token: `ref-${payload.sub}`,
     expires_in: 3600
+  }),
+  generateTokenPairWithUAI: async (input: any) => ({
+    access_token: `acc-${input.sub}`,
+    refresh_token: `ref-${input.sub}`,
+    expires_in: 3600
   })
 }))
 

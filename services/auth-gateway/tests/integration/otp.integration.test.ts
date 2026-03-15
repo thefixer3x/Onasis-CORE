@@ -44,6 +44,11 @@ vi.mock('../../src/services/session.service.js', () => ({ createSession: mockCre
 vi.mock('../../src/services/audit.service.js', () => ({ logAuthEvent: mockLogAuthEvent }))
 vi.mock('../../src/utils/jwt.js', () => ({
   generateTokenPair: mockGenerateTokenPair,
+  generateTokenPairWithUAI: async (input: any) => ({
+    access_token: `acc-${input.sub}`,
+    refresh_token: `ref-${input.sub}`,
+    expires_in: 3600
+  })
 }))
 
 describe('OTP Integration Tests', () => {
