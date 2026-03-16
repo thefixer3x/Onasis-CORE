@@ -217,8 +217,8 @@ serve(async (req: Request) => {
     }
 
     // Validate revision_policy if provided
-    const revisionPolicy = body.revision_policy ?? "important_only";
-    if (!VALID_REVISION_POLICIES.includes(revisionPolicy)) {
+    const requestedRevisionPolicy = body.revision_policy ?? "important_only";
+    if (!VALID_REVISION_POLICIES.includes(requestedRevisionPolicy)) {
       validationErrors.push(
         `revision_policy must be one of: ${VALID_REVISION_POLICIES.join(", ")}`,
       );
@@ -384,7 +384,7 @@ serve(async (req: Request) => {
 
     // Determine if we should create a revision snapshot
     const createRevisionExplicit = body.create_revision ?? false;
-    const revisionPolicy = body.revision_policy ?? "important_only";
+    const revisionPolicy = requestedRevisionPolicy;
     const changeReason = body.change_reason?.trim() || null;
     const titleChanged = body.title !== undefined && body.title !== existing.title;
     const contentChanged = body.content !== undefined &&
