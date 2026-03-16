@@ -41,6 +41,7 @@ export function createSupabaseClient(): SupabaseClient {
  */
 export async function authenticate(req: Request): Promise<AuthContext | null> {
   const supabase = createSupabaseClient();
+  const requestedProjectScope = normalizeProjectScope(req);
 
   // Try Authorization header
   const authHeader = req.headers.get('Authorization');
@@ -49,7 +50,7 @@ export async function authenticate(req: Request): Promise<AuthContext | null> {
 
     // Check if it's an API key format
     if (isApiKeyFormat(token)) {
-      const result = await authenticateApiKey(supabase, token);
+      const result = await authenticateApiKey(supabase, token, requestedProjectScope);
       if (result) {
         result.auth_source = 'api_key';
         return result;
@@ -72,7 +73,7 @@ export async function authenticate(req: Request): Promise<AuthContext | null> {
   // Try X-API-Key header
   const apiKey = req.headers.get('X-API-Key');
   if (apiKey) {
-    const result = await authenticateApiKey(supabase, apiKey);
+    const result = await authenticateApiKey(supabase, apiKey, requestedProjectScope);
     if (result) {
       result.auth_source = 'api_key';
       return result;
@@ -80,6 +81,11 @@ export async function authenticate(req: Request): Promise<AuthContext | null> {
   }
 
   return null;
+}
+
+function normalizeProjectScope(req: Request): string | undefined {
+  const value = req.headers.get('X-Project-Scope');
+  return value && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 /**
@@ -206,7 +212,8 @@ function isApiKeyFormat(token: string): boolean {
  */
 async function authenticateApiKey(
   supabase: SupabaseClient,
-  apiKey: string
+  apiKey: string,
+  requestedProjectScope?: string,
 ): Promise<AuthContext | null> {
   console.log(`[auth] Authenticating API key: ${apiKey.substring(0, 10)}...`);
 
@@ -283,7 +290,7 @@ async function authenticateApiKey(
     email: email,
     is_master: isMaster,
     api_key_id: keyData.id,
-    project_scope: keyData.project_scope || undefined,
+    project_scope: requestedProjectScope,
   };
 }
 
@@ -296,7 +303,7 @@ async function findApiKeyByPlaintext(
 ): Promise<ApiKeyRecord | null> {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, user_id, access_level, name, is_active, expires_at, project_scope')
+    .select('id, user_id, access_level, name, is_active, expires_at')
     .eq('key', apiKey)
     .maybeSingle();
 
@@ -316,7 +323,7 @@ async function findApiKeyByHash(
 ): Promise<ApiKeyRecord | null> {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, user_id, access_level, name, is_active, expires_at, project_scope')
+    .select('id, user_id, access_level, name, is_active, expires_at')
     .eq('key_hash', keyHash)
     .maybeSingle();
 
@@ -334,7 +341,6 @@ interface ApiKeyRecord {
   name: string;
   is_active: boolean;
   expires_at?: string;
-  project_scope?: string;
 }
 
 /**
