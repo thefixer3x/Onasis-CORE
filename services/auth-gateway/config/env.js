@@ -105,3 +105,8 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+// Fallback database configuration (Neon)
+// Used when primary Supabase database is unavailable
+export const FALLBACK_DATABASE_URL = process.env.FALLBACK_DATABASE_URL;
+export const NEON_DATABASE_URL = process.env.NEON_DATABASE_URL || FALLBACK_DATABASE_URL;

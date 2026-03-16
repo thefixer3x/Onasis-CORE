@@ -1,14 +1,13 @@
-// PM2 Ecosystem Configuration for Hostinger VPS
-//
+// PM2 Ecosystem Configuration for Auth Gateway
+// 
 // REMOVED CRON JOBS (2026-01):
 // - outbox-forwarder: Run manually when needed: npm run outbox:forward
 // - bootstrap-sync: One-time script, run manually: npm run bootstrap:supabase
 //
-// These were CQRS event sourcing workers that can be replaced with:
-// 1. Supabase Database Triggers (push-based, real-time)
-// 2. Supabase Edge Functions (serverless, on-demand)
-// 3. Manual execution when needed
-//
+// Database Fallback Configuration:
+// - FALLBACK_DATABASE_URL: Neon replica for read operations during primary outage
+// - NEON_DATABASE_URL: Alias for FALLBACK_DATABASE_URL
+
 module.exports = {
   apps: [
     {
@@ -23,6 +22,11 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
+        // Primary database (Supabase)
+        DATABASE_URL: process.env.DATABASE_URL,
+        // Fallback database (Neon) - for failover switchover
+        FALLBACK_DATABASE_URL: process.env.FALLBACK_DATABASE_URL,
+        NEON_DATABASE_URL: process.env.NEON_DATABASE_URL || process.env.FALLBACK_DATABASE_URL,
       },
       env_production: {
         NODE_ENV: 'production',
