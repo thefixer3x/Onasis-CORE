@@ -21,6 +21,9 @@ export interface AuthContext {
   project_scope?: string;
 }
 
+const PROJECT_SCOPE_UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /**
  * Create a Supabase client with service role for admin operations
  */
@@ -266,6 +269,12 @@ async function authenticateApiKey(
 
   const organizationId = userData.organization_id;
   const email = userData?.email || '';
+  const validatedProjectScope = await resolveProjectScopeForApiKey(
+    supabase,
+    keyData.user_id,
+    organizationId,
+    requestedProjectScope,
+  );
 
   // Update last_used_at (fire and forget)
   supabase
@@ -290,8 +299,67 @@ async function authenticateApiKey(
     email: email,
     is_master: isMaster,
     api_key_id: keyData.id,
-    project_scope: requestedProjectScope,
+    project_scope: validatedProjectScope,
   };
+}
+
+async function resolveProjectScopeForApiKey(
+  supabase: SupabaseClient,
+  userId: string,
+  organizationId: string,
+  requestedProjectScope?: string,
+): Promise<string | undefined> {
+  const scope = requestedProjectScope?.trim();
+  if (!scope) return undefined;
+
+  try {
+    if (PROJECT_SCOPE_UUID_REGEX.test(scope)) {
+      const { data, error } = await supabase
+        .from('api_key_projects')
+        .select('id, owner_id, team_members')
+        .eq('id', scope)
+        .eq('organization_id', organizationId)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('[auth] Project scope UUID lookup failed:', error.message);
+        return undefined;
+      }
+
+      if (!data?.id) return undefined;
+      const teamMembers = Array.isArray(data.team_members) ? data.team_members : [];
+      return data.owner_id === userId || teamMembers.includes(userId) ? scope : undefined;
+    }
+
+    const { data, error } = await supabase
+      .from('api_key_projects')
+      .select('id, name, owner_id, team_members, settings')
+      .eq('organization_id', organizationId)
+      .limit(100);
+
+    if (error) {
+      console.warn('[auth] Project scope name/slug lookup failed:', error.message);
+      return undefined;
+    }
+
+    const normalizedScope = scope.toLowerCase();
+    const match = (data || []).find((project: Record<string, unknown>) => {
+      const teamMembers = Array.isArray(project.team_members) ? project.team_members : [];
+      const settings = project.settings && typeof project.settings === 'object'
+        ? project.settings as Record<string, unknown>
+        : {};
+      const slug = typeof settings.slug === 'string' ? settings.slug.toLowerCase() : '';
+      const name = typeof project.name === 'string' ? project.name.toLowerCase() : '';
+      const member = project.owner_id === userId || teamMembers.includes(userId);
+      return member && (name === normalizedScope || slug === normalizedScope);
+    });
+
+    return match?.id ? scope : undefined;
+  } catch (error) {
+    console.warn('[auth] Project scope validation failed:', error);
+    return undefined;
+  }
 }
 
 /**
