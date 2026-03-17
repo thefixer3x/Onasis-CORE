@@ -1,5 +1,4 @@
 import { dbPool } from '../../db/client.js'
-import type { PoolClient } from 'pg'
 import {
     CodeChallengeMethod,
     generateOpaqueToken,
@@ -794,7 +793,7 @@ export async function logOAuthEvent(event: OAuthAuditEvent): Promise<void> {
                 },
                 metadata,
             },
-            client as PoolClient
+            client
         )
 
         await client.query('COMMIT')

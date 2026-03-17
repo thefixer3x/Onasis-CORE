@@ -13,6 +13,7 @@
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
+    "baseUrl": ".",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -25,6 +26,18 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "zod": [
+        "./node_modules/zod/index.d.cts"
+      ],
+      "zod/v3": [
+        "./node_modules/zod/v3/index.d.cts"
+      ],
+      "zod/v4": [
+        "./node_modules/zod/v4/index.d.cts"
+      ],
+      "zod/v4/core": [
+        "./node_modules/zod/v4/core/index.d.ts"
       ]
     }
   },

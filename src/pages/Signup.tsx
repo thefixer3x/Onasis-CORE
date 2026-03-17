@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Eye, EyeOff, Loader2, UserPlus, Github } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authConfig } from "@/config/auth.config";
@@ -30,7 +30,7 @@ const signupSchema = z
     path: ["confirmPassword"],
   });
 
-type SignupFormData = z.infer<typeof signupSchema>;
+type SignupFormData = z.output<typeof signupSchema>;
 
 export const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +42,7 @@ export const Signup: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<SignupFormData>({
+  } = useForm({
     resolver: zodResolver(signupSchema),
   });
 

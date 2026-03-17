@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import type { PoolClient } from 'pg'
 import { dbPool } from '../../db/client.js'
 
 export type OutboxStatus = 'pending' | 'sent' | 'failed'
@@ -34,6 +33,23 @@ export interface PendingOutboxRow {
   occurred_at: Date
 }
 
+interface QueryResultRow {
+  [column: string]: unknown
+}
+
+interface QueryResult<T extends QueryResultRow = QueryResultRow> {
+  rows: T[]
+  rowCount?: number | null
+}
+
+export interface EventStoreClient {
+  query<T extends QueryResultRow = QueryResultRow>(
+    text: string,
+    params?: unknown[]
+  ): Promise<QueryResult<T>>
+  release(): void
+}
+
 const DEFAULT_EVENT_VERSION = 1
 const DEFAULT_OUTBOX_DESTINATION = 'supabase'
 
@@ -42,11 +58,12 @@ const DEFAULT_OUTBOX_DESTINATION = 'supabase'
  * when a pooled client is not supplied by the caller.
  */
 async function withClient<T>(
-  client: PoolClient | null,
-  fn: (c: PoolClient) => Promise<T>
+  client: EventStoreClient | null,
+  fn: (c: EventStoreClient) => Promise<T>
 ): Promise<T> {
   const ownsClient = !client
-  const cx = client ?? (await dbPool.connect())
+  const cx: EventStoreClient =
+    client ?? ((await dbPool.connect()) as unknown as EventStoreClient)
 
   try {
     if (ownsClient) {
@@ -78,7 +95,7 @@ async function withClient<T>(
  */
 export async function appendEvent(
   params: AppendEventParams,
-  client: PoolClient | null = null
+  client: EventStoreClient | null = null
 ): Promise<AppendedEvent> {
   return withClient(client, async (cx) => {
     // Use advisory lock instead of FOR UPDATE with aggregate
@@ -130,7 +147,7 @@ export async function appendEvent(
  */
 export async function enqueueOutbox(
   eventId: string,
-  client: PoolClient | null = null,
+  client: EventStoreClient | null = null,
   destination = DEFAULT_OUTBOX_DESTINATION
 ): Promise<void> {
   await withClient(client, async (cx) => {
@@ -150,7 +167,7 @@ export async function enqueueOutbox(
  */
 export async function appendEventWithOutbox(
   params: AppendEventParams,
-  client: PoolClient | null = null
+  client: EventStoreClient | null = null
 ): Promise<AppendedEvent> {
   return withClient(client, async (cx) => {
     const appended = await appendEvent(params, cx)

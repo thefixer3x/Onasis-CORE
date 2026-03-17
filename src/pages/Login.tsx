@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 import { Eye, EyeOff, Loader2, LogIn, Github, Key } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authConfig } from "@/config/auth.config";
@@ -18,7 +18,7 @@ const loginSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+type LoginFormData = z.output<typeof loginSchema>;
 
 export const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +29,7 @@ export const Login: React.FC = () => {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<LoginFormData>({
+  } = useForm({
     resolver: zodResolver(loginSchema),
   });
 
