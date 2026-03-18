@@ -9,6 +9,53 @@ import { authenticate } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
 
+type IdentityEnvelope = {
+  actor_id: string;
+  actor_type: 'user';
+  user_id: string;
+  organization_id: string;
+  project_scope: string | null;
+  api_key_id: string | null;
+  auth_source: 'api_key' | 'vendor_key' | 'supabase_jwt' | 'oauth_token' | 'supabase';
+  request_id: string;
+};
+
+function getRequestId(req: Request): string {
+  return req.headers.get('x-request-id')?.trim() || crypto.randomUUID();
+}
+
+function normalizeAuthSource(auth: NonNullable<Awaited<ReturnType<typeof authenticate>>>): IdentityEnvelope['auth_source'] {
+  if (auth.auth_source === 'api_key') {
+    return 'api_key';
+  }
+
+  if (auth.auth_source === 'auth_gateway') {
+    return 'oauth_token';
+  }
+
+  if (auth.auth_source === 'supabase') {
+    return 'supabase_jwt';
+  }
+
+  return 'supabase';
+}
+
+function buildIdentityEnvelope(
+  auth: NonNullable<Awaited<ReturnType<typeof authenticate>>>,
+  requestId: string,
+): IdentityEnvelope {
+  return {
+    actor_id: auth.user_id,
+    actor_type: 'user',
+    user_id: auth.user_id,
+    organization_id: auth.organization_id,
+    project_scope: auth.project_scope ?? null,
+    api_key_id: auth.api_key_id ?? null,
+    auth_source: normalizeAuthSource(auth),
+    request_id: requestId,
+  };
+}
+
 serve(async (req: Request) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
@@ -18,16 +65,19 @@ serve(async (req: Request) => {
   }
 
   try {
+    const requestId = getRequestId(req);
     const auth = await authenticate(req);
 
     if (!auth) {
       return new Response(JSON.stringify({
         authenticated: false,
         message: 'No valid authentication provided',
+        identity: null,
+        request_id: requestId,
         timestamp: new Date().toISOString(),
       }), {
         status: 200, // Return 200 even for unauthenticated - this is a status check
-        headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders(req), 'Content-Type': 'application/json', 'X-Request-ID': requestId }
       });
     }
 
@@ -84,8 +134,12 @@ serve(async (req: Request) => {
       }
     }
 
+    const identity = buildIdentityEnvelope(auth, requestId);
+
     return new Response(JSON.stringify({
       authenticated: true,
+      identity,
+      request_id: requestId,
       user: {
         id: auth.user_id,
         email: auth.email || user?.email,
@@ -108,7 +162,7 @@ serve(async (req: Request) => {
       timestamp: new Date().toISOString(),
     }), {
       status: 200,
-      headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders(req), 'Content-Type': 'application/json', 'X-Request-ID': requestId }
     });
 
   } catch (error) {
