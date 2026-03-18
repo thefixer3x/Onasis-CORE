@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p .",
-    "start": "node start.js",
+    "start": "dotenvx run --ops-off -f .env.production -- node start.js",
+    "start:pm2": "dotenvx run --ops-off -f .env.production -- pm2-runtime start ecosystem.config.cjs",
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit --reporter=verbose",
@@ -45,6 +46,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@dotenvx/dotenvx": "^1.55.1",
     "@playwright/test": "^1.58.2",
     "@types/bcryptjs": "^3.0.0",
     "@types/compression": "^1.8.1",

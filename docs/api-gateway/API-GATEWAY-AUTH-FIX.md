@@ -1,3 +1,10 @@
+> ⚠️ **[SUPERSEDED]** This document is no longer authoritative.
+> 
+> Current auth architecture is documented in: `docs/security/auth-centralization-overhaul-plan-2026-03-17.md`
+> 
+> **Superseded as of:** 2026-03-18
+> **Reason:** Replaced by auth centralization sprint 0 checkpoint
+
 # API Gateway Auth Fix Required
 **Date:** October 23, 2025
 

@@ -19,14 +19,11 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      // Secrets injected at runtime by dotenvx from .env.production
+      // Start command: dotenvx run --ops-off -f .env.production -- node start.js
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
-        // Primary database (Supabase)
-        DATABASE_URL: process.env.DATABASE_URL,
-        // Fallback database (Neon) - for failover switchover
-        FALLBACK_DATABASE_URL: process.env.FALLBACK_DATABASE_URL,
-        NEON_DATABASE_URL: process.env.NEON_DATABASE_URL || process.env.FALLBACK_DATABASE_URL,
       },
       env_production: {
         NODE_ENV: 'production',

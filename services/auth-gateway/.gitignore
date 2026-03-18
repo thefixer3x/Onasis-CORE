@@ -2,9 +2,11 @@
 .env
 .env.local
 .env.development
-.env.production
 .env.test
 .env.staging
+# .env.production is safe to commit (encrypted with dotenvx AES-256-GCM)
+# .env.keys contains the private key - NEVER commit
+.env.keys
 
 # Dependencies
 node_modules/
