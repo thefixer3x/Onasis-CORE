@@ -1,5 +1,14 @@
 # 🔐 Authentication Chain Analysis & Fix Plan
 
+> **Current-state caution (2026-03-18):**
+> This analysis captures an older routing failure state and should be treated as
+> historical debugging context, not the current auth contract. For the current
+> rollout state and verified live behavior, start with:
+> - [`../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md`](../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md)
+> - [`../../../../docs/security/auth-identity-envelope.schema.json`](../../../../docs/security/auth-identity-envelope.schema.json)
+> - [`../../../../docs/security/auth-introspect-response.schema.json`](../../../../docs/security/auth-introspect-response.schema.json)
+> - [`../../supabase-api/MEMORY_EDGE_AUTH_DEPLOYMENT.md`](../../supabase-api/MEMORY_EDGE_AUTH_DEPLOYMENT.md)
+
 ## 🚨 Critical Failure Points Identified
 
 ### Issue #1: Double Slash in CLI Auth URL ❌

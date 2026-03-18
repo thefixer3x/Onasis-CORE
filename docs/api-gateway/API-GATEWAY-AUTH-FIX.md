@@ -1,6 +1,14 @@
 # API Gateway Auth Fix Required
 **Date:** October 23, 2025
 
+> **Current-state caution (2026-03-18):**
+> This note documents an older auth-routing incident. Use it as background, not
+> as the current authority for auth-plane behavior. For the current rollout
+> state, refer to:
+> - [`../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md`](../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md)
+> - [`../../../../docs/security/auth-identity-envelope.schema.json`](../../../../docs/security/auth-identity-envelope.schema.json)
+> - [`../../../../docs/security/auth-introspect-response.schema.json`](../../../../docs/security/auth-introspect-response.schema.json)
+
 ## 🔍 PROBLEM IDENTIFIED
 
 `api.lanonasis.com` is served by the "Onasis-CORE API Gateway" (not Netlify). The `/auth/login` endpoint doesn't exist on the API Gateway, causing:

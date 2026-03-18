@@ -1,5 +1,13 @@
 # LanOnasis API Routing Architecture
 
+> **Current-state caution (2026-03-18):**
+> This file is still useful as a routing inventory, but parts of it predate the
+> current auth-centralization and parity work. For current-state decisions,
+> start with:
+> - [`../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md`](../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md)
+> - [`../../../../docs/security/auth-centralization-sprint-0-checklist-2026-03-18.md`](../../../../docs/security/auth-centralization-sprint-0-checklist-2026-03-18.md)
+> - [`./MEMORY_EDGE_AUTH_DEPLOYMENT.md`](./MEMORY_EDGE_AUTH_DEPLOYMENT.md)
+
 ## Overview
 
 The LanOnasis platform uses a multi-tier routing architecture:
