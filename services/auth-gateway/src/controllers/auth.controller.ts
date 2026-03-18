@@ -1,14 +1,16 @@
 import crypto from 'crypto'
 import type { Request, Response } from 'express'
+import { z } from 'zod'
 import { supabaseUsers } from '../../db/client.js'
-import { generateTokenPairWithUAI } from '../utils/jwt.js'
-import { createSession, revokeSession, getUserSessions } from '../services/session.service.js'
+import { generateTokenPairWithUAI, verifyToken as verifyJwtToken, extractBearerToken } from '../utils/jwt.js'
+import { createSession, revokeSession, getUserSessions, findSessionByToken } from '../services/session.service.js'
 import { upsertUserAccount, findUserAccountById } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { auditCorrelation } from '../utils/correlation.js'
 import * as apiKeyService from '../services/api-key.service.js'
 import { OAuthStateCache } from '../services/cache.service.js'
 import { resolveProjectScope } from '../services/project-scope.service.js'
+import { resolveUAICached } from '../services/uai-session-cache.service.js'
 import { logger } from '../utils/logger.js'
 
 type Platform = 'mcp' | 'cli' | 'web' | 'api'
@@ -46,8 +48,217 @@ interface MagicLinkStateData {
   platform: Platform
 }
 
+type IntrospectCredentialType =
+  | 'auto'
+  | 'api_key'
+  | 'vendor_key'
+  | 'jwt'
+  | 'bearer'
+  | 'oauth_token'
+  | 'session'
+
+type IntrospectErrorCode =
+  | 'invalid_request'
+  | 'invalid_credential'
+  | 'expired_credential'
+  | 'unauthorized_project_scope'
+  | 'gateway_unavailable'
+  | 'unsupported_auth_method'
+
+type IntrospectAuthSource =
+  | 'api_key'
+  | 'vendor_key'
+  | 'supabase_jwt'
+  | 'oauth_token'
+  | 'sso_session'
+
+interface IntrospectIdentityEnvelope {
+  actor_id: string
+  actor_type: 'user'
+  user_id: string
+  organization_id: string
+  project_scope?: string | null
+  api_key_id?: string | null
+  auth_source: IntrospectAuthSource
+  request_id: string
+  credential_id?: string | null
+  email?: string | null
+  scopes?: string[]
+  issued_at: string
+  expires_at?: string
+}
+
+interface IntrospectResponseBody {
+  valid: boolean
+  identity: IntrospectIdentityEnvelope | null
+  error: null | {
+    code: IntrospectErrorCode
+    message: string
+    retryable: boolean
+  }
+}
+
+const introspectRequestSchema = z.object({
+  credential: z.string().min(1).optional(),
+  token: z.string().min(1).optional(),
+  type: z.enum([
+    'auto',
+    'api_key',
+    'vendor_key',
+    'jwt',
+    'bearer',
+    'oauth_token',
+    'session',
+  ]).optional().default('auto'),
+  project_scope: z.string().min(1).optional(),
+  platform: z.enum(SUPPORTED_PLATFORMS).optional(),
+}).superRefine((value, ctx) => {
+  if (!value.credential && !value.token) return
+  if (value.credential && value.token) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['credential'],
+      message: 'Provide either credential or token, not both.',
+    })
+  }
+})
+
 function isSupportedPlatform(value?: string): value is Platform {
   return Boolean(value && SUPPORTED_PLATFORMS.includes(value as Platform))
+}
+
+function buildIntrospectError(
+  code: IntrospectErrorCode,
+  message: string,
+  retryable = false
+): IntrospectResponseBody {
+  return {
+    valid: false,
+    identity: null,
+    error: {
+      code,
+      message,
+      retryable,
+    },
+  }
+}
+
+function getCredentialFromRequest(req: Request, parsed: z.infer<typeof introspectRequestSchema>): string | undefined {
+  return (
+    parsed.credential ??
+    parsed.token ??
+    (req.headers['x-api-key'] as string | undefined) ??
+    extractBearerToken(req.headers.authorization) ??
+    req.cookies?.lanonasis_session
+  )
+}
+
+function classifyApiKeySource(credential: string): IntrospectAuthSource {
+  return /^(lano_|lns_|pk_)/i.test(credential) ? 'vendor_key' : 'api_key'
+}
+
+async function resolveValidatedProjectScope(options: {
+  requestedScope?: string
+  fallbackScope?: string
+  userId: string
+  context: string
+}): Promise<{ scope: string | null; error?: IntrospectResponseBody['error'] }> {
+  const requestedScope = options.requestedScope?.trim()
+  const resolution = await resolveProjectScope({
+    requestedScope,
+    fallbackScope: options.fallbackScope,
+    userId: options.userId,
+    context: options.context,
+  })
+
+  if (requestedScope && !resolution.validated && resolution.reason !== 'missing_scope') {
+    return {
+      scope: null,
+      error: {
+        code: 'unauthorized_project_scope',
+        message: `Requested project scope "${requestedScope}" is not authorized for this identity.`,
+        retryable: false,
+      },
+    }
+  }
+
+  return { scope: resolution.scope || null }
+}
+
+async function buildIntrospectedIdentity(options: {
+  resolutionMethod: 'api_key' | 'supabase_jwt' | 'oauth_token' | 'sso_session'
+  resolutionIdentifier: string
+  authSource: IntrospectAuthSource
+  userId: string
+  organizationId?: string | null
+  apiKeyId?: string
+  email?: string | null
+  requestedScope?: string
+  fallbackScope?: string
+  scopes?: string[]
+  requestId: string
+  platform?: Platform
+  ipAddress?: string
+  userAgent?: string
+  expiresAt?: string
+}): Promise<IntrospectResponseBody> {
+  const uai = await resolveUAICached(options.resolutionMethod, options.resolutionIdentifier, {
+    platform: options.platform || 'api',
+    ipAddress: options.ipAddress,
+    userAgent: options.userAgent,
+  })
+
+  if (!uai?.authId) {
+    return buildIntrospectError(
+      'gateway_unavailable',
+      'Failed to resolve canonical identity for the supplied credential.',
+      true
+    )
+  }
+
+  const organizationId = options.organizationId ?? uai.organizationId
+  if (!organizationId) {
+    return buildIntrospectError(
+      'invalid_credential',
+      'Authenticated identity is not linked to an organization.',
+      false
+    )
+  }
+
+  const projectScope = await resolveValidatedProjectScope({
+    requestedScope: options.requestedScope,
+    fallbackScope: options.fallbackScope,
+    userId: options.userId,
+    context: `introspect:${options.authSource}`,
+  })
+
+  if (projectScope.error) {
+    return {
+      valid: false,
+      identity: null,
+      error: projectScope.error,
+    }
+  }
+
+  return {
+    valid: true,
+    identity: {
+      actor_id: uai.authId,
+      actor_type: 'user',
+      user_id: options.userId,
+      organization_id: organizationId,
+      project_scope: projectScope.scope,
+      api_key_id: options.apiKeyId ?? null,
+      auth_source: options.authSource,
+      request_id: options.requestId,
+      credential_id: uai.credentialId || options.apiKeyId || null,
+      email: options.email ?? uai.email ?? null,
+      scopes: options.scopes ?? [],
+      issued_at: new Date().toISOString(),
+      ...(options.expiresAt ? { expires_at: options.expiresAt } : {}),
+    },
+    error: null,
+  }
 }
 
 function buildCallbackUrl(req: Request): string {
@@ -1396,6 +1607,240 @@ export async function verifyTokenBody(req: Request, res: Response) {
       valid: false,
       error: 'Invalid token - not a valid CLI, JWT, or OAuth token',
     })
+  }
+}
+
+/**
+ * POST /v1/auth/introspect
+ * Gateway-wide credential introspection returning the normalized identity envelope.
+ *
+ * This is distinct from /oauth/introspect, which remains RFC 7662 token introspection
+ * for opaque OAuth tokens only.
+ */
+export async function introspectIdentity(req: Request, res: Response) {
+  const parsed = introspectRequestSchema.safeParse(req.body ?? {})
+  const requestId = req.requestId || crypto.randomUUID()
+  req.requestId = requestId
+  res.set('X-Request-ID', requestId)
+
+  if (!parsed.success) {
+    return res.status(400).json(
+      buildIntrospectError(
+        'invalid_request',
+        parsed.error.issues.map((issue) => issue.message).join('; ') || 'Invalid introspection request.',
+        false
+      )
+    )
+  }
+
+  const credential = getCredentialFromRequest(req, parsed.data)
+  if (!credential) {
+    return res.status(400).json(
+      buildIntrospectError(
+        'invalid_request',
+        'A credential is required in the request body or auth headers.',
+        false
+      )
+    )
+  }
+
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || ''
+  const userAgent = req.get('user-agent') || ''
+  const platform = parsed.data.platform || 'api'
+
+  try {
+    let response: IntrospectResponseBody | null = null
+
+    if (parsed.data.type === 'api_key' || parsed.data.type === 'vendor_key' || parsed.data.type === 'auto') {
+      const validation = await apiKeyService.validateAPIKey(credential)
+      if (validation.valid && validation.userId) {
+        response = await buildIntrospectedIdentity({
+          resolutionMethod: 'api_key',
+          resolutionIdentifier: validation.userId,
+          authSource: classifyApiKeySource(credential),
+          userId: validation.userId,
+          organizationId: validation.organizationId,
+          apiKeyId: validation.keyId,
+          requestedScope: parsed.data.project_scope,
+          fallbackScope: validation.projectScope,
+          scopes: validation.permissions,
+          requestId,
+          platform,
+          ipAddress: clientIp,
+          userAgent,
+        })
+      }
+    }
+
+    if (!response && (parsed.data.type === 'jwt' || parsed.data.type === 'bearer' || parsed.data.type === 'auto')) {
+      try {
+        const payload = verifyJwtToken(credential)
+        response = await buildIntrospectedIdentity({
+          resolutionMethod: 'supabase_jwt',
+          resolutionIdentifier: payload.sub,
+          authSource: 'supabase_jwt',
+          userId: payload.sub,
+          organizationId: payload.organization_id,
+          email: payload.email,
+          requestedScope: parsed.data.project_scope || payload.project_scope,
+          fallbackScope: payload.project_scope,
+          requestId,
+          platform: isSupportedPlatform(payload.platform) ? payload.platform : platform,
+          ipAddress: clientIp,
+          userAgent,
+          ...(payload.exp ? { expiresAt: new Date(payload.exp * 1000).toISOString() } : {}),
+        })
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : ''
+        if (parsed.data.type === 'jwt') {
+          return res.status(401).json(
+            buildIntrospectError(
+              message.includes('expired') ? 'expired_credential' : 'invalid_credential',
+              message.includes('expired') ? 'JWT credential has expired.' : 'JWT credential is invalid.',
+              false
+            )
+          )
+        }
+      }
+    }
+
+    if (!response && (parsed.data.type === 'oauth_token' || parsed.data.type === 'bearer' || parsed.data.type === 'auto')) {
+      try {
+        const { introspectToken } = await import('../services/oauth.service.js')
+        const data = await introspectToken(credential)
+
+        if (data.active && data.user_id) {
+          response = await buildIntrospectedIdentity({
+            resolutionMethod: 'oauth_token',
+            resolutionIdentifier: data.user_id,
+            authSource: 'oauth_token',
+            userId: data.user_id,
+            requestedScope: parsed.data.project_scope,
+            fallbackScope: data.client_id || undefined,
+            scopes: data.scope ? data.scope.split(' ').filter(Boolean) : [],
+            requestId,
+            platform,
+            ipAddress: clientIp,
+            userAgent,
+            ...(data.exp ? { expiresAt: new Date(data.exp * 1000).toISOString() } : {}),
+          })
+        } else if (parsed.data.type === 'oauth_token') {
+          return res.status(401).json(
+            buildIntrospectError(
+              data.revoked ? 'invalid_credential' : 'expired_credential',
+              data.revoked ? 'OAuth token has been revoked.' : 'OAuth token has expired.',
+              false
+            )
+          )
+        }
+      } catch (error) {
+        if (parsed.data.type === 'oauth_token') {
+          return res.status(401).json(
+            buildIntrospectError(
+              'invalid_credential',
+              'OAuth token is invalid.',
+              false
+            )
+          )
+        }
+      }
+    }
+
+    if (!response && parsed.data.type === 'session') {
+      try {
+        const payload = verifyJwtToken(credential)
+        const session = await findSessionByToken(credential)
+        if (!session) {
+          return res.status(401).json(
+            buildIntrospectError(
+              'expired_credential',
+              'Session credential is revoked or expired.',
+              false
+            )
+          )
+        }
+
+        response = await buildIntrospectedIdentity({
+          resolutionMethod: 'sso_session',
+          resolutionIdentifier: payload.sub,
+          authSource: 'sso_session',
+          userId: payload.sub,
+          organizationId: payload.organization_id,
+          email: payload.email,
+          requestedScope: parsed.data.project_scope || payload.project_scope,
+          fallbackScope: payload.project_scope,
+          requestId,
+          platform: isSupportedPlatform(payload.platform) ? payload.platform : 'web',
+          ipAddress: clientIp,
+          userAgent,
+          ...(payload.exp ? { expiresAt: new Date(payload.exp * 1000).toISOString() } : {}),
+        })
+      } catch (error) {
+        return res.status(401).json(
+          buildIntrospectError(
+            'invalid_credential',
+            'Session credential is invalid.',
+            false
+          )
+        )
+      }
+    }
+
+    if (!response) {
+      return res.status(401).json(
+        buildIntrospectError(
+          parsed.data.type === 'auto' ? 'invalid_credential' : 'unsupported_auth_method',
+          parsed.data.type === 'auto'
+            ? 'Credential could not be validated by auth-gateway.'
+            : `Credential type "${parsed.data.type}" is not supported by this introspection endpoint.`,
+          false
+        )
+      )
+    }
+
+    await logAuthEvent({
+      event_type: 'introspect_success',
+      user_id: response.identity?.user_id,
+      platform,
+      ip_address: clientIp,
+      user_agent: userAgent,
+      success: true,
+      request_id: requestId,
+      organization_id: response.identity?.organization_id,
+      api_key_id: response.identity?.api_key_id ?? undefined,
+      auth_source: response.identity?.auth_source,
+      actor_id: response.identity?.actor_id,
+      actor_type: response.identity?.actor_type,
+      project_scope: response.identity?.project_scope ?? undefined,
+      metadata: {
+        introspect_type: parsed.data.type,
+      },
+    })
+
+    return res.status(200).json(response)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Auth introspection failed.'
+    await logAuthEvent({
+      event_type: 'introspect_failed',
+      platform,
+      ip_address: clientIp,
+      user_agent: userAgent,
+      success: false,
+      error_message: message,
+      request_id: requestId,
+      route_source: 'auth_gateway',
+      metadata: {
+        introspect_type: parsed.data.type,
+      },
+    })
+
+    return res.status(503).json(
+      buildIntrospectError(
+        'gateway_unavailable',
+        'Auth introspection is temporarily unavailable.',
+        true
+      )
+    )
   }
 }
 

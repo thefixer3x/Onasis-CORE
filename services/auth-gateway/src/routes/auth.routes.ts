@@ -32,4 +32,7 @@ router.post('/verify-token', authController.verifyTokenBody)
 // API Key verification endpoint (public, no auth required)
 router.post('/verify-api-key', authController.verifyAPIKey)
 
+// Gateway-wide credential introspection (distinct from /oauth/introspect)
+router.post('/introspect', authController.introspectIdentity)
+
 export default router
