@@ -1,5 +1,14 @@
 # Lanonasis Authentication Architecture
 
+> **Historical-reference warning (2026-03-18):**
+> This document contains useful background, but parts of its hosting and runtime
+> description are older than the current auth-centralization work. For the
+> current rollout state, normalized identity contract, and verified live
+> behavior, start with:
+> - [`/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-centralization-overhaul-plan-2026-03-17.md`](/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-centralization-overhaul-plan-2026-03-17.md)
+> - [`/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-identity-envelope.schema.json`](/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-identity-envelope.schema.json)
+> - [`/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-introspect-response.schema.json`](/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-introspect-response.schema.json)
+
 ## Executive Summary
 
 **Auth Pages**: Currently **static HTML files** in `/opt/lanonasis/onasis-core/auth/` - NOT hosted by VPS services  
@@ -354,4 +363,3 @@ curl -X POST http://localhost:4000/auth/cli-login \
 
 **Last Updated**: October 23, 2025  
 **Status**: Backend Complete, Frontend Hosting Required
-

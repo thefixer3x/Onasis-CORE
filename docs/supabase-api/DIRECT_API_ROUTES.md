@@ -1,11 +1,18 @@
 # Supabase Direct API Routes
 
-**Base URL:** `https://lanonasis.supabase.co`
+**Base URL:** `https://mxtsdgkwzjzlttpotole.supabase.co`
 **Project Ref:** `mxtsdgkwzjzlttpotole`
-**Last Updated:** 2025-12-27
+**Last Updated:** 2026-03-18
 
 > **Note:** These routes bypass Netlify routing and connect directly to Supabase.
 > For production use via `api.lanonasis.com`, see the `_redirects` configuration.
+>
+> **Current-state note (2026-03-18):** Use this file as a direct Edge route
+> inventory, not as the single source of truth for auth-centralization
+> behavior. For the current rollout state and verified REST/MCP differences,
+> start with:
+> - [`/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-centralization-overhaul-plan-2026-03-17.md`](/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/docs/security/auth-centralization-overhaul-plan-2026-03-17.md)
+> - [`/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/apps/onasis-core/docs/supabase-api/MEMORY_EDGE_AUTH_DEPLOYMENT.md`](/Users/seyederick/DevOps/_project_folders/lan-onasis-monorepo/apps/onasis-core/docs/supabase-api/MEMORY_EDGE_AUTH_DEPLOYMENT.md)
 
 ---
 
