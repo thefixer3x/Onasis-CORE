@@ -143,6 +143,22 @@ function buildIntrospectError(
   }
 }
 
+function getIntrospectStatusCode(errorCode: IntrospectErrorCode): number {
+  switch (errorCode) {
+    case 'unauthorized_project_scope':
+      return 403
+    case 'gateway_unavailable':
+      return 503
+    case 'invalid_request':
+      return 400
+    case 'invalid_credential':
+    case 'expired_credential':
+    case 'unsupported_auth_method':
+    default:
+      return 401
+  }
+}
+
 function getCredentialFromRequest(req: Request, parsed: z.infer<typeof introspectRequestSchema>): string | undefined {
   return (
     parsed.credential ??
@@ -1798,20 +1814,45 @@ export async function introspectIdentity(req: Request, res: Response) {
       )
     }
 
+    if (!response.valid || response.error) {
+      await logAuthEvent({
+        event_type: 'introspect_failed',
+        user_id: response.identity?.user_id,
+        platform,
+        ip_address: clientIp,
+        user_agent: userAgent,
+        success: false,
+        request_id: requestId,
+        organization_id: response.identity?.organization_id,
+        api_key_id: response.identity?.api_key_id ?? undefined,
+        auth_source: response.identity?.auth_source,
+        actor_id: response.identity?.actor_id,
+        actor_type: response.identity?.actor_type,
+        project_scope: response.identity?.project_scope ?? undefined,
+        error_message: response.error?.message,
+        metadata: {
+          introspect_type: parsed.data.type,
+          error_code: response.error?.code,
+        },
+      })
+
+      return res.status(getIntrospectStatusCode(response.error?.code ?? 'invalid_credential')).json(response)
+    }
+
     await logAuthEvent({
       event_type: 'introspect_success',
-      user_id: response.identity?.user_id,
+      user_id: response.identity.user_id,
       platform,
       ip_address: clientIp,
       user_agent: userAgent,
       success: true,
       request_id: requestId,
-      organization_id: response.identity?.organization_id,
-      api_key_id: response.identity?.api_key_id ?? undefined,
-      auth_source: response.identity?.auth_source,
-      actor_id: response.identity?.actor_id,
-      actor_type: response.identity?.actor_type,
-      project_scope: response.identity?.project_scope ?? undefined,
+      organization_id: response.identity.organization_id,
+      api_key_id: response.identity.api_key_id ?? undefined,
+      auth_source: response.identity.auth_source,
+      actor_id: response.identity.actor_id,
+      actor_type: response.identity.actor_type,
+      project_scope: response.identity.project_scope ?? undefined,
       metadata: {
         introspect_type: parsed.data.type,
       },
