@@ -159,6 +159,35 @@
     .health-item .val{font-size:1.3rem;font-weight:700;margin:4px 0}
     .health-item .lbl{font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px}
 
+    /* ── Parity Panel ── */
+    .parity-grid{display:grid;grid-template-columns:1.1fr 0.9fr;gap:16px}
+    .parity-sources{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .parity-surface{background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px;padding:14px;min-width:0}
+    .parity-surface-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .parity-surface h3{font-size:0.92rem;font-weight:600}
+    .parity-surface .endpoint{font-size:0.7rem;color:var(--text-muted);word-break:break-all}
+    .parity-field-list{display:grid;gap:8px}
+    .parity-field{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:7px}
+    .parity-field:last-child{border-bottom:none;padding-bottom:0}
+    .parity-key{font-size:0.66rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);flex-shrink:0}
+    .parity-val{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:0.75rem;word-break:break-all;text-align:right}
+    .parity-val.match{color:var(--success)}
+    .parity-val.diff{color:var(--error)}
+    .parity-val.partial{color:var(--warning)}
+    .parity-val.missing{color:var(--text-muted)}
+    .parity-summary{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+    .parity-comparison table{width:100%;border-collapse:collapse}
+    .parity-comparison th,.parity-comparison td{padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05);vertical-align:top;text-align:left}
+    .parity-comparison th{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted)}
+    .parity-comparison td{font-size:0.78rem;color:var(--text-primary);word-break:break-all}
+    .parity-comparison td.partial{color:var(--warning)}
+    .parity-comparison td.diff{color:var(--error)}
+    .parity-comparison td.match{color:var(--success)}
+    .parity-note{font-size:0.78rem;color:var(--text-secondary);margin-top:8px}
+    .parity-status-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .parity-json{max-height:240px;overflow:auto}
+    .parity-credential-wrap textarea{min-height:100px;resize:vertical;font-family:'SF Mono',Monaco,Consolas,monospace;font-size:0.76rem}
+
     /* ── Countdown ── */
     .expiry-bar{height:4px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden}
     .expiry-fill{height:100%;border-radius:2px;transition:width 1s linear,background 1s linear}
@@ -223,6 +252,9 @@
       </button>
       <button class="nav-item" onclick="showTab('endpoints',this)">
         <span class="icon">📡</span> Endpoint Tester
+      </button>
+      <button class="nav-item" onclick="showTab('parity',this)">
+        <span class="icon">⚖️</span> Identity Parity
       </button>
     </div>
     <div class="sidebar-section">
@@ -699,6 +731,124 @@
       </div>
     </div>
 
+    <!-- ====== TAB: Identity Parity ====== -->
+    <div class="tab-panel" id="tab-parity">
+      <div class="card">
+        <div class="card-header">
+          <span class="icon" style="font-size:1.3rem">⚖️</span>
+          <h2>Identity Parity</h2>
+          <span class="badge badge-purple">Sprint 0</span>
+        </div>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:14px">
+          Compare the gateway’s normalized identity envelope with the lightweight auth-status surfaces from REST and MCP.
+          When a surface only exposes part of the identity, it is labeled as partial instead of being treated as a mismatch.
+        </p>
+
+        <div class="section-title">Gateway Source</div>
+        <div class="code-box" style="margin-bottom:16px">
+          <div class="result-label">Using current auth-gateway base URL</div>
+          <div id="parity-gateway-base" style="word-break:break-all;color:var(--text-primary)">—</div>
+        </div>
+
+        <div class="form-row-3">
+          <div class="form-group">
+            <label>Credential Source</label>
+            <select id="parity-source" onchange="loadParityCredential()">
+              <option value="active">Active Session (best available)</option>
+              <option value="pkce">PKCE Session</option>
+              <option value="pw">Password Session</option>
+              <option value="otp">OTP Session</option>
+              <option value="api">API Key</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Transport Mode</label>
+            <select id="parity-transport" onchange="updateParityHint()">
+              <option value="auto">Auto-detect</option>
+              <option value="bearer">Bearer</option>
+              <option value="x-api-key">X-API-Key</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Project Scope <span style="color:var(--text-muted)">(optional)</span></label>
+            <input type="text" id="parity-project-scope" placeholder="e.g. 22032169-3c5c-45d1-b217-48a608c2bed0" oninput="updateParityHint()" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>REST Base URL</label>
+            <input type="text" id="parity-rest-base" value="https://api.lanonasis.com" />
+          </div>
+          <div class="form-group">
+            <label>MCP Base URL</label>
+            <input type="text" id="parity-mcp-base" value="https://mcp.lanonasis.com" />
+          </div>
+        </div>
+
+        <div class="form-group parity-credential-wrap">
+          <label>Credential</label>
+          <textarea id="parity-credential" rows="4" placeholder="Loaded automatically from the selected source, or paste one manually here." oninput="updateParityHint()"></textarea>
+        </div>
+
+        <div class="btn-group" style="margin-top:0">
+          <button class="btn btn-ghost btn-sm" onclick="loadParityCredential('pkce')">Load PKCE</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadParityCredential('pw')">Load Password</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadParityCredential('otp')">Load OTP</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadParityCredential('api')">Load API Key</button>
+          <button class="btn btn-primary btn-sm" onclick="runIdentityParity()">Run Parity Check</button>
+        </div>
+        <div class="parity-status-row" id="parity-summary" style="margin-top:14px"></div>
+        <div class="parity-note">Gateway uses <code style="color:var(--accent)">POST /v1/auth/introspect</code>. REST and MCP use <code style="color:var(--accent)">GET /api/v1/auth/status</code> and may expose only partial identity.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Results</h2>
+          <button class="btn btn-ghost btn-sm" onclick="clearParityResults()">Clear</button>
+        </div>
+        <div class="parity-sources">
+          <div class="parity-surface" id="parity-gateway-card">
+            <div class="parity-surface-header">
+              <div>
+                <h3>Gateway</h3>
+                <div class="endpoint">POST /v1/auth/introspect</div>
+              </div>
+              <span class="badge badge-info" id="parity-gateway-badge">waiting</span>
+            </div>
+            <div class="parity-field-list" id="parity-gateway-fields"></div>
+            <div class="result-box hidden parity-json" id="parity-gateway-raw" style="margin-top:12px"></div>
+          </div>
+          <div class="parity-surface" id="parity-rest-card">
+            <div class="parity-surface-header">
+              <div>
+                <h3>REST</h3>
+                <div class="endpoint">GET /api/v1/auth/status</div>
+              </div>
+              <span class="badge badge-info" id="parity-rest-badge">waiting</span>
+            </div>
+            <div class="parity-field-list" id="parity-rest-fields"></div>
+            <div class="result-box hidden parity-json" id="parity-rest-raw" style="margin-top:12px"></div>
+          </div>
+          <div class="parity-surface" id="parity-mcp-card">
+            <div class="parity-surface-header">
+              <div>
+                <h3>MCP</h3>
+                <div class="endpoint">GET /api/v1/auth/status</div>
+              </div>
+              <span class="badge badge-info" id="parity-mcp-badge">waiting</span>
+            </div>
+            <div class="parity-field-list" id="parity-mcp-fields"></div>
+            <div class="result-box hidden parity-json" id="parity-mcp-raw" style="margin-top:12px"></div>
+          </div>
+        </div>
+
+        <div class="section-title">Field Comparison</div>
+        <div class="parity-comparison" id="parity-comparison"></div>
+      </div>
+    </div>
+
     <!-- ====== TAB: Health ====== -->
     <div class="tab-panel" id="tab-health">
       <div class="card">
@@ -753,6 +903,7 @@ let S = {
   pw:   { at:null,rt:null,user:null },
   otp:  { at:null,rt:null,user:null },
 };
+const PARITY_FIELDS = ['user_id', 'organization_id', 'project_scope', 'api_key_id', 'auth_source', 'request_id'];
 let logEntries = [];
 let expiryTimer = null;
 
@@ -776,6 +927,7 @@ window.onload = function(){
   restoreUI();
   checkHealth();
   renderAuthMethodGrid();
+  initParityPanel();
 };
 
 function pageUrl(){
@@ -789,6 +941,7 @@ function getBase(){ return document.getElementById('baseUrlInput').value.replace
 function onEnvChange(){
   const m = {local:'http://localhost:4000',staging:'https://auth-staging.lanonasis.com',production:'https://auth.lanonasis.com'};
   document.getElementById('baseUrlInput').value = m[document.getElementById('envSelect').value] || '';
+  refreshParityGatewayBase();
   checkHealth();
 }
 
@@ -797,6 +950,365 @@ function showTab(id,el){
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   if(el) el.classList.add('active');
+  if(id==='parity') refreshParityPanel();
+}
+
+function initParityPanel(){
+  refreshParityGatewayBase();
+  const sourceEl = document.getElementById('parity-source');
+  if(sourceEl && !sourceEl.value) sourceEl.value = 'active';
+  loadParityCredential();
+  clearParityResults();
+}
+
+function refreshParityPanel(){
+  refreshParityGatewayBase();
+  const source = document.getElementById('parity-source')?.value || 'active';
+  if(source !== 'manual') loadParityCredential();
+}
+
+function refreshParityGatewayBase(){
+  const el = document.getElementById('parity-gateway-base');
+  if(el) el.textContent = getBase();
+}
+
+function loadParityCredential(forcedSource){
+  const sourceEl = document.getElementById('parity-source');
+  const credentialEl = document.getElementById('parity-credential');
+  const scopeEl = document.getElementById('parity-project-scope');
+  if(!sourceEl || !credentialEl) return;
+
+  if(forcedSource) sourceEl.value = forcedSource;
+  const source = sourceEl.value || 'active';
+  let credential = '';
+
+  if(source === 'active'){
+    credential = S.pkce.at || S.pw.at || S.otp.at || document.getElementById('apiKeyHeader')?.value || document.getElementById('apiKeyInput')?.value || '';
+  } else if(source === 'pkce'){
+    credential = S.pkce.at || '';
+  } else if(source === 'pw'){
+    credential = S.pw.at || '';
+  } else if(source === 'otp'){
+    credential = S.otp.at || '';
+  } else if(source === 'api'){
+    credential = document.getElementById('apiKeyHeader')?.value || document.getElementById('apiKeyInput')?.value || '';
+  } else if(source === 'manual'){
+    updateParityHint();
+    return;
+  }
+
+  credentialEl.value = credential;
+
+  const decoded = tryDecodeJwt(credential);
+  if(scopeEl && decoded?.project_scope && !scopeEl.value) {
+    scopeEl.value = decoded.project_scope;
+  }
+
+  updateParityHint();
+}
+
+function updateParityHint(){
+  const source = document.getElementById('parity-source')?.value || 'active';
+  const credential = document.getElementById('parity-credential')?.value.trim() || '';
+  const transport = document.getElementById('parity-transport')?.value || 'auto';
+  const shape = detectCredentialShape(credential);
+  const summary = document.getElementById('parity-summary');
+  if(!summary) return;
+  const autoTransport = transport === 'auto' ? (shape === 'api_key' ? 'X-API-Key' : 'Bearer') : (transport === 'x-api-key' ? 'X-API-Key' : 'Bearer');
+  summary.innerHTML = `
+    <span class="badge badge-info">source: ${escapeHtml(source)}</span>
+    <span class="badge ${shape === 'empty' ? 'badge-warning' : 'badge-success'}">credential: ${escapeHtml(shape)}</span>
+    <span class="badge badge-purple">transport: ${escapeHtml(autoTransport)}</span>
+  `;
+}
+
+function clearParityResults(){
+  const setBadge = (id) => {
+    const el = document.getElementById(id);
+    if(el){ el.className = 'badge badge-info'; el.textContent = 'waiting'; }
+  };
+  setBadge('parity-gateway-badge');
+  setBadge('parity-rest-badge');
+  setBadge('parity-mcp-badge');
+  for(const prefix of ['gateway','rest','mcp']){
+    const fields = document.getElementById(`parity-${prefix}-fields`);
+    const raw = document.getElementById(`parity-${prefix}-raw`);
+    if(fields) fields.innerHTML = `<div style="color:var(--text-muted);font-size:0.8rem">Run the parity check to populate ${prefix.toUpperCase()}.</div>`;
+    if(raw){ raw.classList.add('hidden'); raw.innerHTML = ''; }
+  }
+  const cmp = document.getElementById('parity-comparison');
+  if(cmp) cmp.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem">Field comparison will appear here after the parity check.</div>';
+}
+
+function detectCredentialShape(credential){
+  const value = (credential || '').trim();
+  if(!value) return 'empty';
+  if(/^[0-9a-f]{64}$/i.test(value)) return 'api_key';
+  if(/^lano_|^vx_|^lns_/i.test(value)) return 'api_key';
+  if(value.split('.').length === 3) return 'jwt';
+  if(value.length > 20) return 'opaque';
+  return 'unknown';
+}
+
+function buildParityHeaders(credential, transport, projectScope){
+  const headers = {};
+  const mode = transport === 'auto'
+    ? (detectCredentialShape(credential) === 'api_key' ? 'x-api-key' : 'bearer')
+    : transport;
+
+  if(mode === 'x-api-key'){
+    headers['X-API-Key'] = credential;
+  } else {
+    headers['Authorization'] = 'Bearer ' + credential;
+  }
+
+  if(projectScope){
+    headers['X-Project-Scope'] = projectScope;
+  }
+
+  return headers;
+}
+
+async function requestJsonAt(baseUrl, method, path, options = {}){
+  const headers = { ...(options.headers || {}) };
+  const opts = { method, headers };
+  const body = options.body;
+
+  if(body !== undefined && body !== null && method !== 'GET'){
+    if(typeof body === 'string' || body instanceof URLSearchParams){
+      opts.body = body.toString();
+    } else {
+      if(!headers['Content-Type'] && !headers['content-type']) headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(body);
+    }
+  }
+
+  try{
+    const res = await fetch(baseUrl.replace(/\/$/,'') + path, opts);
+    const data = await safeJson(res);
+    const responseHeaders = {};
+    res.headers.forEach((value, key) => { responseHeaders[key.toLowerCase()] = value; });
+    return { ok: res.ok, status: res.status, data, headers: responseHeaders };
+  } catch(err){
+    return { ok: false, status: 0, data: { error: err.message }, headers: {} };
+  }
+}
+
+function readAny(obj, keys){
+  if(!obj || typeof obj !== 'object') return undefined;
+  for(const key of keys){
+    const value = obj[key];
+    if(value !== undefined && value !== null && value !== '') return value;
+  }
+  return undefined;
+}
+
+function extractIdentityLike(payload){
+  const candidates = [];
+  if(payload && typeof payload === 'object'){
+    if(payload.identity && typeof payload.identity === 'object') candidates.push(payload.identity);
+    if(payload.data && typeof payload.data === 'object') candidates.push(payload.data);
+    if(payload.user && typeof payload.user === 'object') candidates.push(payload.user);
+    if(payload.profile && typeof payload.profile === 'object') candidates.push(payload.profile);
+    if(payload.resolution && typeof payload.resolution === 'object') candidates.push(payload.resolution);
+    candidates.push(payload);
+  }
+
+  for(const candidate of candidates){
+    const identity = {
+      actor_id: readAny(candidate, ['actor_id', 'actorId', 'auth_id', 'authId', 'user_id', 'userId']),
+      actor_type: readAny(candidate, ['actor_type', 'actorType']),
+      user_id: readAny(candidate, ['user_id', 'userId']),
+      organization_id: readAny(candidate, ['organization_id', 'organizationId']),
+      project_scope: readAny(candidate, ['project_scope', 'projectScope']),
+      api_key_id: readAny(candidate, ['api_key_id', 'apiKeyId', 'key_id', 'keyId']),
+      auth_source: readAny(candidate, ['auth_source', 'authSource', 'auth_method', 'authMethod', 'method']),
+      request_id: readAny(candidate, ['request_id', 'requestId']),
+      email: readAny(candidate, ['email']),
+    };
+    if(Object.values(identity).some(v => v !== undefined)) return identity;
+  }
+
+  return {
+    actor_id: undefined,
+    actor_type: undefined,
+    user_id: undefined,
+    organization_id: undefined,
+    project_scope: undefined,
+    api_key_id: undefined,
+    auth_source: undefined,
+    request_id: undefined,
+    email: undefined,
+  };
+}
+
+function normalizeParityResult(surface, response){
+  const raw = response.data || {};
+  const identity = surface === 'gateway'
+    ? (raw.identity && typeof raw.identity === 'object' ? raw.identity : extractIdentityLike(raw))
+    : extractIdentityLike(raw);
+  const requestId = identity.request_id || raw.request_id || raw.requestId || response.headers['x-request-id'] || null;
+  const hasAnyIdentity = PARITY_FIELDS.some(field => identity[field] !== undefined && identity[field] !== null && identity[field] !== '');
+  const missing = PARITY_FIELDS.filter(field => identity[field] === undefined || identity[field] === null || identity[field] === '');
+  return {
+    surface,
+    ok: response.ok,
+    status: response.status,
+    raw,
+    identity,
+    requestId,
+    partial: surface === 'gateway' ? !response.ok || missing.length > 0 : missing.length > 0 || !hasAnyIdentity,
+    missing,
+    note: surface === 'gateway'
+      ? (response.ok ? 'Normalized identity envelope' : 'Gateway failed')
+      : (response.ok ? 'Lightweight status surface' : 'Status endpoint failed'),
+  };
+}
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch] || ch));
+}
+
+function formatParityValue(value){
+  if(value === undefined || value === null || value === '') return '—';
+  if(typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function renderParitySurface(prefix, result){
+  const badge = document.getElementById(`parity-${prefix}-badge`);
+  const fields = document.getElementById(`parity-${prefix}-fields`);
+  const raw = document.getElementById(`parity-${prefix}-raw`);
+  if(!badge || !fields || !raw) return;
+
+  badge.className = 'badge ' + (result.ok ? (result.partial ? 'badge-warning' : 'badge-success') : (result.status >= 500 ? 'badge-error' : 'badge-warning'));
+  badge.textContent = result.ok ? (result.partial ? 'partial' : 'full') : (result.status ? String(result.status) : 'error');
+
+  fields.innerHTML = PARITY_FIELDS.map(field => {
+    const value = result.identity[field];
+    const cls = value === undefined || value === null || value === '' ? 'missing' : (result.partial ? 'partial' : 'match');
+    return `
+      <div class="parity-field">
+        <span class="parity-key">${field}</span>
+        <span class="parity-val ${cls}">${escapeHtml(formatParityValue(value))}</span>
+      </div>
+    `;
+  }).join('');
+
+  raw.classList.remove('hidden');
+  raw.innerHTML = `
+    <div class="result-label">${escapeHtml(result.note)}${result.requestId ? ' · request_id ' + escapeHtml(result.requestId) : ''}</div>
+    <pre>${escapeHtml(JSON.stringify(result.raw, null, 2))}</pre>
+  `;
+}
+
+function renderParityComparison(results){
+  const cmp = document.getElementById('parity-comparison');
+  if(!cmp) return;
+
+  const fieldRows = PARITY_FIELDS.map(field => {
+    const gw = results[0]?.identity?.[field];
+    const rest = results[1]?.identity?.[field];
+    const mcp = results[2]?.identity?.[field];
+    const values = [gw, rest, mcp];
+    const canonical = gw !== undefined && gw !== null && gw !== '' ? gw : values.find(v => v !== undefined && v !== null && v !== '');
+
+    const cellClass = (value, idx) => {
+      if(value === undefined || value === null || value === '') return 'partial';
+      if(idx === 0) return 'match';
+      if(canonical === undefined || canonical === null || canonical === '') return 'partial';
+      return String(value) === String(canonical) ? 'match' : 'diff';
+    };
+
+    return `
+      <tr>
+        <th>${field}</th>
+        <td class="${cellClass(gw, 0)}">${escapeHtml(formatParityValue(gw))}</td>
+        <td class="${cellClass(rest, 1)}">${escapeHtml(formatParityValue(rest))}</td>
+        <td class="${cellClass(mcp, 2)}">${escapeHtml(formatParityValue(mcp))}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const mismatchCount = PARITY_FIELDS.filter(field => {
+    const gw = results[0]?.identity?.[field];
+    const rest = results[1]?.identity?.[field];
+    const mcp = results[2]?.identity?.[field];
+    const values = [gw, rest, mcp].filter(v => v !== undefined && v !== null && v !== '');
+    return values.length > 1 && new Set(values.map(String)).size > 1;
+  }).length;
+
+  cmp.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Gateway</th>
+          <th>REST</th>
+          <th>MCP</th>
+        </tr>
+      </thead>
+      <tbody>${fieldRows}</tbody>
+    </table>
+    <div class="parity-summary" style="margin-top:12px">
+      <span class="badge badge-info">${mismatchCount} mismatch${mismatchCount === 1 ? '' : 'es'}</span>
+      <span class="badge badge-warning">${results.filter(r => r.partial).length} partial surface${results.filter(r => r.partial).length === 1 ? '' : 's'}</span>
+      <span class="badge badge-success">${results.filter(r => r.ok).length} reachable</span>
+    </div>
+  `;
+}
+
+async function runIdentityParity(){
+  const credential = document.getElementById('parity-credential')?.value.trim() || '';
+  const transport = document.getElementById('parity-transport')?.value || 'auto';
+  const projectScope = document.getElementById('parity-project-scope')?.value.trim() || '';
+  const restBase = document.getElementById('parity-rest-base')?.value.trim() || 'https://api.lanonasis.com';
+  const mcpBase = document.getElementById('parity-mcp-base')?.value.trim() || 'https://mcp.lanonasis.com';
+
+  if(!credential){
+    alert('Credential required');
+    return;
+  }
+
+  refreshParityGatewayBase();
+  clearParityResults();
+
+  const gatewayBody = {
+    credential,
+    type: 'auto',
+    platform: 'web',
+  };
+  if(projectScope) gatewayBody.project_scope = projectScope;
+
+  const statusHeaders = buildParityHeaders(credential, transport, projectScope);
+
+  const t0 = Date.now();
+  const [gatewayRes, restRes, mcpRes] = await Promise.all([
+    requestJsonAt(getBase(), 'POST', '/v1/auth/introspect', { body: gatewayBody }),
+    requestJsonAt(restBase, 'GET', '/api/v1/auth/status', { headers: statusHeaders }),
+    requestJsonAt(mcpBase, 'GET', '/api/v1/auth/status', { headers: statusHeaders }),
+  ]);
+
+  const gateway = normalizeParityResult('gateway', gatewayRes);
+  const rest = normalizeParityResult('rest', restRes);
+  const mcp = normalizeParityResult('mcp', mcpRes);
+
+  renderParitySurface('gateway', gateway);
+  renderParitySurface('rest', rest);
+  renderParitySurface('mcp', mcp);
+  renderParityComparison([gateway, rest, mcp]);
+
+  const elapsed = Date.now() - t0;
+  httpLog('POST', '/v1/auth/introspect', gatewayRes.status, elapsed, 'parity/gateway');
+  httpLog('GET', '/api/v1/auth/status', restRes.status, elapsed, 'parity/rest');
+  httpLog('GET', '/api/v1/auth/status', mcpRes.status, elapsed, 'parity/mcp');
+  updateParityHint();
 }
 
 // ============================================================
