@@ -152,7 +152,7 @@ describe('Auth Introspection Contract', () => {
       organizationId: 'org-123',
       keyId: 'key-123',
       projectScope: 'fallback-project',
-      permissions: ['memory:read'],
+      permissions: ['memory:read', 'memory:read'],
     } as Awaited<ReturnType<typeof validateAPIKey>>)
 
     vi.mocked(resolveProjectScope).mockResolvedValue({
@@ -191,6 +191,7 @@ describe('Auth Introspection Contract', () => {
       },
       error: null,
     })
+    expect((res.body as { identity: { issued_at: string } }).identity.issued_at).toBeTruthy()
 
     expect(logAuthEvent).toHaveBeenCalledWith(
       expect.objectContaining({

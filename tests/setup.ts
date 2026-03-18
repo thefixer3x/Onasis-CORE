@@ -16,6 +16,9 @@ export const TEST_CONFIG = {
   // Test API key (master key for full access)
   API_KEY: process.env.TEST_API_KEY || 'lano_master_key_2024',
 
+  // When enabled, require the new normalized identity envelope on auth status.
+  EXPECT_NORMALIZED_IDENTITY: process.env.EXPECT_NORMALIZED_IDENTITY === '1',
+
   // Request timeout
   TIMEOUT: 25000,
 };
@@ -104,6 +107,7 @@ beforeAll(async () => {
   console.log(`   Supabase URL: ${TEST_CONFIG.SUPABASE_BASE_URL}`);
   console.log(`   Netlify URL: ${TEST_CONFIG.NETLIFY_BASE_URL}`);
   console.log(`   API Key: ${TEST_CONFIG.API_KEY.substring(0, 15)}...`);
+  console.log(`   Expect Normalized Identity: ${TEST_CONFIG.EXPECT_NORMALIZED_IDENTITY ? 'yes' : 'no'}`);
 });
 
 // Global cleanup

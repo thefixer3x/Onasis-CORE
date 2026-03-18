@@ -269,7 +269,7 @@ async function buildIntrospectedIdentity(options: {
       request_id: options.requestId,
       credential_id: uai.credentialId || options.apiKeyId || null,
       email: options.email ?? uai.email ?? null,
-      scopes: options.scopes ?? [],
+      scopes: [...new Set(options.scopes ?? [])],
       issued_at: new Date().toISOString(),
       ...(options.expiresAt ? { expires_at: options.expiresAt } : {}),
     },

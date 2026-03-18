@@ -109,6 +109,16 @@ describe('Netlify Routing (via _redirects)', () => {
 
       expect(status).toBe(200);
       expect(data.authenticated).toBe(true);
+
+      if (TEST_CONFIG.EXPECT_NORMALIZED_IDENTITY) {
+        expect(data.request_id).toBeDefined();
+        expect(data.identity).toBeDefined();
+        expect(data.identity.user_id).toBe(data.user.id);
+        expect(data.identity.organization_id).toBe(data.organization.id);
+      } else if (data.identity) {
+        expect(data.identity.user_id).toBe(data.user.id);
+        expect(data.identity.organization_id).toBe(data.organization.id);
+      }
     });
 
     it('should route /api/v1/organization to Supabase', async () => {
@@ -158,6 +168,18 @@ describe('Netlify Routing (via _redirects)', () => {
       expect(supabaseResponse.data.user.id).toBe(
         netlifyResponse.data.user.id
       );
+
+      if (
+        TEST_CONFIG.EXPECT_NORMALIZED_IDENTITY ||
+        (supabaseResponse.data.identity && netlifyResponse.data.identity)
+      ) {
+        expect(supabaseResponse.data.identity.user_id).toBe(
+          netlifyResponse.data.identity.user_id
+        );
+        expect(supabaseResponse.data.identity.organization_id).toBe(
+          netlifyResponse.data.identity.organization_id
+        );
+      }
     });
 
     it('should have consistent error responses', async () => {

@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { supabaseCall } from '../setup';
+import { supabaseCall, TEST_CONFIG } from '../setup';
 
 describe('System Edge Functions (Direct Supabase)', () => {
   describe('auth-status', () => {
@@ -18,8 +18,21 @@ describe('System Edge Functions (Direct Supabase)', () => {
       expect(data.user).toBeDefined();
       expect(data.user.id).toBeDefined();
       expect(data.organization).toBeDefined();
+      expect(data.organization.id).toBeDefined();
       expect(data.access).toBeDefined();
+      expect(data.access.api_keys_count).toBeDefined();
       expect(data.timestamp).toBeDefined();
+
+      if (TEST_CONFIG.EXPECT_NORMALIZED_IDENTITY) {
+        expect(data.request_id).toBeDefined();
+        expect(data.identity).toBeDefined();
+        expect(data.identity.user_id).toBe(data.user.id);
+        expect(data.identity.organization_id).toBe(data.organization.id);
+        expect(data.identity.request_id).toBe(data.request_id);
+      } else if (data.identity) {
+        expect(data.identity.user_id).toBe(data.user.id);
+        expect(data.identity.organization_id).toBe(data.organization.id);
+      }
     });
 
     it('should include current auth method info', async () => {
@@ -30,6 +43,10 @@ describe('System Edge Functions (Direct Supabase)', () => {
       expect(status).toBe(200);
       expect(data.current_auth).toBeDefined();
       expect(data.current_auth.method).toBe('api_key');
+
+      if (TEST_CONFIG.EXPECT_NORMALIZED_IDENTITY) {
+        expect(data.identity?.auth_source).toBe('api_key');
+      }
     });
 
     it('should return unauthenticated with no key', async () => {
@@ -40,6 +57,11 @@ describe('System Edge Functions (Direct Supabase)', () => {
 
       const data = await response.json();
       expect(data.authenticated).toBe(false);
+
+      if (TEST_CONFIG.EXPECT_NORMALIZED_IDENTITY) {
+        expect(data.identity).toBeNull();
+        expect(data.request_id).toBeDefined();
+      }
     });
   });
 
