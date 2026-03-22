@@ -162,6 +162,8 @@ export function normalizeScopes(scopes?: string[]): string[] {
   return normalizedScopes.length > 0 ? normalizedScopes : ['legacy:full_access']
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
  * Create a new API key for a user
  * Supports scoped permissions via the scopes parameter
@@ -173,6 +175,7 @@ export async function createApiKey(
     access_level?: string
     expires_in_days?: number
     scopes?: string[]  // Scoped permissions for the API key
+    organization_id?: string  // Required by security_service.api_keys FK
   }
 ): Promise<ApiKey> {
   try {
@@ -204,6 +207,13 @@ export async function createApiKey(
       expiresDays = n
     }
 
+    // Resolve organization_id — required by security_service.api_keys (FK constraint)
+    // Auth controller guarantees every issued token carries a valid org UUID.
+    const organization_id = params.organization_id
+    if (!organization_id || !UUID_RE.test(organization_id)) {
+      throw new Error('No organization found for this session. Please log out and log in again.')
+    }
+
     // Check for duplicate name
     const { data: existingByName } = await supabaseAdmin
       .from('api_keys')
@@ -228,9 +238,10 @@ export async function createApiKey(
     }
 
     const apiKeyRecord = {
-      id: `key_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: crypto.randomUUID(),
       name: params.name,
       key_hash: keyHash,
+      organization_id,
       user_id,
       access_level: params.access_level || 'authenticated',
       permissions,  // Store scopes in permissions column
@@ -1006,6 +1017,7 @@ export async function createApiKeyWithServiceScopes(
     service_type?: 'all' | 'specific' // External service access type
     service_keys?: string[] // If service_type = 'specific', which services
     rate_limits?: Record<string, { per_minute?: number; per_day?: number }>
+    organization_id?: string  // Required by security_service.api_keys FK
   }
 ): Promise<ApiKey> {
   // Create the base API key
@@ -1014,6 +1026,7 @@ export async function createApiKeyWithServiceScopes(
     access_level: params.access_level,
     expires_in_days: params.expires_in_days,
     scopes: params.scopes,
+    organization_id: params.organization_id,
   })
 
   // Set service field

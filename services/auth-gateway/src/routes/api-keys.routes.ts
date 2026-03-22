@@ -200,6 +200,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       access_level,
       expires_in_days,
       scopes,
+      organization_id: req.user.organizationId,
     })
 
     return res.status(201).json({
