@@ -207,6 +207,7 @@ app.use('/v1/auth/resolve', resolveRoutes)  // UAI resolution for Nginx auth_req
 app.use('/v1/auth/otp', otpRoutes)  // OTP passwordless auth for CLI
 app.use('/otp', otpRoutes)  // Shorthand for test client
 app.use('/api/v1/auth/api-keys', apiKeysRoutes)
+app.use('/api/v1/api-keys', apiKeysRoutes)  // Dashboard compat alias
 app.use('/api/v1/projects', projectsRoutes)
 app.use('/web', webRoutes)
 app.use('/mcp', mcpRoutes)

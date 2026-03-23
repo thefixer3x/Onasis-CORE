@@ -78,13 +78,28 @@ export async function authenticateRequest(
   const supabase = getSupabaseClient();
 
   // Helper to check if token is an API key format
-  // Supports: lano_* (primary), lms_* (mcp-core), pk_* (enterprise)
+  // Supports: lano_* (primary), lms_* (mcp-core), pk_* (enterprise),
+  // and 64-char hex (pre-hashed keys from oauth-client normalizeApiKey)
   const isApiKeyFormat = (token: string): boolean => {
-    return /^(lano_|lms_|pk_)/.test(token);
+    if (/^(lano_|lms_|pk_)/.test(token)) return true;
+    if (/^[a-f0-9]{64}$/i.test(token)) return true;
+    return false;
   };
 
-  // Helper to authenticate API key via database lookup
+  // Helper to authenticate API key via database lookup.
+  // For pre-hashed keys (64 hex chars), look up by key_hash directly.
+  // For raw keys, look up by the key column (legacy) or key_hash after hashing.
   const authenticateApiKey = async (key: string): Promise<{ userId: string } | null> => {
+    if (/^[a-f0-9]{64}$/i.test(key)) {
+      // Pre-hashed key: look up directly by key_hash
+      const { data: keyData } = await supabase
+        .from("api_keys")
+        .select("user_id, is_active")
+        .eq("key_hash", key.toLowerCase())
+        .maybeSingle();
+      if (keyData?.is_active) return { userId: keyData.user_id };
+      return null;
+    }
     const { data: keyData } = await supabase
       .from("api_keys")
       .select("user_id, is_active")

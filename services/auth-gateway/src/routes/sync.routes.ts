@@ -63,7 +63,7 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    if (!organization_id) {
+    if (!organization_id && event_type !== 'REVOKE' && is_active !== false) {
       console.warn(`API key sync received without organization_id for id=${id}`)
       res.status(400).json({ error: 'Missing organization_id - required for RLS isolation' })
       return
