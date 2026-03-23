@@ -414,6 +414,8 @@ serve(async (req: Request) => {
           } else {
             updateData.embedding = embedding;
           }
+          updateData.embedding_provider = provider;
+          updateData.embedding_model = Deno.env.get("VOYAGE_MODEL") || PROVIDER_CONFIG[provider].model;
         }
 
         const { data: updatedRows, error: updateError } = await supabase
@@ -568,6 +570,8 @@ serve(async (req: Request) => {
       } else {
         insertData.embedding = embedding;
       }
+      insertData.embedding_provider = provider;
+      insertData.embedding_model = Deno.env.get("VOYAGE_MODEL") || PROVIDER_CONFIG[provider].model;
     }
 
     const { data: memory, error } = await supabase

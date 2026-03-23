@@ -463,6 +463,8 @@ serve(async (req: Request) => {
           } else {
             updateData.embedding = embeddingData.data[0].embedding;
           }
+          updateData.embedding_provider = provider;
+          updateData.embedding_model = Deno.env.get("VOYAGE_MODEL") || providerConfig.model;
           embeddingGenerated = true;
         } else {
           const errText = await embeddingRes.text();
