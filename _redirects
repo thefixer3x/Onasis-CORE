@@ -182,6 +182,15 @@
 /api/v1/intelligence/behavior-recall    https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-recall    200!
 /api/v1/intelligence/behavior-suggest   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-suggest   200!
 
+# ============================================================================
+# EMBEDDINGS PROXY - SUPABASE EDGE FUNCTION
+# ============================================================================
+# OpenAI-compatible embeddings endpoint proxying to Voyage AI
+# Used by OpenClaw memorySearch file indexer and external clients
+# ============================================================================
+
+/api/v1/embeddings          https://lanonasis.supabase.co/functions/v1/embeddings              200!
+
 # Health check endpoints
 /health           /.netlify/functions/health                    200
 /auth/health      /.netlify/functions/auth-health               200
