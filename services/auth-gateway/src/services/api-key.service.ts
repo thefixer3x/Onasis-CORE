@@ -1,5 +1,5 @@
 import crypto from 'crypto'
-import { supabaseAdmin } from '../../db/client.js'
+import { supabaseAdmin, supabaseUsers } from '../../db/client.js'
 import { appendEventWithOutbox } from './event.service.js'
 
 export interface ApiKey {
@@ -125,7 +125,8 @@ export function normalizeScopes(scopes?: string[]): string[] {
 
   // Filter valid scopes (either in VALID_SCOPES set or matches pattern like "resource:action")
   // Supports both colon notation (standard) and dot notation (legacy, auto-converted)
-  const colonPattern = /^[a-z_]+:(read|write|delete|connect|full|\*)$/
+  // Three-part scopes (e.g. memories:personal:read, memories:team:*) are valid per D3 decision
+  const colonPattern = /^[a-z_]+(:([a-z_]+|\*))+$/
   const dotPattern = /^[a-z_]+\.(read|write|delete|connect|full|\*)$/
 
   const normalizedScopes = scopes.map(scope => {
@@ -168,7 +169,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * Create a new API key for a user
  * Supports scoped permissions via the scopes parameter
  */
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function createApiKey(
   user_id: string,
@@ -639,13 +639,43 @@ export async function validateAPIKey(apiKey: string): Promise<{
       }
     }
 
-    // Collect keys from multiple schemas (supporting migration from Neon to Supabase)
-    // Priority: security_service > vsecure > public
+    // Lookup order:
+    // Step 0: supabaseAdmin → security_service.api_keys (auth-gateway DB, ptnrwrgzrsbocgxlpvhd) — PRIMARY store for API-managed keys
+    // Step 1: supabaseUsers → security_service.stored_api_keys (main Supabase, mxtsdgkwzjzlttpotole) — vault table
+    // Step 2: supabaseUsers → vsecure.lanonasis_api_keys (main Supabase) — legacy Neon-migrated keys
+    // Step 3: supabaseUsers → public.api_keys (main Supabase) — MaaS/dashboard keys
     const allKeys: any[] = []
 
-    // 1. Try security_service schema (primary location in Supabase after migration from Neon)
+    // 0. Auth-gateway canonical store: security_service.api_keys (ptnrwrgzrsbocgxlpvhd)
+    // This is where createApiKey/rotateApiKey/revokeApiKey write via supabaseAdmin
     try {
-      const { data: securityServiceKeys, error: securityServiceError } = await supabaseAdmin
+      const { data: gwKeys, error: gwError } = await supabaseAdmin
+        .schema('security_service')
+        .from('api_keys')
+        .select('*')
+        .eq('is_active', true)
+
+      if (gwError) {
+        if (!(gwError.code === '42P01' ||
+          gwError.message?.includes('does not exist') ||
+          gwError.message?.includes('schema must be one of'))) {
+          console.warn('[api-key.service] security_service.api_keys (auth-gw) lookup error:', gwError.message)
+        }
+      } else if (gwKeys && gwKeys.length > 0) {
+        gwKeys.forEach((k: any) => {
+          // Map last_used → last_used_at for consistent field name
+          allKeys.push({ ...k, last_used_at: k.last_used_at ?? k.last_used })
+        })
+      }
+    } catch (err: any) {
+      if (err.message && !err.message.includes('schema') && !err.message.includes('does not exist')) {
+        console.warn('[api-key.service] auth-gw security_service.api_keys access failed:', err.message)
+      }
+    }
+
+    // 1. security_service.stored_api_keys (vault-style table, encrypted_value column)
+    try {
+      const { data: securityServiceKeys, error: securityServiceError } = await supabaseUsers
         .schema('security_service')
         .from('stored_api_keys')
         .select('*')
@@ -686,7 +716,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
     // Note: vsecure schema may not be available in all Supabase instances
     // This was the original Neon schema, now migrated to security_service in Supabase
     try {
-      const { data: vsecureKeys, error: vsecureError } = await supabaseAdmin
+      const { data: vsecureKeys, error: vsecureError } = await supabaseUsers
         .schema('vsecure')
         .from('lanonasis_api_keys')
         .select('*')
@@ -720,7 +750,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
 
     // 3. Legacy schema: public.api_keys (dashboard/user-generated keys)
     try {
-      const { data: legacyKeys, error: legacyError } = await supabaseAdmin
+      const { data: legacyKeys, error: legacyError } = await supabaseUsers
         .from('api_keys')
         .select('*')
         .eq('is_active', true)
@@ -768,7 +798,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
         }
 
         // Return permissions (scopes) from the key record
-        const permissions = keyRecord.permissions || keyRecord.scopes || ['legacy.full_access']
+        const permissions = keyRecord.permissions || keyRecord.scopes || ['legacy:full_access']
 
         return {
           valid: true,
