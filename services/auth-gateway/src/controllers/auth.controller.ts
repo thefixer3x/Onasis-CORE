@@ -234,10 +234,12 @@ async function buildIntrospectedIdentity(options: {
 
   const organizationId = options.organizationId ?? uai.organizationId
   if (!organizationId) {
+    // Missing organization_id indicates a server configuration issue (user exists but org linkage missing)
+    // Return 503 gateway_unavailable instead of 401 invalid_credential to indicate this is not a client auth failure
     return buildIntrospectError(
-      'invalid_credential',
-      'Authenticated identity is not linked to an organization.',
-      false
+      'gateway_unavailable',
+      'Authenticated identity is not linked to an organization. This is a server configuration issue.',
+      true
     )
   }
 
