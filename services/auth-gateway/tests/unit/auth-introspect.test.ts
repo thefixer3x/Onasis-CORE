@@ -49,6 +49,7 @@ vi.mock('../../src/utils/correlation.js', () => ({
 
 vi.mock('../../src/services/api-key.service.js', () => ({
   validateAPIKey: vi.fn(),
+  createApiKey: vi.fn(),
 }))
 
 vi.mock('../../src/services/cache.service.js', () => ({
@@ -76,11 +77,11 @@ vi.mock('../../src/utils/logger.js', () => ({
 }))
 
 import { logAuthEvent } from '../../src/services/audit.service.js'
-import { validateAPIKey } from '../../src/services/api-key.service.js'
+import { createApiKey as createApiKeyService, validateAPIKey } from '../../src/services/api-key.service.js'
 import { resolveProjectScope } from '../../src/services/project-scope.service.js'
 import { resolveUAICached } from '../../src/services/uai-session-cache.service.js'
 
-const { introspectIdentity } = await import('../../src/controllers/auth.controller.ts')
+const { createApiKey, introspectIdentity } = await import('../../src/controllers/auth.controller.ts')
 
 type MockResponse = Response & {
   statusCode: number
@@ -267,6 +268,56 @@ describe('Auth Introspection Contract', () => {
       identity: null,
       error: {
         code: 'invalid_request',
+      },
+    })
+  })
+
+  it('creates API keys using the authenticated organization instead of client-supplied org data', async () => {
+    vi.mocked(createApiKeyService).mockResolvedValue({
+      id: 'key-123',
+      name: 'CLI key',
+      key: 'lano_test_key',
+      user_id: 'user-123',
+      access_level: 'authenticated',
+      permissions: ['legacy:full_access'],
+      service: 'all',
+      created_at: '2026-03-26T00:00:00.000Z',
+      is_active: true,
+    })
+
+    const req = createMockRequest({
+      user: {
+        sub: 'user-123',
+        userId: 'user-123',
+        organizationId: 'org-session-123',
+        role: 'authenticated',
+        plan: 'pro',
+        app_metadata: {
+          organization_id: 'org-session-123',
+        },
+      },
+      body: {
+        name: 'CLI key',
+        organization_id: 'org-client-spoofed',
+      },
+    })
+    const res = createMockResponse()
+
+    await createApiKey(req, res)
+
+    expect(createApiKeyService).toHaveBeenCalledWith(
+      'user-123',
+      expect.objectContaining({
+        name: 'CLI key',
+        organization_id: 'org-session-123',
+      })
+    )
+    expect(res.statusCode).toBe(200)
+    expect(res.body).toMatchObject({
+      success: true,
+      data: {
+        id: 'key-123',
+        name: 'CLI key',
       },
     })
   })

@@ -2,6 +2,12 @@ import crypto from 'crypto'
 import { supabaseAdmin, supabaseUsers } from '../../db/client.js'
 import { appendEventWithOutbox } from './event.service.js'
 
+const AUTH_GATEWAY_API_KEYS_SCHEMA = 'security_service'
+
+function authGatewayApiKeysTable() {
+  return supabaseAdmin.schema(AUTH_GATEWAY_API_KEYS_SCHEMA).from('api_keys')
+}
+
 export interface ApiKey {
   id: string
   name: string
@@ -217,8 +223,7 @@ export async function createApiKey(
     }
 
     // Check for duplicate name
-    const { data: existingByName } = await supabaseAdmin
-      .from('api_keys')
+    const { data: existingByName } = await authGatewayApiKeysTable()
       .select('id')
       .eq('user_id', user_id)
       .eq('name', params.name)
@@ -252,8 +257,7 @@ export async function createApiKey(
       is_active: true,
     } as any
 
-    const { data, error } = await supabaseAdmin
-      .from('api_keys')
+    const { data, error } = await authGatewayApiKeysTable()
       .insert(apiKeyRecord)
       .select()
       .single()
@@ -299,10 +303,10 @@ export async function createApiKey(
 /**
  * List all API keys for a user
  * Includes service scope information
- */
+  */
 export async function listApiKeys(user_id: string, params?: { active_only?: boolean; include_scopes?: boolean }): Promise<ApiKey[]> {
   try {
-    let query = supabaseAdmin.from('api_keys').select('*').eq('user_id', user_id)
+    let query = authGatewayApiKeysTable().select('*').eq('user_id', user_id)
 
     // Apply filters
     if (params?.active_only !== false) {
@@ -349,10 +353,9 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
  * Get a single API key by ID
  * Includes service scope information
  */
-export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey> {
+  export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('api_keys')
+    const { data, error } = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -389,11 +392,10 @@ export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey
 /**
  * Update scopes for an existing API key
  */
-export async function updateApiKeyScopes(key_id: string, user_id: string, scopes: string[]): Promise<ApiKey> {
+  export async function updateApiKeyScopes(key_id: string, user_id: string, scopes: string[]): Promise<ApiKey> {
   try {
     // Validate key exists
-    const { data: existingKey, error: fetchError } = await supabaseAdmin
-      .from('api_keys')
+    const { data: existingKey, error: fetchError } = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -407,8 +409,7 @@ export async function updateApiKeyScopes(key_id: string, user_id: string, scopes
     const permissions = normalizeScopes(scopes)
 
     // Update permissions
-    const { data: updatedKey, error: updateError } = await supabaseAdmin
-      .from('api_keys')
+    const { data: updatedKey, error: updateError } = await authGatewayApiKeysTable()
       .update({ permissions })
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -456,8 +457,7 @@ export async function updateApiKeyScopes(key_id: string, user_id: string, scopes
 export async function rotateApiKey(key_id: string, user_id: string): Promise<ApiKey> {
   try {
     // Get existing key
-    const { data: existingKey, error: fetchError } = await supabaseAdmin
-      .from('api_keys')
+    const { data: existingKey, error: fetchError } = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -472,8 +472,7 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
     const newKeyHash = await hashApiKey(newApiKey)
 
     // Update with new key
-    const { data: updatedKey, error: updateError } = await supabaseAdmin
-      .from('api_keys')
+    const { data: updatedKey, error: updateError } = await authGatewayApiKeysTable()
       .update({
         key_hash: newKeyHash,
         created_at: new Date().toISOString(),
@@ -523,8 +522,7 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
  */
 export async function revokeApiKey(key_id: string, user_id: string): Promise<boolean> {
   try {
-    const { error } = await supabaseAdmin
-      .from('api_keys')
+    const { error } = await authGatewayApiKeysTable()
       .update({ is_active: false })
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -557,8 +555,7 @@ export async function revokeApiKey(key_id: string, user_id: string): Promise<boo
  */
 export async function deleteApiKey(key_id: string, user_id: string): Promise<boolean> {
   try {
-    const { error } = await supabaseAdmin
-      .from('api_keys')
+    const { error } = await authGatewayApiKeysTable()
       .delete()
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -589,8 +586,7 @@ export async function deleteApiKey(key_id: string, user_id: string): Promise<boo
  * Update last_used_at timestamp for an API key
  */
 export async function updateApiKeyUsage(key_id: string): Promise<void> {
-  await supabaseAdmin
-    .from('api_keys')
+  await authGatewayApiKeysTable()
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', key_id)
 }
@@ -649,9 +645,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
     // 0. Auth-gateway canonical store: security_service.api_keys (ptnrwrgzrsbocgxlpvhd)
     // This is where createApiKey/rotateApiKey/revokeApiKey write via supabaseAdmin
     try {
-      const { data: gwKeys, error: gwError } = await supabaseAdmin
-        .schema('security_service')
-        .from('api_keys')
+      const { data: gwKeys, error: gwError } = await authGatewayApiKeysTable()
         .select('*')
         .eq('is_active', true)
 
@@ -911,11 +905,10 @@ export async function setApiKeyServiceScopes(
   user_id: string,
   service_keys: string[],
   rate_limits?: Record<string, { per_minute?: number; per_day?: number }>
-): Promise<ServiceScope[]> {
+  ): Promise<ServiceScope[]> {
   try {
     // Verify key ownership
-    const { data: keyData, error: keyError } = await supabaseAdmin
-      .from('api_keys')
+    const { data: keyData, error: keyError } = await authGatewayApiKeysTable()
       .select('id, user_id, service')
       .eq('id', key_id)
       .eq('user_id', user_id)
@@ -961,8 +954,7 @@ export async function setApiKeyServiceScopes(
 
     // Update the key's service field to 'specific' if scopes are set
     const newServiceValue = service_keys.length > 0 ? 'specific' : 'all'
-    await supabaseAdmin
-      .from('api_keys')
+    await authGatewayApiKeysTable()
       .update({ service: newServiceValue })
       .eq('id', key_id)
 
@@ -1000,8 +992,7 @@ export async function apiKeyHasServiceAccess(key_id: string, service_key: string
     }
 
     // Get the key's service field
-    const { data: keyData, error: keyError } = await supabaseAdmin
-      .from('api_keys')
+    const { data: keyData, error: keyError } = await authGatewayApiKeysTable()
       .select('service')
       .eq('id', key_id)
       .eq('is_active', true)
@@ -1063,8 +1054,7 @@ export async function createApiKeyWithServiceScopes(
 
   // Set service field
   const serviceType = params.service_type || 'all'
-  await supabaseAdmin
-    .from('api_keys')
+  await authGatewayApiKeysTable()
     .update({ service: serviceType })
     .eq('id', apiKey.id)
 

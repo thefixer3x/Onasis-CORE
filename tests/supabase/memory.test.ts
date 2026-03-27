@@ -214,6 +214,15 @@ describe('Memory Edge Functions (Direct Supabase)', () => {
       expect(data.data).toBeDefined();
       expect(data.data.total_memories).toBeDefined();
       expect(data.data.by_type).toBeDefined();
+      expect(data.data.memories_by_type).toBeDefined();
+      expect(typeof data.data.total_size_bytes).toBe('number');
+      expect(typeof data.data.avg_access_count).toBe('number');
+      expect(Array.isArray(data.data.recent_memories)).toBe(true);
+
+      if (data.data.most_accessed_memory) {
+        expect(data.data.most_accessed_memory.id).toBeDefined();
+        expect(typeof data.data.most_accessed_memory.access_count).toBe('number');
+      }
     });
   });
 

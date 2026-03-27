@@ -1979,7 +1979,16 @@ export async function createApiKey(req: Request, res: Response) {
       })
     }
 
-    const apiKey = await apiKeyService.createApiKey(req.user.sub, req.body)
+    const organizationIdFromSession =
+      req.user.organizationId ||
+      (typeof req.user.app_metadata?.organization_id === 'string'
+        ? req.user.app_metadata.organization_id
+        : undefined)
+
+    const apiKey = await apiKeyService.createApiKey(req.user.sub, {
+      ...req.body,
+      organization_id: organizationIdFromSession,
+    })
 
     return res.json({
       success: true,
