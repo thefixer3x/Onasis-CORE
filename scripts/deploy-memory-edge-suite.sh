@@ -16,6 +16,14 @@ FUNCTIONS=(
   memory-bulk-delete
 )
 
+if [[ "${INCLUDE_BEHAVIOR_FUNCTIONS:-1}" != "0" ]]; then
+  FUNCTIONS+=(
+    intelligence-behavior-record
+    intelligence-behavior-recall
+    intelligence-behavior-suggest
+  )
+fi
+
 cd "${APP_DIR}"
 
 for fn in "${FUNCTIONS[@]}"; do
@@ -28,3 +36,13 @@ for fn in "${FUNCTIONS[@]}"; do
 done
 
 echo "Memory Edge suite deployed with custom API-key auth enabled."
+
+if [[ -n "${AUTH_TOKEN:-}" ]]; then
+  echo
+  echo "Running post-deploy behavior release smoke..."
+  "${APP_DIR}/scripts/test/behavior-release-smoke.sh"
+else
+  echo
+  echo "Next step:"
+  echo "  AUTH_TOKEN=<bearer-token> ${APP_DIR}/scripts/test/behavior-release-smoke.sh"
+fi

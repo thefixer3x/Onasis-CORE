@@ -10,6 +10,7 @@ Test scripts for verifying functionality:
 - API endpoint tests
 - Memory operations tests
 - End-to-end integration tests
+- `behavior-release-smoke.sh` for post-deploy platform-key and behavior-memory validation
 
 ### `setup/`
 Setup and initialization scripts:
@@ -34,6 +35,7 @@ Emergency fix scripts:
 ## Root Scripts
 
 Utility scripts in this directory:
+- `check-memory-context-drift.sh` - audits behavior embedding placement and auth-key schema drift
 - `verify-vps-services.sh` - VPS health check
 - `verify-config.sh` - Configuration validation
 - `REORGANIZE_ONASIS_CORE.sh` - Codebase reorganization

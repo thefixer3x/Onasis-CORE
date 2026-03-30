@@ -1,5 +1,19 @@
 # API Key Management Service - Deployment Guide
 
+This document is historical context for the older project-stored-key rollout.
+
+Current source of truth for Memory Context Separation and platform API keys:
+- `docs/plans/memory-context-separation.md` in the monorepo root
+- `apps/onasis-core/docs/deployment/MEMORY_CONTEXT_GUARDRAILS_2026-03-30.md`
+
+Current runtime guardrails:
+- use `/api/v1/auth/api-keys` for platform keys
+- store scopes in `security_service.api_keys.permissions`
+- keep the single `lano_` prefix
+- use `security_service.org_members` instead of creating `organization_memberships`
+- run `apps/onasis-core/scripts/test/behavior-release-smoke.sh` after deploys
+- run `apps/onasis-core/scripts/check-memory-context-drift.sh` for drift audits
+
 ## 🎯 Overview
 
 This guide ensures the API key management tables (`api_key_projects` and `stored_api_keys`) are properly deployed to the Neon database before deploying the service.
