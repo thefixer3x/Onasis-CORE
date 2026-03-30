@@ -11,6 +11,7 @@ function authGatewayApiKeysTable() {
 export interface ApiKey {
   id: string
   name: string
+  description?: string | null
   key?: string // Only returned on creation
   user_id: string
   access_level: string
@@ -43,6 +44,7 @@ export type ServiceScopeRateLimit = Record<string, { per_minute?: number; per_da
 interface ApiKeyRecord {
   id: string
   name: string
+  description?: string | null
   key_hash: string
   user_id: string
   access_level: string
@@ -170,6 +172,53 @@ export function normalizeScopes(scopes?: string[]): string[] {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const ALLOWED_ACCESS_LEVELS = new Set(['public', 'authenticated', 'team', 'admin', 'enterprise'])
+
+function normalizeApiKeyDescription(description?: string | null): string | null | undefined {
+  if (description === undefined) {
+    return undefined
+  }
+
+  if (description === null) {
+    return null
+  }
+
+  const normalized = description.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function resolveExpiresAt(expiresInDays?: number): string | undefined {
+  if (expiresInDays === undefined) {
+    return undefined
+  }
+
+  const parsed = Number(expiresInDays)
+  if (!Number.isFinite(parsed) || parsed <= 0 || !Number.isInteger(parsed)) {
+    throw new Error('expires_in_days must be a positive integer')
+  }
+  if (parsed > 3650) {
+    throw new Error('expires_in_days exceeds maximum allowed (3650)')
+  }
+
+  return new Date(Date.now() + parsed * 24 * 60 * 60 * 1000).toISOString()
+}
+
+function mapApiKeyRecord(record: ApiKeyRecord, serviceScopes?: ServiceScope[]): ApiKey {
+  return {
+    id: record.id,
+    name: record.name,
+    description: record.description ?? null,
+    user_id: record.user_id,
+    access_level: record.access_level,
+    permissions: record.permissions || [],
+    service: record.service || 'all',
+    service_scopes: serviceScopes,
+    expires_at: record.expires_at,
+    last_used_at: record.last_used_at,
+    created_at: record.created_at,
+    is_active: record.is_active,
+  }
+}
 
 /**
  * Create a new API key for a user
@@ -182,6 +231,7 @@ export async function createApiKey(
     name: string
     access_level?: string
     expires_in_days?: number
+    description?: string | null
     scopes?: string[]  // Scoped permissions for the API key
     organization_id?: string  // Required by security_service.api_keys FK
   }
@@ -193,27 +243,12 @@ export async function createApiKey(
     }
 
     // Validate access level
-    const allowedAccess = new Set(['public', 'authenticated', 'team', 'admin', 'enterprise'])
-    if (params.access_level && !allowedAccess.has(params.access_level)) {
+    if (params.access_level && !ALLOWED_ACCESS_LEVELS.has(params.access_level)) {
       throw new Error('Invalid access_level. Allowed: public, authenticated, team, admin, enterprise')
     }
 
     // Validate and normalize scopes
     const permissions = normalizeScopes(params.scopes)
-
-    // Validate and normalize expires_in_days
-    let expiresDays: number | undefined = undefined
-    if (params.expires_in_days !== undefined) {
-      const n = Number(params.expires_in_days)
-      if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
-        throw new Error('expires_in_days must be a positive integer')
-      }
-      // Upper bound to prevent excessively long-lived keys (10 years)
-      if (n > 3650) {
-        throw new Error('expires_in_days exceeds maximum allowed (3650)')
-      }
-      expiresDays = n
-    }
 
     // Resolve organization_id — required by security_service.api_keys (FK constraint)
     // Auth controller guarantees every issued token carries a valid org UUID.
@@ -239,14 +274,13 @@ export async function createApiKey(
     const keyHash = await hashApiKey(apiKey)
 
     // Calculate expiration date
-    let expiresAt: string | undefined
-    if (expiresDays && expiresDays > 0) {
-      expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000).toISOString()
-    }
+    const expiresAt = resolveExpiresAt(params.expires_in_days)
+    const description = normalizeApiKeyDescription(params.description)
 
     const apiKeyRecord = {
       id: crypto.randomUUID(),
       name: params.name,
+      description,
       key_hash: keyHash,
       organization_id,
       user_id,
@@ -284,16 +318,9 @@ export async function createApiKey(
     })
 
     return {
-      id: data.id,
-      name: data.name,
+      ...mapApiKeyRecord(data),
       key: apiKey, // Only returned on creation
-      user_id: data.user_id,
-      access_level: data.access_level,
       permissions: data.permissions || permissions,
-      service: data.service || 'all',
-      expires_at: data.expires_at,
-      created_at: data.created_at,
-      is_active: data.is_active,
     }
   } catch (error) {
     throw new Error(`API key creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -328,17 +355,7 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
         }
 
         return {
-          id: record.id,
-          name: record.name,
-          user_id: record.user_id,
-          access_level: record.access_level,
-          permissions: record.permissions || [],
-          service: record.service || 'all',
-          service_scopes: serviceScopes,
-          expires_at: record.expires_at,
-          last_used_at: record.last_used_at,
-          created_at: record.created_at,
-          is_active: record.is_active,
+          ...mapApiKeyRecord(record, serviceScopes),
         }
       })
     )
@@ -371,30 +388,28 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
       serviceScopes = await getApiKeyServiceScopes(key_id)
     }
 
-    return {
-      id: data.id,
-      name: data.name,
-      user_id: data.user_id,
-      access_level: data.access_level,
-      permissions: data.permissions || [],
-      service: data.service || 'all',
-      service_scopes: serviceScopes,
-      expires_at: data.expires_at,
-      last_used_at: data.last_used_at,
-      created_at: data.created_at,
-      is_active: data.is_active,
-    }
+    return mapApiKeyRecord(data, serviceScopes)
   } catch (error) {
     throw new Error(`Get API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
 /**
- * Update scopes for an existing API key
+ * Update mutable platform API key fields
  */
-  export async function updateApiKeyScopes(key_id: string, user_id: string, scopes: string[]): Promise<ApiKey> {
+export async function updateApiKey(
+  key_id: string,
+  user_id: string,
+  params: {
+    name?: string
+    description?: string | null
+    access_level?: string
+    expires_in_days?: number
+    clear_expiry?: boolean
+    scopes?: string[]
+  }
+): Promise<ApiKey> {
   try {
-    // Validate key exists
     const { data: existingKey, error: fetchError } = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
@@ -405,50 +420,121 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
       throw new Error('API key not found')
     }
 
-    // Normalize scopes
-    const permissions = normalizeScopes(scopes)
+    const updatePayload: Record<string, unknown> = {}
+    const changedFields: string[] = []
 
-    // Update permissions
+    if (params.name !== undefined) {
+      const normalizedName = params.name.trim()
+      if (normalizedName.length === 0) {
+        throw new Error('API key name is required')
+      }
+
+      if (normalizedName !== existingKey.name) {
+        const { data: duplicateByName } = await authGatewayApiKeysTable()
+          .select('id')
+          .eq('user_id', user_id)
+          .eq('name', normalizedName)
+          .eq('is_active', true)
+          .limit(1)
+
+        if (duplicateByName && duplicateByName.some((record: { id: string }) => record.id !== key_id)) {
+          throw new Error('An active API key with this name already exists')
+        }
+      }
+
+      updatePayload.name = normalizedName
+      changedFields.push('name')
+    }
+
+    if (params.description !== undefined) {
+      updatePayload.description = normalizeApiKeyDescription(params.description)
+      changedFields.push('description')
+    }
+
+    if (params.access_level !== undefined) {
+      if (!ALLOWED_ACCESS_LEVELS.has(params.access_level)) {
+        throw new Error('Invalid access_level. Allowed: public, authenticated, team, admin, enterprise')
+      }
+
+      updatePayload.access_level = params.access_level
+      changedFields.push('access_level')
+    }
+
+    if (params.clear_expiry && params.expires_in_days !== undefined) {
+      throw new Error('Cannot set expires_in_days and clear_expiry together')
+    }
+
+    if (params.clear_expiry) {
+      updatePayload.expires_at = null
+      changedFields.push('expires_at')
+    } else if (params.expires_in_days !== undefined) {
+      updatePayload.expires_at = resolveExpiresAt(params.expires_in_days)
+      changedFields.push('expires_at')
+    }
+
+    if (params.scopes !== undefined) {
+      updatePayload.permissions = normalizeScopes(params.scopes)
+      changedFields.push('permissions')
+    }
+
+    if (changedFields.length === 0) {
+      throw new Error('At least one updatable field is required')
+    }
+
     const { data: updatedKey, error: updateError } = await authGatewayApiKeysTable()
-      .update({ permissions })
+      .update(updatePayload)
       .eq('id', key_id)
       .eq('user_id', user_id)
       .select()
       .single()
 
     if (updateError || !updatedKey) {
-      throw new Error('Failed to update API key scopes')
+      throw new Error('Failed to update API key')
     }
 
     await appendEventWithOutbox({
       aggregate_type: 'api_key',
       aggregate_id: updatedKey.id,
-      event_type: 'ApiKeyScopesUpdated',
+      event_type: 'ApiKeyUpdated',
       payload: {
         user_id: updatedKey.user_id,
-        old_permissions: existingKey.permissions || [],
-        new_permissions: permissions,
+        changed_fields: changedFields,
+        previous: {
+          name: existingKey.name,
+          description: existingKey.description ?? null,
+          access_level: existingKey.access_level,
+          permissions: existingKey.permissions || [],
+          expires_at: existingKey.expires_at ?? null,
+        },
+        current: {
+          name: updatedKey.name,
+          description: updatedKey.description ?? null,
+          access_level: updatedKey.access_level,
+          permissions: updatedKey.permissions || [],
+          expires_at: updatedKey.expires_at ?? null,
+        },
       },
       metadata: {
         source: 'auth-gateway',
       },
     })
 
-    return {
-      id: updatedKey.id,
-      name: updatedKey.name,
-      user_id: updatedKey.user_id,
-      access_level: updatedKey.access_level,
-      permissions: updatedKey.permissions || permissions,
-      service: updatedKey.service || 'all',
-      expires_at: updatedKey.expires_at,
-      last_used_at: updatedKey.last_used_at,
-      created_at: updatedKey.created_at,
-      is_active: updatedKey.is_active,
+    let serviceScopes: ServiceScope[] | undefined
+    if (updatedKey.service === 'specific') {
+      serviceScopes = await getApiKeyServiceScopes(key_id)
     }
+
+    return mapApiKeyRecord(updatedKey, serviceScopes)
   } catch (error) {
-    throw new Error(`Update API key scopes failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Update API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+}
+
+/**
+ * Update scopes for an existing API key
+ */
+export async function updateApiKeyScopes(key_id: string, user_id: string, scopes: string[]): Promise<ApiKey> {
+  return updateApiKey(key_id, user_id, { scopes })
 }
 
 /**
@@ -1036,6 +1122,7 @@ export async function createApiKeyWithServiceScopes(
     name: string
     access_level?: string
     expires_in_days?: number
+    description?: string | null
     scopes?: string[] // Permission scopes (memories:read, etc.)
     service_type?: 'all' | 'specific' // External service access type
     service_keys?: string[] // If service_type = 'specific', which services
@@ -1048,6 +1135,7 @@ export async function createApiKeyWithServiceScopes(
     name: params.name,
     access_level: params.access_level,
     expires_in_days: params.expires_in_days,
+    description: params.description,
     scopes: params.scopes,
     organization_id: params.organization_id,
   })

@@ -8,6 +8,7 @@ import {
   rotateApiKey,
   revokeApiKey,
   deleteApiKey,
+  updateApiKey,
   updateApiKeyScopes,
   getUserConfiguredServices,
   setApiKeyServiceScopes,
@@ -105,6 +106,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       name,
       access_level,
       expires_in_days,
+      description,
       scopes,
       service_type,
       service_keys,
@@ -113,6 +115,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       name: string
       access_level?: string
       expires_in_days?: number
+      description?: string
       scopes?: string[]
       service_type?: 'all' | 'specific'
       service_keys?: string[]
@@ -137,6 +140,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       name: name.trim(),
       access_level,
       expires_in_days,
+      description,
       scopes,
       service_type: service_type || 'all',
       service_keys,
@@ -186,7 +190,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const { name, access_level, expires_in_days, scopes } = req.body
+    const { name, access_level, expires_in_days, description, scopes } = req.body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({
@@ -199,6 +203,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       name: name.trim(),
       access_level,
       expires_in_days,
+      description,
       scopes,
       organization_id: req.user.organizationId,
     })
@@ -274,7 +279,7 @@ router.get('/:keyId', requireAuth, async (req: Request, res: Response) => {
 
 /**
  * PUT /api/v1/auth/api-keys/:keyId
- * Update an API key's scopes/permissions
+ * Update mutable platform API key fields
  */
 router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
   if (!req.user?.sub) {
@@ -285,16 +290,44 @@ router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const { scopes } = req.body
+    const {
+      name,
+      description,
+      access_level,
+      expires_in_days,
+      clear_expiry,
+      scopes,
+    } = req.body as {
+      name?: string
+      description?: string | null
+      access_level?: string
+      expires_in_days?: number
+      clear_expiry?: boolean
+      scopes?: string[]
+    }
 
-    if (!scopes || !Array.isArray(scopes)) {
+    if (
+      name === undefined &&
+      description === undefined &&
+      access_level === undefined &&
+      expires_in_days === undefined &&
+      clear_expiry === undefined &&
+      scopes === undefined
+    ) {
       return res.status(400).json({
-        error: 'Scopes array is required',
+        error: 'At least one updatable field is required',
         code: 'INVALID_REQUEST',
       })
     }
 
-    const apiKey = await updateApiKeyScopes(getStringParam(req.params.keyId), req.user.sub, scopes)
+    const apiKey = await updateApiKey(getStringParam(req.params.keyId), req.user.sub, {
+      name,
+      description,
+      access_level,
+      expires_in_days,
+      clear_expiry,
+      scopes,
+    })
 
     return res.json({
       success: true,
@@ -308,6 +341,20 @@ router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
       return res.status(404).json({
         error: 'API key not found',
         code: 'KEY_NOT_FOUND',
+      })
+    }
+
+    if (message.includes('already exists')) {
+      return res.status(409).json({
+        error: message,
+        code: 'KEY_EXISTS',
+      })
+    }
+
+    if (message.includes('Invalid') || message.includes('must be') || message.includes('required')) {
+      return res.status(400).json({
+        error: message,
+        code: 'INVALID_REQUEST',
       })
     }
 
@@ -485,7 +532,7 @@ router.put('/:keyId/service-scopes', requireAuth, async (req: Request, res: Resp
 
     return res.status(500).json({
       error: message,
-      code: 'UPDATE_SCOPES_ERROR',
+      code: 'UPDATE_SERVICE_SCOPES_ERROR',
     })
   }
 })
