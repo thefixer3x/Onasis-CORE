@@ -1,3 +1,4 @@
+/// <reference lib="deno.ns" />
 // Shared utilities for Intelligence API Edge Functions
 // Memory-as-a-Service Intelligence Layer
 
@@ -7,6 +8,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 export interface IntelligenceRequest {
   user_id: string;
   [key: string]: unknown;
+}
+
+export type IntelligenceQueryScope =
+  | "personal"
+  | "team"
+  | "organization"
+  | "hybrid";
+
+export interface IntelligenceQueryContext {
+  organization_id?: string;
+  topic_id?: string;
+  memory_types?: string[];
+  query_scope?: IntelligenceQueryScope;
+}
+
+export interface IntelligenceAuthContext {
+  userId: string;
+  organizationId: string;
+  authSource?: string;
 }
 
 export interface IntelligenceResponse {
@@ -32,19 +52,21 @@ export interface AccessCheck {
 }
 
 // Environment
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_KEY') || Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_KEY") ||
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 // Embedding provider configuration
-type EmbeddingProvider = 'openai' | 'voyage';
-const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() || 'openai') as EmbeddingProvider;
+type EmbeddingProvider = "openai" | "voyage";
+const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() ||
+  "openai") as EmbeddingProvider;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const VOYAGE_API_KEY = Deno.env.get("VOYAGE_API_KEY");
 const AI_ROUTER_URL = Deno.env.get("AI_ROUTER_URL");
 
 // Get the appropriate API key based on provider
 function getEmbeddingApiKey(): string {
-  if (EMBEDDING_PROVIDER === 'voyage') {
+  if (EMBEDDING_PROVIDER === "voyage") {
     if (!VOYAGE_API_KEY) throw new Error("VOYAGE_API_KEY not configured");
     return VOYAGE_API_KEY;
   }
@@ -64,14 +86,62 @@ export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-api-key",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
+
+function normalizeQueryScope(input: unknown): IntelligenceQueryScope {
+  if (typeof input !== "string") return "personal";
+  const normalized = input.trim().toLowerCase();
+  if (
+    normalized === "personal" ||
+    normalized === "team" ||
+    normalized === "organization" ||
+    normalized === "hybrid"
+  ) {
+    return normalized;
+  }
+  return "personal";
+}
+
+function normalizeMemoryTypes(input: unknown): string[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+
+  const values = input
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (values.length === 0) return undefined;
+  return Array.from(new Set(values));
+}
+
+async function resolveUserOrganizationId(
+  userId: string,
+  supabase = getSupabaseClient(),
+): Promise<string | null> {
+  const { data: userData, error } = await supabase
+    .from("users")
+    .select("organization_id")
+    .eq("id", userId)
+    .single();
+
+  if (error || !userData?.organization_id) {
+    console.error(
+      "[intelligence] Failed to resolve organization for user:",
+      userId,
+      error?.message,
+    );
+    return null;
+  }
+
+  return userData.organization_id;
+}
 
 // Authenticate request and get user ID
 // Supports: API keys, auth-gateway JWTs, and Supabase JWTs
 export async function authenticateRequest(
-  req: Request
-): Promise<{ userId: string; authSource?: string } | { error: string; status: number }> {
+  req: Request,
+): Promise<IntelligenceAuthContext | { error: string; status: number }> {
   const authHeader = req.headers.get("Authorization");
   const apiKey = req.headers.get("X-API-Key");
 
@@ -89,7 +159,9 @@ export async function authenticateRequest(
   // Helper to authenticate API key via database lookup.
   // For pre-hashed keys (64 hex chars), look up by key_hash directly.
   // For raw keys, look up by the key column (legacy) or key_hash after hashing.
-  const authenticateApiKey = async (key: string): Promise<{ userId: string } | null> => {
+  const authenticateApiKey = async (
+    key: string,
+  ): Promise<IntelligenceAuthContext | null> => {
     if (/^[a-f0-9]{64}$/i.test(key)) {
       // Pre-hashed key: look up directly by key_hash
       const { data: keyData } = await supabase
@@ -97,7 +169,14 @@ export async function authenticateRequest(
         .select("user_id, is_active")
         .eq("key_hash", key.toLowerCase())
         .maybeSingle();
-      if (keyData?.is_active) return { userId: keyData.user_id };
+      if (keyData?.is_active) {
+        const organizationId = await resolveUserOrganizationId(
+          keyData.user_id,
+          supabase,
+        );
+        if (!organizationId) return null;
+        return { userId: keyData.user_id, organizationId };
+      }
       return null;
     }
     const { data: keyData } = await supabase
@@ -107,14 +186,22 @@ export async function authenticateRequest(
       .maybeSingle();
 
     if (keyData?.is_active) {
-      return { userId: keyData.user_id };
+      const organizationId = await resolveUserOrganizationId(
+        keyData.user_id,
+        supabase,
+      );
+      if (!organizationId) return null;
+      return { userId: keyData.user_id, organizationId };
     }
     return null;
   };
 
   // Helper to authenticate via auth-gateway introspection
-  const authenticateViaAuthGateway = async (token: string): Promise<{ userId: string } | null> => {
-    const authGatewayUrl = Deno.env.get("AUTH_GATEWAY_URL") || "https://auth.lanonasis.com";
+  const authenticateViaAuthGateway = async (
+    token: string,
+  ): Promise<IntelligenceAuthContext | null> => {
+    const authGatewayUrl = Deno.env.get("AUTH_GATEWAY_URL") ||
+      "https://auth.lanonasis.com";
 
     try {
       const response = await fetch(`${authGatewayUrl}/oauth/introspect`, {
@@ -130,8 +217,13 @@ export async function authenticateRequest(
 
       const userId = data.sub || data.user_id;
       if (userId) {
+        const organizationId = await resolveUserOrganizationId(
+          userId,
+          supabase,
+        );
+        if (!organizationId) return null;
         console.log(`[auth] Auth-gateway validation successful: ${userId}`);
-        return { userId };
+        return { userId, organizationId };
       }
       return null;
     } catch (error) {
@@ -141,12 +233,19 @@ export async function authenticateRequest(
   };
 
   // Helper to authenticate via Supabase JWT
-  const authenticateViaSupabase = async (token: string): Promise<{ userId: string } | null> => {
+  const authenticateViaSupabase = async (
+    token: string,
+  ): Promise<IntelligenceAuthContext | null> => {
     try {
       const { data: { user } } = await supabase.auth.getUser(token);
       if (user) {
+        const organizationId = await resolveUserOrganizationId(
+          user.id,
+          supabase,
+        );
+        if (!organizationId) return null;
         console.log(`[auth] Supabase validation successful: ${user.id}`);
-        return { userId: user.id };
+        return { userId: user.id, organizationId };
       }
       return null;
     } catch (error) {
@@ -167,7 +266,9 @@ export async function authenticateRequest(
 
     // 2. Try auth-gateway introspection first (prevents bad_jwt errors)
     const authGatewayResult = await authenticateViaAuthGateway(token);
-    if (authGatewayResult) return { ...authGatewayResult, authSource: "auth_gateway" };
+    if (authGatewayResult) {
+      return { ...authGatewayResult, authSource: "auth_gateway" };
+    }
 
     // 3. Fall back to Supabase JWT validation
     const supabaseResult = await authenticateViaSupabase(token);
@@ -183,10 +284,110 @@ export async function authenticateRequest(
   return { error: "Unauthorized", status: 401 };
 }
 
+export function resolveIntelligenceQueryContext(
+  auth: IntelligenceAuthContext,
+  body: Record<string, unknown>,
+): IntelligenceQueryContext | { error: string; status: number } {
+  const requestedOrganizationId = typeof body.organization_id === "string" &&
+      body.organization_id.trim().length > 0
+    ? body.organization_id.trim()
+    : undefined;
+
+  if (
+    requestedOrganizationId && requestedOrganizationId !== auth.organizationId
+  ) {
+    return {
+      error:
+        "Cross-organization intelligence queries are not allowed for this token",
+      status: 403,
+    };
+  }
+
+  const topicId =
+    typeof body.topic_id === "string" && body.topic_id.trim().length > 0
+      ? body.topic_id.trim()
+      : undefined;
+
+  return {
+    organization_id: requestedOrganizationId ?? auth.organizationId,
+    topic_id: topicId,
+    memory_types: normalizeMemoryTypes(
+      Array.isArray(body.memory_types)
+        ? body.memory_types
+        : typeof body.memory_type === "string"
+        ? [body.memory_type]
+        : undefined,
+    ),
+    query_scope: normalizeQueryScope(body.query_scope),
+  };
+}
+
+export function extendCacheKeyParams(
+  params: Record<string, unknown>,
+  context: IntelligenceQueryContext,
+): Record<string, unknown> {
+  return {
+    ...params,
+    organization_id: context.organization_id || null,
+    topic_id: context.topic_id || null,
+    memory_types: context.memory_types || [],
+    query_scope: context.query_scope || "personal",
+  };
+}
+
+export function applyIntelligenceMemoryContext<T>(
+  query: T,
+  auth: IntelligenceAuthContext,
+  context: IntelligenceQueryContext,
+): T {
+  let scopedQuery = query as Record<string, unknown>;
+  const scope = context.query_scope || "personal";
+  const organizationId = context.organization_id || auth.organizationId;
+
+  if ((scope === "organization" || scope === "team") && organizationId) {
+    scopedQuery =
+      (scopedQuery as { eq: (column: string, value: unknown) => unknown })
+        .eq("organization_id", organizationId) as Record<string, unknown>;
+  } else if (scope === "hybrid" && organizationId) {
+    scopedQuery = (scopedQuery as { or: (filters: string) => unknown })
+      .or(
+        `user_id.eq.${auth.userId},organization_id.eq.${organizationId}`,
+      ) as Record<string, unknown>;
+  } else {
+    scopedQuery =
+      (scopedQuery as { eq: (column: string, value: unknown) => unknown })
+        .eq("user_id", auth.userId) as Record<string, unknown>;
+
+    if (context.organization_id) {
+      scopedQuery =
+        (scopedQuery as { eq: (column: string, value: unknown) => unknown })
+          .eq("organization_id", organizationId) as Record<string, unknown>;
+    }
+  }
+
+  if (context.topic_id) {
+    scopedQuery =
+      (scopedQuery as { eq: (column: string, value: unknown) => unknown })
+        .eq("topic_id", context.topic_id) as Record<string, unknown>;
+  }
+
+  if (context.memory_types && context.memory_types.length === 1) {
+    scopedQuery =
+      (scopedQuery as { eq: (column: string, value: unknown) => unknown })
+        .eq("type", context.memory_types[0]) as Record<string, unknown>;
+  } else if (context.memory_types && context.memory_types.length > 1) {
+    scopedQuery =
+      (scopedQuery as { in: (column: string, values: unknown[]) => unknown })
+        .in("type", context.memory_types) as Record<string, unknown>;
+  }
+
+  return scopedQuery as T;
+}
+
 // Check if user has access to intelligence tool
 export async function checkIntelligenceAccess(
   userId: string,
-  toolName: string
+  toolName: string,
 ): Promise<AccessCheck> {
   const supabase = getSupabaseClient();
 
@@ -234,7 +435,7 @@ export async function logUsage(
   responseTimeMs: number,
   cacheHit: boolean,
   success: boolean,
-  errorMessage?: string
+  errorMessage?: string,
 ) {
   const supabase = getSupabaseClient();
 
@@ -250,11 +451,22 @@ export async function logUsage(
   });
 }
 
+export async function incrementIntelligenceUsage(userId: string) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.rpc("increment_intelligence_usage", {
+    p_user_id: userId,
+  });
+
+  if (error) {
+    throw new Error(`Failed to increment intelligence usage: ${error.message}`);
+  }
+}
+
 // Generate cache key
 export function generateCacheKey(
   userId: string,
   toolName: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
 ): string {
   const paramStr = JSON.stringify(params, Object.keys(params).sort());
   return `${userId}:${toolName}:${btoa(paramStr).slice(0, 64)}`;
@@ -262,7 +474,7 @@ export function generateCacheKey(
 
 // Check cache
 export async function checkCache(
-  cacheKey: string
+  cacheKey: string,
 ): Promise<{ hit: boolean; data?: unknown }> {
   const supabase = getSupabaseClient();
 
@@ -293,7 +505,7 @@ export async function setCache(
   userId: string,
   result: unknown,
   tokensSaved: number = 0,
-  ttlHours: number = 24
+  ttlHours: number = 24,
 ) {
   const supabase = getSupabaseClient();
 
@@ -314,16 +526,16 @@ export async function setCache(
 // AI chat completion - uses AI Router if configured, otherwise OpenAI
 export async function chatCompletion(
   messages: Array<{ role: string; content: string }>,
-  model: string = "gpt-4o-mini"
+  model: string = "gpt-4o-mini",
 ): Promise<{ content: string; tokensUsed: number; cost: number }> {
   // Use AI Router if URL configured
   if (AI_ROUTER_URL) {
     const url = `${AI_ROUTER_URL}/api/v1/ai-chat`;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
-    headers['X-Use-Case'] = 'memory-analysis';
-    
+    headers["X-Use-Case"] = "memory-analysis";
+
     const body = {
       messages,
       temperature: 0.7,
@@ -331,18 +543,20 @@ export async function chatCompletion(
     };
 
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: JSON.stringify(body),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`AI Router error: ${response.status} ${response.statusText} - ${errorText}`);
+      throw new Error(
+        `AI Router error: ${response.status} ${response.statusText} - ${errorText}`,
+      );
     }
 
-     const data = await response.json();
-     const content = data.response || data.message?.content || '';
+    const data = await response.json();
+    const content = data.response || data.message?.content || "";
     const inputTokens = data.usage?.prompt_tokens || 0;
     const outputTokens = data.usage?.completion_tokens || 0;
     // Cost not provided by AI Router; default to 0 (vendor pricing not exposed)
@@ -357,7 +571,9 @@ export async function chatCompletion(
 
   // Fallback to OpenAI
   if (!OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY not configured for chat completions (AI Router not configured)");
+    throw new Error(
+      "OPENAI_API_KEY not configured for chat completions (AI Router not configured)",
+    );
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -395,9 +611,16 @@ export async function chatCompletion(
 
 // Provider-aware embedding generation
 export async function generateEmbedding(
-  text: string
-): Promise<{ embedding: number[]; cost: number; provider: EmbeddingProvider; dimensions: number }> {
-  if (EMBEDDING_PROVIDER === 'voyage') {
+  text: string,
+): Promise<
+  {
+    embedding: number[];
+    cost: number;
+    provider: EmbeddingProvider;
+    dimensions: number;
+  }
+> {
+  if (EMBEDDING_PROVIDER === "voyage") {
     return generateVoyageEmbedding(text);
   }
   return generateOpenAIEmbedding(text);
@@ -405,8 +628,15 @@ export async function generateEmbedding(
 
 // OpenAI embedding
 async function generateOpenAIEmbedding(
-  text: string
-): Promise<{ embedding: number[]; cost: number; provider: EmbeddingProvider; dimensions: number }> {
+  text: string,
+): Promise<
+  {
+    embedding: number[];
+    cost: number;
+    provider: EmbeddingProvider;
+    dimensions: number;
+  }
+> {
   const apiKey = getEmbeddingApiKey();
 
   const response = await fetch("https://api.openai.com/v1/embeddings", {
@@ -435,15 +665,22 @@ async function generateOpenAIEmbedding(
   return {
     embedding,
     cost,
-    provider: 'openai',
+    provider: "openai",
     dimensions: embedding.length,
   };
 }
 
 // Voyage AI embedding
 async function generateVoyageEmbedding(
-  text: string
-): Promise<{ embedding: number[]; cost: number; provider: EmbeddingProvider; dimensions: number }> {
+  text: string,
+): Promise<
+  {
+    embedding: number[];
+    cost: number;
+    provider: EmbeddingProvider;
+    dimensions: number;
+  }
+> {
   const apiKey = getEmbeddingApiKey();
   const model = Deno.env.get("VOYAGE_MODEL") || "voyage-4";
 
@@ -473,7 +710,7 @@ async function generateVoyageEmbedding(
   return {
     embedding,
     cost,
-    provider: 'voyage',
+    provider: "voyage",
     dimensions: embedding.length,
   };
 }
@@ -496,7 +733,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 // Standard error response
 export function errorResponse(
   message: string,
-  status: number = 400
+  status: number = 400,
 ): Response {
   return new Response(
     JSON.stringify({
@@ -506,7 +743,7 @@ export function errorResponse(
     {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
+    },
   );
 }
 
@@ -514,7 +751,7 @@ export function errorResponse(
 export function successResponse(
   data: unknown,
   usage?: { tokens_used: number; cost_usd: number; cached: boolean },
-  tierInfo?: { tier: string; usage_remaining: number }
+  tierInfo?: { tier: string; usage_remaining: number },
 ): Response {
   return new Response(
     JSON.stringify({
@@ -526,14 +763,14 @@ export function successResponse(
     {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
+    },
   );
 }
 
 // Premium upgrade required response
 export function premiumRequiredResponse(
   reason: string,
-  currentTier?: string
+  currentTier?: string,
 ): Response {
   return new Response(
     JSON.stringify({
@@ -546,6 +783,6 @@ export function premiumRequiredResponse(
     {
       status: 403,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
+    },
   );
 }

@@ -11,6 +11,9 @@ import {
   generateCacheKey,
   checkCache,
   setCache,
+  resolveIntelligenceQueryContext,
+  extendCacheKeyParams,
+  applyIntelligenceMemoryContext,
   chatCompletion,
   getSupabaseClient,
   errorResponse,
@@ -24,6 +27,11 @@ interface ExtractInsightsRequest {
   memory_ids?: string[];
   topic?: string;
   time_range_days?: number;
+  memory_type?: string;
+  memory_types?: string[];
+  organization_id?: string;
+  topic_id?: string;
+  query_scope?: "personal" | "team" | "organization" | "hybrid";
   insight_types?: Array<"themes" | "connections" | "gaps" | "actions" | "summary">;
   detail_level?: "brief" | "detailed" | "comprehensive";
 }
@@ -60,6 +68,10 @@ Deno.serve(async (req) => {
     }
 
     const body: ExtractInsightsRequest = await req.json().catch(() => ({}));
+    const context = resolveIntelligenceQueryContext(auth, body as Record<string, unknown>);
+    if ("error" in context) {
+      return errorResponse(context.error, context.status);
+    }
     const insightTypes = body.insight_types || ["themes", "connections", "actions"];
     const detailLevel = body.detail_level || "detailed";
     const timeRangeDays = body.time_range_days || 30;
@@ -69,11 +81,12 @@ Deno.serve(async (req) => {
     // Fetch memories
     let memories;
     if (body.memory_ids && body.memory_ids.length > 0) {
-      const { data } = await supabase
+      let memoryIdsQuery = supabase
         .from("memory_entries")
         .select("id, title, content, type, tags, created_at")
-        .eq("user_id", userId)
         .in("id", body.memory_ids);
+      memoryIdsQuery = applyIntelligenceMemoryContext(memoryIdsQuery, auth, context);
+      const { data } = await memoryIdsQuery;
       memories = data;
     } else {
       const cutoffDate = new Date();
@@ -82,10 +95,9 @@ Deno.serve(async (req) => {
       let query = supabase
         .from("memory_entries")
         .select("id, title, content, type, tags, created_at")
-        .eq("user_id", userId)
-        .gte("created_at", cutoffDate.toISOString())
-        .order("created_at", { ascending: false })
-        .limit(50);
+        .gte("created_at", cutoffDate.toISOString());
+
+      query = applyIntelligenceMemoryContext(query, auth, context);
 
       if (body.topic) {
         query = query.or(
@@ -93,7 +105,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const { data } = await query;
+      const { data } = await query.order("created_at", { ascending: false }).limit(50);
       memories = data;
     }
 
@@ -105,12 +117,19 @@ Deno.serve(async (req) => {
     }
 
     // Check cache
-    const cacheKey = generateCacheKey(userId, TOOL_NAME, {
-      memoryCount: memories.length,
-      types: insightTypes,
-      level: detailLevel,
-      topic: body.topic,
-    });
+    const cacheKey = generateCacheKey(
+      userId,
+      TOOL_NAME,
+      extendCacheKeyParams(
+        {
+          memoryCount: memories.length,
+          types: insightTypes,
+          level: detailLevel,
+          topic: body.topic,
+        },
+        context,
+      ),
+    );
     const cached = await checkCache(cacheKey);
 
     if (cached.hit) {
@@ -203,7 +222,11 @@ Return as JSON:
       insights = insights.map((insight) => ({
         ...insight,
         related_memory_ids: insight.related_memory_ids
-          ?.map((idx: number) => memories[idx - 1]?.id)
+          ?.map((idx) => {
+            const numericIndex =
+              typeof idx === "number" ? idx : typeof idx === "string" ? Number(idx) : NaN;
+            return Number.isFinite(numericIndex) ? memories[numericIndex - 1]?.id : undefined;
+          })
           .filter(Boolean),
       }));
     } catch {

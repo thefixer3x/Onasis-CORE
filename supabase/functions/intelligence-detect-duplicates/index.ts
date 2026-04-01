@@ -11,6 +11,9 @@ import {
   generateCacheKey,
   checkCache,
   setCache,
+  resolveIntelligenceQueryContext,
+  extendCacheKeyParams,
+  applyIntelligenceMemoryContext,
   generateEmbedding,
   cosineSimilarity,
   getSupabaseClient,
@@ -25,6 +28,11 @@ interface DetectDuplicatesRequest {
   similarity_threshold?: number;
   include_archived?: boolean;
   limit?: number;
+  organization_id?: string;
+  topic_id?: string;
+  memory_type?: string;
+  memory_types?: string[];
+  query_scope?: "personal" | "team" | "organization" | "hybrid";
 }
 
 interface DuplicateGroup {
@@ -64,15 +72,26 @@ Deno.serve(async (req) => {
     }
 
     const body: DetectDuplicatesRequest = await req.json().catch(() => ({}));
+    const context = resolveIntelligenceQueryContext(auth, body as Record<string, unknown>);
+    if ("error" in context) {
+      return errorResponse(context.error, context.status);
+    }
     const threshold = body.similarity_threshold || 0.85;
     const includeArchived = body.include_archived || false;
     const limit = Math.min(body.limit || 20, 50);
 
     // Check cache
-    const cacheKey = generateCacheKey(userId, TOOL_NAME, {
-      threshold,
-      includeArchived,
-    });
+    const cacheKey = generateCacheKey(
+      userId,
+      TOOL_NAME,
+      extendCacheKeyParams(
+        {
+          threshold,
+          includeArchived,
+        },
+        context,
+      ),
+    );
     const cached = await checkCache(cacheKey);
 
     if (cached.hit) {
@@ -89,10 +108,10 @@ Deno.serve(async (req) => {
 
     // Fetch memories
     // Note: is_archived column not in production schema
-    const query = supabase
+    let query = supabase
       .from("memory_entries")
       .select("id, title, content, type, tags, embedding, created_at")
-      .eq("user_id", userId);
+    query = applyIntelligenceMemoryContext(query, auth, context);
 
     const { data: memories, error: fetchError } = await query.order("created_at", {
       ascending: false,

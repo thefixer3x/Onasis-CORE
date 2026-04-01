@@ -2,7 +2,7 @@
 
 **Base URL:** `https://mxtsdgkwzjzlttpotole.supabase.co`
 **Project Ref:** `mxtsdgkwzjzlttpotole`
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-04-01
 
 > **Note:** These routes bypass Netlify routing and connect directly to Supabase.
 > For production use via `api.lanonasis.com`, see the `_redirects` configuration.
@@ -145,16 +145,19 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-bulk-delete" \
 
 ---
 
-### Intelligence API (2025-12-26)
+### Intelligence API (2026-04-01)
 
 | Function                         | Method | URL                                            | Auth | Description                       |
 | -------------------------------- | ------ | ---------------------------------------------- | ---- | --------------------------------- |
+| `intelligence-memories`          | GET/POST | `/functions/v1/intelligence-memories`        | ✅   | Context-aware intelligence memory query |
 | `intelligence-health-check`      | GET    | `/functions/v1/intelligence-health-check`      | ❌   | Intelligence API health           |
 | `intelligence-suggest-tags`      | POST   | `/functions/v1/intelligence-suggest-tags`      | ✅   | AI-powered tag suggestions        |
 | `intelligence-find-related`      | POST   | `/functions/v1/intelligence-find-related`      | ✅   | Find related memories             |
 | `intelligence-detect-duplicates` | POST   | `/functions/v1/intelligence-detect-duplicates` | ✅   | Detect duplicate content          |
 | `intelligence-extract-insights`  | POST   | `/functions/v1/intelligence-extract-insights`  | ✅   | Extract key insights from content |
 | `intelligence-analyze-patterns`  | POST   | `/functions/v1/intelligence-analyze-patterns`  | ✅   | Analyze usage patterns            |
+| `intelligence-predictive-recall` | POST   | `/functions/v1/intelligence-predictive-recall` | ✅   | Predict likely-useful memories    |
+| `intelligence-prediction-feedback` | POST | `/functions/v1/intelligence-prediction-feedback` | ✅ | Record user feedback on predictions |
 
 ---
 

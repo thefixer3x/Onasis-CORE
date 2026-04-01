@@ -11,6 +11,9 @@ import {
   generateCacheKey,
   checkCache,
   setCache,
+  resolveIntelligenceQueryContext,
+  extendCacheKeyParams,
+  applyIntelligenceMemoryContext,
   generateEmbedding,
   cosineSimilarity,
   getSupabaseClient,
@@ -27,6 +30,11 @@ interface FindRelatedRequest {
   limit?: number;
   similarity_threshold?: number;
   exclude_ids?: string[];
+  organization_id?: string;
+  topic_id?: string;
+  memory_type?: string;
+  memory_types?: string[];
+  query_scope?: "personal" | "team" | "organization" | "hybrid";
 }
 
 Deno.serve(async (req) => {
@@ -54,6 +62,10 @@ Deno.serve(async (req) => {
     }
 
     const body: FindRelatedRequest = await req.json().catch(() => ({}));
+    const context = resolveIntelligenceQueryContext(auth, body as Record<string, unknown>);
+    if ("error" in context) {
+      return errorResponse(context.error, context.status);
+    }
     const limit = Math.min(body.limit || 5, 20);
     const threshold = body.similarity_threshold || 0.7;
     const excludeIds = body.exclude_ids || [];
@@ -64,12 +76,14 @@ Deno.serve(async (req) => {
 
     // If memory_id provided, use its content as query
     if (sourceMemoryId && !queryText) {
-      const { data: sourceMemory } = await supabase
+      let sourceMemoryQuery = supabase
         .from("memory_entries")
         .select("title, content")
-        .eq("id", sourceMemoryId)
-        .eq("user_id", userId)
-        .single();
+        .eq("id", sourceMemoryId);
+
+      sourceMemoryQuery = applyIntelligenceMemoryContext(sourceMemoryQuery, auth, context);
+
+      const { data: sourceMemory } = await sourceMemoryQuery.single();
 
       if (!sourceMemory) {
         return errorResponse("Source memory not found", 404);
@@ -84,11 +98,18 @@ Deno.serve(async (req) => {
     }
 
     // Check cache
-    const cacheKey = generateCacheKey(userId, TOOL_NAME, {
-      query: queryText.slice(0, 100),
-      limit,
-      threshold,
-    });
+    const cacheKey = generateCacheKey(
+      userId,
+      TOOL_NAME,
+      extendCacheKeyParams(
+        {
+          query: queryText.slice(0, 100),
+          limit,
+          threshold,
+        },
+        context,
+      ),
+    );
     const cached = await checkCache(cacheKey);
 
     if (cached.hit) {
@@ -107,12 +128,14 @@ Deno.serve(async (req) => {
     );
 
     // Try vector search with pgvector (if embeddings exist)
-    const { data: memoriesWithEmbeddings } = await supabase
+    let embeddingsQuery = supabase
       .from("memory_entries")
       .select("id, title, content, type, tags, embedding, created_at")
-      .eq("user_id", userId)
-      .not("embedding", "is", null)
-      .limit(100);
+      .not("embedding", "is", null);
+
+    embeddingsQuery = applyIntelligenceMemoryContext(embeddingsQuery, auth, context);
+
+    const { data: memoriesWithEmbeddings } = await embeddingsQuery.limit(100);
 
     let results: Array<{
       id: string;
@@ -151,12 +174,18 @@ Deno.serve(async (req) => {
         .filter((w) => w.length > 3)
         .slice(0, 10);
 
-      const { data: fallbackMemories } = await supabase
+      let fallbackQuery = supabase
         .from("memory_entries")
         .select("id, title, content, type, tags, created_at")
-        .eq("user_id", userId)
-        .not("id", "in", `(${excludeIds.join(",")})`)
         .limit(50);
+
+      fallbackQuery = applyIntelligenceMemoryContext(fallbackQuery, auth, context);
+
+      if (excludeIds.length > 0) {
+        fallbackQuery = fallbackQuery.not("id", "in", `(${excludeIds.join(",")})`);
+      }
+
+      const { data: fallbackMemories } = await fallbackQuery;
 
       if (fallbackMemories) {
         results = fallbackMemories

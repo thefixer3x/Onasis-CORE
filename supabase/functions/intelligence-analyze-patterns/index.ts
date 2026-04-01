@@ -11,6 +11,9 @@ import {
   generateCacheKey,
   checkCache,
   setCache,
+  resolveIntelligenceQueryContext,
+  extendCacheKeyParams,
+  applyIntelligenceMemoryContext,
   chatCompletion,
   getSupabaseClient,
   errorResponse,
@@ -24,6 +27,11 @@ interface AnalyzePatternsRequest {
   time_range_days?: number;
   include_insights?: boolean;
   response_format?: "json" | "markdown";
+  organization_id?: string;
+  topic_id?: string;
+  memory_type?: string;
+  memory_types?: string[];
+  query_scope?: "personal" | "team" | "organization" | "hybrid";
 }
 
 Deno.serve(async (req) => {
@@ -55,15 +63,26 @@ Deno.serve(async (req) => {
 
     // Parse request
     const body: AnalyzePatternsRequest = await req.json().catch(() => ({}));
+    const context = resolveIntelligenceQueryContext(auth, body as Record<string, unknown>);
+    if ("error" in context) {
+      return errorResponse(context.error, context.status);
+    }
     const timeRangeDays = body.time_range_days || 30;
     const includeInsights = body.include_insights !== false;
     const responseFormat = body.response_format || "json";
 
     // Check cache
-    const cacheKey = generateCacheKey(userId, TOOL_NAME, {
-      timeRangeDays,
-      includeInsights,
-    });
+    const cacheKey = generateCacheKey(
+      userId,
+      TOOL_NAME,
+      extendCacheKeyParams(
+        {
+          timeRangeDays,
+          includeInsights,
+        },
+        context,
+      ),
+    );
     const cached = await checkCache(cacheKey);
 
     if (cached.hit) {
@@ -82,12 +101,16 @@ Deno.serve(async (req) => {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - timeRangeDays);
 
-    const { data: memories, error: fetchError } = await supabase
+    let memoriesQuery = supabase
       .from("memory_entries")
       .select("id, title, content, type, tags, created_at, access_count")
-      .eq("user_id", userId)
-      .gte("created_at", cutoffDate.toISOString())
-      .order("created_at", { ascending: false });
+      .gte("created_at", cutoffDate.toISOString());
+
+    memoriesQuery = applyIntelligenceMemoryContext(memoriesQuery, auth, context);
+
+    const { data: memories, error: fetchError } = await memoriesQuery.order("created_at", {
+      ascending: false,
+    });
 
     if (fetchError) {
       return errorResponse("Failed to fetch memories: " + fetchError.message);

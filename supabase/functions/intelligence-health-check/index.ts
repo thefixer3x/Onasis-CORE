@@ -11,6 +11,9 @@ import {
   generateCacheKey,
   checkCache,
   setCache,
+  resolveIntelligenceQueryContext,
+  extendCacheKeyParams,
+  applyIntelligenceMemoryContext,
   chatCompletion,
   getSupabaseClient,
   errorResponse,
@@ -23,6 +26,11 @@ const TOOL_NAME = "health_check";
 interface HealthCheckRequest {
   include_recommendations?: boolean;
   detailed_breakdown?: boolean;
+  organization_id?: string;
+  topic_id?: string;
+  memory_type?: string;
+  memory_types?: string[];
+  query_scope?: "personal" | "team" | "organization" | "hybrid";
 }
 
 interface HealthScore {
@@ -69,14 +77,25 @@ Deno.serve(async (req) => {
     }
 
     const body: HealthCheckRequest = await req.json().catch(() => ({}));
+    const context = resolveIntelligenceQueryContext(auth, body as Record<string, unknown>);
+    if ("error" in context) {
+      return errorResponse(context.error, context.status);
+    }
     const includeRecommendations = body.include_recommendations !== false;
     const detailedBreakdown = body.detailed_breakdown !== false;
 
     // Check cache (short TTL for health checks)
-    const cacheKey = generateCacheKey(userId, TOOL_NAME, {
-      recommendations: includeRecommendations,
-      detailed: detailedBreakdown,
-    });
+    const cacheKey = generateCacheKey(
+      userId,
+      TOOL_NAME,
+      extendCacheKeyParams(
+        {
+          recommendations: includeRecommendations,
+          detailed: detailedBreakdown,
+        },
+        context,
+      ),
+    );
     const cached = await checkCache(cacheKey);
 
     if (cached.hit) {
@@ -92,11 +111,14 @@ Deno.serve(async (req) => {
     const supabase = getSupabaseClient();
 
     // Fetch all memories for analysis
-    const { data: memories, error: fetchError } = await supabase
+    let memoriesQuery = supabase
       .from("memory_entries")
       .select("id, title, content, type, tags, created_at, updated_at, access_count")
-      .eq("user_id", userId)
       .order("created_at", { ascending: false });
+
+    memoriesQuery = applyIntelligenceMemoryContext(memoriesQuery, auth, context);
+
+    const { data: memories, error: fetchError } = await memoriesQuery;
 
     if (fetchError) {
       return errorResponse("Failed to fetch memories: " + fetchError.message);

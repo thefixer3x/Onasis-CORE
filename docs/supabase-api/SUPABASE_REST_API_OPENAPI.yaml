@@ -59,7 +59,7 @@ tags:
   - name: Memories
     description: Memory management operations (9 tools including stats and bulk operations)
   - name: Intelligence
-    description: AI-powered memory intelligence and analytics (6 tools)
+    description: AI-powered memory intelligence and analytics (9 tools)
   - name: API Keys
     description: API key management (5 tools)
   - name: Projects
@@ -430,6 +430,94 @@ paths:
         '429':
           $ref: '#/components/responses/RateLimitError'
 
+  /intelligence/memories:
+    get:
+      tags:
+        - Intelligence
+      summary: Query Memories for Intelligence
+      description: |
+        Query memories through the intelligence layer with additive context controls.
+        Supports personal, organization, and hybrid memory scopes without changing the
+        underlying storage contract.
+      operationId: intelligenceQueryMemories
+      parameters:
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemoryType'
+        - name: organization_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: topic_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: query_scope
+          in: query
+          schema:
+            $ref: '#/components/schemas/MemoryQueryScope'
+        - name: memory_types
+          in: query
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/MemoryType'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Scoped memory query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceMemoriesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags:
+        - Intelligence
+      summary: Query Memories for Intelligence
+      description: |
+        POST variant of the intelligence memory query route for clients that prefer
+        JSON bodies over query strings.
+      operationId: intelligenceQueryMemoriesPost
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntelligenceMemoriesRequest'
+      responses:
+        '200':
+          description: Scoped memory query results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceMemoriesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
   /intelligence/suggest-tags:
     post:
       tags:
@@ -582,6 +670,64 @@ paths:
           $ref: '#/components/responses/UnauthorizedError'
         '403':
           $ref: '#/components/responses/PremiumRequiredError'
+
+  /intelligence/predictive-recall:
+    post:
+      tags:
+        - Intelligence
+      summary: Predictive Recall
+      description: |
+        Predict likely-useful memories from the current task context using embeddings,
+        recency, and usage-frequency scoring. Suggestions are also persisted into the
+        predictive suggestions table for later feedback.
+      operationId: predictiveRecall
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictiveRecallRequest'
+      responses:
+        '200':
+          description: Predictive recall results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictiveRecallResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/PremiumRequiredError'
+
+  /intelligence/prediction-feedback:
+    post:
+      tags:
+        - Intelligence
+      summary: Record Prediction Feedback
+      description: |
+        Record whether a predictive suggestion was useful, dismissed, ignored, or saved.
+        Feedback is stored against the predictive suggestions table and successful
+        engagements also update the memory access counters.
+      operationId: recordPredictionFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictionFeedbackRequest'
+      responses:
+        '200':
+          description: Feedback recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionFeedbackResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 
   /intelligence/behavior-record:
     post:
@@ -1017,6 +1163,10 @@ components:
     MemoryType:
       type: string
       enum: [context, project, knowledge, reference, personal, workflow]
+
+    MemoryQueryScope:
+      type: string
+      enum: [personal, team, organization, hybrid]
 
     WriteIntent:
       type: string
@@ -1766,6 +1916,71 @@ components:
         tier_info:
           $ref: '#/components/schemas/TierInfo'
 
+    IntelligenceMemoriesRequest:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: Authenticated user ID for compatibility with the SDK contract
+        type:
+          $ref: '#/components/schemas/MemoryType'
+        organization_id:
+          type: string
+          format: uuid
+        topic_id:
+          type: string
+          format: uuid
+        query_scope:
+          $ref: '#/components/schemas/MemoryQueryScope'
+        memory_types:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryType'
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 100
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+
+    IntelligenceMemoriesResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            memories:
+              type: array
+              items:
+                $ref: '#/components/schemas/Memory'
+            total_memories:
+              type: integer
+            limit:
+              type: integer
+            offset:
+              type: integer
+            has_more:
+              type: boolean
+            query_scope:
+              $ref: '#/components/schemas/MemoryQueryScope'
+            organization_id:
+              type: string
+              format: uuid
+            topic_id:
+              type: string
+              format: uuid
+              nullable: true
+            memory_types:
+              type: array
+              items:
+                $ref: '#/components/schemas/MemoryType'
+
     SuggestTagsRequest:
       type: object
       properties:
@@ -2129,6 +2344,221 @@ components:
           $ref: '#/components/schemas/IntelligenceMeta'
         tier_info:
           $ref: '#/components/schemas/TierInfo'
+
+    PredictiveContext:
+      type: object
+      properties:
+        currentProject:
+          type: string
+        recentTopics:
+          type: array
+          items:
+            type: string
+        activeFiles:
+          type: array
+          items:
+            type: string
+        contextText:
+          type: string
+        teamContext:
+          type: string
+
+    PredictiveRecallRequest:
+      type: object
+      required:
+        - userId
+        - context
+      properties:
+        userId:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        topicId:
+          type: string
+          format: uuid
+        queryScope:
+          $ref: '#/components/schemas/MemoryQueryScope'
+        memoryTypes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryType'
+        context:
+          $ref: '#/components/schemas/PredictiveContext'
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+        minConfidence:
+          type: number
+          minimum: 0
+          maximum: 100
+          default: 40
+        includeSerendipity:
+          type: boolean
+          default: true
+        timeWindowDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 90
+        responseFormat:
+          type: string
+          enum: [json, markdown]
+          default: markdown
+
+    PredictiveRecallResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            predictions:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  title:
+                    type: string
+                  type:
+                    $ref: '#/components/schemas/MemoryType'
+                  tags:
+                    type: array
+                    items:
+                      type: string
+                  contentPreview:
+                    type: string
+                  confidence:
+                    type: number
+                  reason:
+                    type: string
+                  reasonType:
+                    type: string
+                    enum: [semantic_match, recent_related, team_trending, adjacent_discovery, frequently_used]
+                  scoreBreakdown:
+                    type: object
+                    properties:
+                      semanticScore:
+                        type: number
+                      temporalScore:
+                        type: number
+                      frequencyScore:
+                        type: number
+                      serendipityScore:
+                        type: number
+                      combinedScore:
+                        type: number
+                  daysSinceCreated:
+                    type: integer
+                  daysSinceAccessed:
+                    type: integer
+                  suggestedAction:
+                    type: string
+                    enum: [review, apply, reference, explore]
+                  relatedTopics:
+                    type: array
+                    items:
+                      type: string
+            totalPredictions:
+              type: integer
+            memoriesAnalyzed:
+              type: integer
+            contextUsed:
+              type: object
+              properties:
+                projectContext:
+                  type: boolean
+                topicsContext:
+                  type: boolean
+                filesContext:
+                  type: boolean
+                textContext:
+                  type: boolean
+                teamContext:
+                  type: boolean
+            scoringWeights:
+              type: object
+              properties:
+                semantic:
+                  type: number
+                temporal:
+                  type: number
+                frequency:
+                  type: number
+                serendipity:
+                  type: number
+            algorithmInfo:
+              type: object
+              properties:
+                version:
+                  type: string
+                embeddingModel:
+                  type: string
+                timeWindowDays:
+                  type: integer
+            generatedAt:
+              type: string
+              format: date-time
+        meta:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    PredictionFeedbackRequest:
+      type: object
+      required:
+        - memoryId
+        - userId
+        - useful
+        - action
+      properties:
+        memoryId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        useful:
+          type: boolean
+        action:
+          type: string
+          enum: [clicked, saved, dismissed, ignored]
+        dismissReason:
+          type: string
+          enum: [not_relevant, already_know, not_now, other]
+
+    PredictionFeedbackResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            recorded:
+              type: boolean
+            memory_id:
+              type: string
+              format: uuid
+            action:
+              type: string
+              enum: [clicked, saved, dismissed, ignored]
+            useful:
+              type: boolean
+            stored_suggestion_id:
+              type: string
+              format: uuid
+              nullable: true
+            feedback_at:
+              type: string
+              format: date-time
 
     # Shared Intelligence Schemas
     IntelligenceMeta:

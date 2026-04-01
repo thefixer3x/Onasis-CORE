@@ -11,6 +11,9 @@ import {
   generateCacheKey,
   checkCache,
   setCache,
+  resolveIntelligenceQueryContext,
+  extendCacheKeyParams,
+  applyIntelligenceMemoryContext,
   chatCompletion,
   getSupabaseClient,
   errorResponse,
@@ -26,6 +29,11 @@ interface SuggestTagsRequest {
   title?: string;
   existing_tags?: string[];
   max_suggestions?: number;
+  organization_id?: string;
+  topic_id?: string;
+  memory_type?: string;
+  memory_types?: string[];
+  query_scope?: "personal" | "team" | "organization" | "hybrid";
 }
 
 Deno.serve(async (req) => {
@@ -53,6 +61,10 @@ Deno.serve(async (req) => {
     }
 
     const body: SuggestTagsRequest = await req.json().catch(() => ({}));
+    const context = resolveIntelligenceQueryContext(auth, body as Record<string, unknown>);
+    if ("error" in context) {
+      return errorResponse(context.error, context.status);
+    }
     const maxSuggestions = Math.min(body.max_suggestions || 5, 10);
 
     let content = body.content;
@@ -62,12 +74,14 @@ Deno.serve(async (req) => {
     // If memory_id provided, fetch the memory
     if (body.memory_id && !content) {
       const supabase = getSupabaseClient();
-      const { data: memory } = await supabase
+      let memoryQuery = supabase
         .from("memory_entries")
         .select("title, content, tags")
-        .eq("id", body.memory_id)
-        .eq("user_id", userId)
-        .single();
+        .eq("id", body.memory_id);
+
+      memoryQuery = applyIntelligenceMemoryContext(memoryQuery, auth, context);
+
+      const { data: memory } = await memoryQuery.single();
 
       if (memory) {
         content = memory.content;
@@ -83,10 +97,17 @@ Deno.serve(async (req) => {
     }
 
     // Check cache
-    const cacheKey = generateCacheKey(userId, TOOL_NAME, {
-      content: content.slice(0, 200),
-      existingTags,
-    });
+    const cacheKey = generateCacheKey(
+      userId,
+      TOOL_NAME,
+      extendCacheKeyParams(
+        {
+          content: content.slice(0, 200),
+          existingTags,
+        },
+        context,
+      ),
+    );
     const cached = await checkCache(cacheKey);
 
     if (cached.hit) {
@@ -101,11 +122,14 @@ Deno.serve(async (req) => {
 
     // Fetch user's existing tags for context
     const supabase = getSupabaseClient();
-    const { data: userTags } = await supabase
+    let userTagsQuery = supabase
       .from("memory_entries")
       .select("tags")
-      .eq("user_id", userId)
       .not("tags", "is", null);
+
+    userTagsQuery = applyIntelligenceMemoryContext(userTagsQuery, auth, context);
+
+    const { data: userTags } = await userTagsQuery;
 
     const allUserTags = new Set<string>();
     userTags?.forEach((m) => m.tags?.forEach((t: string) => allUserTags.add(t)));

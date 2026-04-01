@@ -171,11 +171,14 @@
 
 /api/v1/intelligence/health-check       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-health-check       200!
 /api/v1/intelligence/health             https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-health-check       200!
+/api/v1/intelligence/memories           https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-memories           200!
 /api/v1/intelligence/suggest-tags       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-suggest-tags       200!
 /api/v1/intelligence/find-related       https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-find-related       200!
 /api/v1/intelligence/detect-duplicates  https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-detect-duplicates  200!
 /api/v1/intelligence/extract-insights   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-extract-insights   200!
 /api/v1/intelligence/analyze-patterns   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-analyze-patterns   200!
+/api/v1/intelligence/predictive-recall  https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-predictive-recall  200!
+/api/v1/intelligence/prediction-feedback https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-prediction-feedback 200!
 
 # Behavior Intelligence (v2.0) - Workflow pattern learning
 /api/v1/intelligence/behavior-record    https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-record    200!
