@@ -1,15 +1,10 @@
-import pg from 'pg';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '../config/env.js';
-const { Pool } = pg;
-/**
- * PostgreSQL Connection Pool
- * Configured for Supabase Pooler (pgbouncer mode)
- *
- * Important: When using Supabase Transaction Pooler (port 6543):
- * - Prepared statements are disabled (pgbouncer compatibility)
- * - Connection pooling is handled by Supabase
- */
+// The active write target is the auth-gateway database behind DATABASE_URL.
+// We keep the serverless Postgres driver because it matches the deployed connection shape.
+neonConfig.webSocketConstructor = ws;
 export const dbPool = new Pool({
     connectionString: env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
@@ -17,39 +12,33 @@ export const dbPool = new Pool({
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
 });
-export const supabaseAdmin = createClient(
-    env.SUPABASE_URL || '',
-    env.SUPABASE_SERVICE_ROLE_KEY || '',
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        },
-        db: {
-            schema: 'public',
-        },
-    }
-);
-
+export const supabaseAdmin = createClient(env.SUPABASE_URL || '', env.SUPABASE_SERVICE_ROLE_KEY || '', {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+    db: {
+        schema: 'public',
+    },
+});
 /**
- * Supabase Auth Client - connects to Main DB (mxtsd...)
- * Used for: User authentication (signInWithPassword, signUp, etc.)
- * This is needed because users are registered in Main DB, not Auth-Gateway DB
+ * Main DB Supabase client (for event projection and user data)
+ * Uses MAIN_SUPABASE_URL if available, otherwise falls back to SUPABASE_URL
  */
-export const supabaseAuth = createClient(
-    env.MAIN_SUPABASE_URL || env.SUPABASE_URL || '',
-    env.MAIN_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
-    {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
-        },
-    }
-);
-
-// Alias for compatibility with newer auth middleware
-export const supabaseUsers = supabaseAuth;
-
+export const supabaseUsers = createClient(env.MAIN_SUPABASE_URL || env.SUPABASE_URL || '', env.MAIN_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '', {
+    auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+    },
+    db: {
+        schema: 'public',
+    },
+});
+/**
+ * Supabase Auth client (for authentication operations)
+ * Alias for supabaseUsers (Main DB) for backward compatibility
+ */
+export const supabaseAuth = supabaseUsers;
 export async function checkDatabaseHealth() {
     try {
         const client = await dbPool.connect();

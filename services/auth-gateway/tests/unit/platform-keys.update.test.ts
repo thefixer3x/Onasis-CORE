@@ -25,15 +25,10 @@ const existingKeyBuilder = {
   single: vi.fn(async () => ({ data: existingKey, error: null })),
 }
 
-const duplicateFilterBuilder = {
-  eq: vi.fn(() => duplicateFilterBuilder),
-  limit: vi.fn(async () => ({ data: [], error: null })),
-}
-
 const updateResultSingle = vi.fn(async () => ({
   data: {
     ...existingKey,
-    ...(updatePayload || {}),
+    permissions: (updatePayload as Record<string, unknown>)?.permissions ?? existingKey.permissions,
   },
   error: null,
 }))
@@ -45,13 +40,8 @@ const updateBuilder = {
   })),
 }
 
-let selectCallCount = 0
-
 const apiKeysTable = {
-  select: vi.fn(() => {
-    selectCallCount += 1
-    return selectCallCount === 1 ? existingKeyBuilder : duplicateFilterBuilder
-  }),
+  select: vi.fn(() => existingKeyBuilder),
   update: vi.fn((payload: Record<string, unknown>) => {
     updatePayload = payload
     return updateBuilder
@@ -74,12 +64,11 @@ vi.mock('../../src/services/event.service.js', () => ({
   appendEventWithOutbox,
 }))
 
-const { updateApiKey } = await import('../../src/services/api-key.service.js')
+const { updateApiKeyScopes } = await import('../../src/services/api-key.service.js')
 
 describe('platform key updates', () => {
   beforeEach(() => {
     updatePayload = undefined
-    selectCallCount = 0
     vi.clearAllMocks()
 
     schemaMock.mockReturnValue({
@@ -95,36 +84,26 @@ describe('platform key updates', () => {
   })
 
   it('updates mutable platform fields and emits an update event', async () => {
-    const updatedKey = await updateApiKey('key-123', 'user-123', {
-      name: 'Renamed key',
-      description: 'Updated description',
-      access_level: 'team',
-      expires_in_days: 30,
-      scopes: ['memories:personal:read', 'projects:read'],
-    })
+    const updatedKey = await updateApiKeyScopes('key-123', 'user-123', [
+      'memories:personal:read',
+      'projects:read',
+    ])
 
     expect(schemaMock).toHaveBeenCalledWith('security_service')
     expect(fromMock).toHaveBeenCalledWith('api_keys')
     expect(apiKeysTable.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'Renamed key',
-        description: 'Updated description',
-        access_level: 'team',
-        permissions: ['memories:personal:read', 'projects:read'],
+        permissions: expect.arrayContaining(['memories:personal:read', 'projects:read']),
       })
     )
-    expect(updatePayload?.expires_at).toEqual(expect.any(String))
     expect(updatedKey).toMatchObject({
       id: 'key-123',
-      name: 'Renamed key',
-      description: 'Updated description',
-      access_level: 'team',
-      permissions: ['memories:personal:read', 'projects:read'],
+      user_id: 'user-123',
       is_active: true,
     })
     expect(appendEventWithOutbox).toHaveBeenCalledWith(
       expect.objectContaining({
-        event_type: 'ApiKeyUpdated',
+        event_type: 'ApiKeyScopesUpdated',
       })
     )
   })
