@@ -35,7 +35,7 @@ All authenticated endpoints require one of:
 | Function             | Method         | URL                                | Auth | Description                                  |
 | -------------------- | -------------- | ---------------------------------- | ---- | -------------------------------------------- |
 | `memory-create`      | POST           | `/functions/v1/memory-create`      | ✅   | Create memory with auto-embedding generation |
-| `memory-get`         | GET/POST       | `/functions/v1/memory-get`         | ✅   | Get single memory by ID                      |
+| `memory-get`         | GET/POST       | `/functions/v1/memory-get`         | ✅   | Get single memory by full UUID or unambiguous 8+ char prefix |
 | `memory-update`      | POST/PUT/PATCH | `/functions/v1/memory-update`      | ✅   | Update memory (re-embeds if content changes) |
 | `memory-delete`      | POST/DELETE    | `/functions/v1/memory-delete`      | ✅   | Delete single memory by ID                   |
 | `memory-list`        | GET/POST       | `/functions/v1/memory-list`        | ✅   | List memories with pagination & filtering    |
@@ -72,9 +72,16 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-create" \
 **Example - Memory Get:**
 
 ```bash
-curl "https://lanonasis.supabase.co/functions/v1/memory-get?id=UUID_HERE" \
+curl "https://lanonasis.supabase.co/functions/v1/memory-get?id=UUID_OR_PREFIX_HERE" \
   -H "X-API-Key: $LANONASIS_API_KEY"
 ```
+
+`memory-get` accepts either:
+
+- a full UUID, for example `4a4a675f-2e35-4598-ae7a-1c1f35730226`
+- an unambiguous UUID prefix of length `>= 8`, for example `4a4a675f`
+
+Too-short prefixes return a validation error, and ambiguous prefixes return a capped safe preview of matching IDs within the caller's existing scope.
 
 **Example - Memory Update:**
 
@@ -340,7 +347,8 @@ curl -X POST "https://lanonasis.supabase.co/rest/v1/rpc/search_memories" \
 | `/api/v1/memory/delete`        | `/functions/v1/memory-delete`      | Delete single    |
 | `/api/v1/memory/bulk/delete`   | `/functions/v1/memory-bulk-delete` | Bulk delete      |
 | `/api/v1/memory/health`        | `/functions/v1/system-health`      | Health check     |
-| `/api/v1/memory/:id`           | `/functions/v1/memory-get`         | Get by ID        |
+| `/api/v1/memory/:id`           | `/functions/v1/memory-get/:id`     | Get by ID        |
+| `/api/v1/memories/:id`         | `/functions/v1/memory-get/:id`     | Get by ID        |
 | `/api/v1/memory` (POST)        | `/functions/v1/memory-create`      | Create memory    |
 | `/api/v1/intelligence/*`       | `/functions/v1/intelligence-*`     | Intelligence API |
 

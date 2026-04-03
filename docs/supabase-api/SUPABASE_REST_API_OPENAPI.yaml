@@ -166,15 +166,16 @@ paths:
       tags:
         - Memories
       summary: Get Memory
-      description: Get a specific memory by ID (MCP tool `get_memory`)
+      description: Get a specific memory by full UUID or an unambiguous 8+ character UUID prefix (MCP tool `get_memory`)
       operationId: getMemory
       parameters:
         - name: id
           in: path
           required: true
+          description: Full UUID or unambiguous UUID prefix (minimum 8 characters)
           schema:
             type: string
-            format: uuid
+            minLength: 8
       responses:
         '200':
           description: Successful response
