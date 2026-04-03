@@ -29,3 +29,24 @@ npm run dev
 ```
 
 All future authentication development should be isolated to this folder to keep the root project uncluttered and to enable templated reuse across new initiatives.
+
+## Database Migrations
+
+The auth-gateway now uses a ledger-aware migration runner backed by
+`auth_gateway.schema_migrations`. That keeps deploys idempotent and blocks silent
+file drift.
+
+```bash
+# show applied, pending, and drifted migrations
+npm run db:migrate:status
+
+# apply all pending migrations
+npm run db:migrate
+
+# production status/apply (dotenvx + .env.production)
+npm run db:migrate:status:prod
+npm run db:migrate:prod
+
+# baseline already-applied migrations without executing SQL
+node run-migration.mjs --baseline 003_create_api_keys_table.sql,006_api_key_management_service.sql
+```
