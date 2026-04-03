@@ -1965,6 +1965,7 @@ export async function verifyAPIKey(req: Request, res: Response) {
       valid: true,
       userId: validation.userId,
       projectScope: validation.projectScope,
+      keyContext: validation.keyContext,
       permissions: validation.permissions,
       message: 'API key is valid'
     })
@@ -2014,6 +2015,7 @@ export async function createApiKey(req: Request, res: Response) {
         name: apiKey.name,
         key: apiKey.key, // Only returned on creation
         access_level: apiKey.access_level,
+        key_context: apiKey.key_context ?? null,
         created_at: apiKey.created_at
       }
     })

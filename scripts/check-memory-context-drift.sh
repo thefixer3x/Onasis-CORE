@@ -72,6 +72,11 @@ echo "$SCHEMA_JSON" | jq -e '(.api_key_columns | index("permissions")) != null' 
   exit 1
 }
 
+echo "$SCHEMA_JSON" | jq -e '(.api_key_columns | index("key_context")) != null' >/dev/null || {
+  echo "FAIL: security_service.api_keys is missing the key_context column"
+  exit 1
+}
+
 if echo "$SCHEMA_JSON" | jq -e '(.api_key_columns | index("scopes")) != null' >/dev/null; then
   echo "FAIL: security_service.api_keys unexpectedly has a scopes column"
   exit 1
@@ -127,8 +132,7 @@ echo
 echo "[4/4] Watch list"
 echo "Monitor these invariants:"
 echo "- New behavior rows after $VOYAGE_CUTOVER_DATE must not be legacy_only."
-echo "- security_service.api_keys should keep permissions and avoid a new scopes column."
-echo "- key_context is still a tracked blocker until auth-gateway support lands."
+echo "- security_service.api_keys should keep permissions, expose key_context, and avoid a new scopes column."
 echo "- If behavior_migration_recorded=false but schema is present, reconcile the migration ledger."
 
 if ! echo "$SCHEMA_JSON" | jq -e '.behavior_migration_recorded == true' >/dev/null; then

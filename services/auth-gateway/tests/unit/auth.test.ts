@@ -223,6 +223,44 @@ describe('Auth Middleware', () => {
       expect(mockRes.status).toHaveBeenCalledWith(401)
       expect(mockNext).not.toHaveBeenCalled()
     })
+
+    it('hydrates keyContext from API key validation results', async () => {
+      ;(extractBearerToken as any).mockReturnValue(null)
+      mockReq.headers = { 'x-api-key': 'lano_test_key' }
+      ;(validateAPIKey as any).mockResolvedValue({
+        valid: true,
+        userId: 'user-456',
+        organizationId: 'org-456',
+        keyContext: 'team',
+        permissions: ['memories:team:*'],
+        projectScope: 'lanonasis-maas',
+        keyId: 'key-456',
+      })
+
+      mockGetUserById.mockResolvedValue({
+        data: {
+          user: {
+            email: 'apikey@example.com',
+            user_metadata: { role: 'admin', plan: 'pro' }
+          }
+        },
+        error: null
+      })
+
+      await requireAuth(mockReq as Request, mockRes as Response, mockNext)
+
+      expect(mockNext).toHaveBeenCalled()
+      expect(mockReq.user).toMatchObject({
+        userId: 'user-456',
+        organizationId: 'org-456',
+        keyContext: 'team',
+        apiKeyId: 'key-456',
+        app_metadata: expect.objectContaining({
+          key_context: 'team',
+        }),
+      })
+      expect(mockReq.scopes).toEqual(['memories:team:*'])
+    })
   })
 
   describe('requireScope', () => {

@@ -105,6 +105,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
     const {
       name,
       access_level,
+      key_context,
       expires_in_days,
       description,
       scopes,
@@ -114,6 +115,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
     } = req.body as {
       name: string
       access_level?: string
+      key_context?: 'personal' | 'team' | 'enterprise' | null
       expires_in_days?: number
       description?: string
       scopes?: string[]
@@ -139,6 +141,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
     const apiKey = await createApiKeyWithServiceScopes(req.user.sub, {
       name: name.trim(),
       access_level,
+      key_context,
       expires_in_days,
       description,
       scopes,
@@ -191,7 +194,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const { name, access_level, expires_in_days, description, scopes } = req.body
+    const { name, access_level, key_context, expires_in_days, description, scopes } = req.body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({
@@ -203,6 +206,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     const apiKey = await createApiKey(req.user.sub, {
       name: name.trim(),
       access_level,
+      key_context,
       expires_in_days,
       description,
       scopes,

@@ -324,6 +324,7 @@ describe('Auth Introspection Contract', () => {
       key: 'lano_test_key',
       user_id: 'user-123',
       access_level: 'authenticated',
+      key_context: 'team',
       permissions: ['legacy:full_access'],
       service: 'all',
       created_at: '2026-03-26T00:00:00.000Z',
@@ -343,6 +344,7 @@ describe('Auth Introspection Contract', () => {
       },
       body: {
         name: 'CLI key',
+        key_context: 'team',
         organization_id: 'org-client-spoofed',
       },
     })
@@ -354,6 +356,7 @@ describe('Auth Introspection Contract', () => {
       'user-123',
       expect.objectContaining({
         name: 'CLI key',
+        key_context: 'team',
         organization_id: 'org-session-123',
       })
     )
@@ -363,6 +366,7 @@ describe('Auth Introspection Contract', () => {
       data: {
         id: 'key-123',
         name: 'CLI key',
+        key_context: 'team',
       },
     })
   })

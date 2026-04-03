@@ -127,6 +127,34 @@ describe('platform key creation', () => {
     )
   })
 
+  it('stores key_context and injects matching memory scope for contextual keys', async () => {
+    const apiKey = await createApiKey('user-123', {
+      name: 'Personal memory key',
+      organization_id: '123e4567-e89b-12d3-a456-426614174000',
+      key_context: 'personal',
+    })
+
+    expect(apiKeysTable.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Personal memory key',
+        key_context: 'personal',
+        permissions: ['memories:personal:*'],
+      })
+    )
+    expect(apiKey).toMatchObject({
+      name: 'Personal memory key',
+      key_context: 'personal',
+      permissions: ['memories:personal:*'],
+    })
+    expect(appendEventWithOutbox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          key_context: 'personal',
+        }),
+      })
+    )
+  })
+
   it('falls back to direct SQL when the canonical Supabase client rejects the key', async () => {
     duplicateFilterBuilder.limit.mockResolvedValueOnce({
       data: null,

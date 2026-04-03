@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
-import { validateAPIKey } from '../services/api-key.service.js'
+import { validateAPIKey, type ApiKeyContext } from '../services/api-key.service.js'
 import { findSessionByToken } from '../services/session.service.js'
 import { generateRequestId } from '../utils/correlation.js'
 import { resolveOrganizationIdForUser } from '../services/user.service.js'
@@ -26,6 +26,7 @@ export interface UnifiedUser {
   email?: string;
   user_metadata?: Record<string, unknown>;
   app_metadata?: Record<string, unknown>;
+  keyContext?: ApiKeyContext | 'legacy';
 
   // Phase 0.5 attribution — propagated to audit writes and resolve headers
   /** DB id of the API key used to authenticate, when applicable. */
@@ -67,6 +68,7 @@ const buildUnifiedUserFromApiKey = (options: {
   permissions?: string[]
   userMetadata?: Record<string, unknown>
   apiKeyId?: string
+  keyContext?: ApiKeyContext | 'legacy'
   authSource?: UnifiedUser['authSource']
 }): UnifiedUser => ({
   userId: options.userId,
@@ -80,8 +82,10 @@ const buildUnifiedUserFromApiKey = (options: {
     organization_id: options.organizationId,
     project_scope: options.projectScope,
     permissions: options.permissions,
+    key_context: options.keyContext,
   },
   apiKeyId: options.apiKeyId,
+  keyContext: options.keyContext,
   authSource: options.authSource,
 })
 
@@ -224,6 +228,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             role,
             plan,
             projectScope,
+            keyContext: validation.keyContext,
             permissions: validation.permissions,
             apiKeyId: keyId,
             authSource: 'api_key',
@@ -237,6 +242,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             role,
             plan,
             projectScope,
+            keyContext: validation.keyContext,
             permissions: validation.permissions,
             userMetadata: userData.user.user_metadata ?? {},
             apiKeyId: keyId,

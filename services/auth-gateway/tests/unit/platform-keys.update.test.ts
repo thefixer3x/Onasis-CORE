@@ -103,7 +103,7 @@ describe('platform key updates', () => {
     })
     expect(appendEventWithOutbox).toHaveBeenCalledWith(
       expect.objectContaining({
-        event_type: 'ApiKeyScopesUpdated',
+        event_type: 'ApiKeyUpdated',
       })
     )
   })

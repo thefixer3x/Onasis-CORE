@@ -8,6 +8,8 @@ function authGatewayApiKeysTable() {
   return supabaseAdmin.schema(AUTH_GATEWAY_API_KEYS_SCHEMA).from('api_keys')
 }
 
+export type ApiKeyContext = 'personal' | 'team' | 'enterprise'
+
 interface CanonicalApiKeyRow extends Record<string, unknown> {
   id: string
   name: string
@@ -16,6 +18,7 @@ interface CanonicalApiKeyRow extends Record<string, unknown> {
   organization_id?: string
   user_id: string
   access_level?: string
+  key_context?: ApiKeyContext | null
   permissions?: unknown
   service?: string | null
   last_used?: string | null
@@ -80,6 +83,14 @@ function normalizePermissionsValue(value: unknown): string[] {
   return []
 }
 
+function readApiKeyContextValue(value: unknown): ApiKeyContext | null {
+  if (typeof value === 'string' && VALID_API_KEY_CONTEXTS.has(value as ApiKeyContext)) {
+    return value as ApiKeyContext
+  }
+
+  return null
+}
+
 function mapCanonicalApiKeyRow(row: CanonicalApiKeyRow): ApiKeyRecord {
   return {
     id: row.id,
@@ -88,6 +99,7 @@ function mapCanonicalApiKeyRow(row: CanonicalApiKeyRow): ApiKeyRecord {
     key_hash: row.key_hash,
     user_id: row.user_id,
     access_level: typeof row.access_level === 'string' ? row.access_level : 'authenticated',
+    key_context: readApiKeyContextValue(row.key_context),
     permissions: normalizePermissionsValue(row.permissions),
     service: typeof row.service === 'string' ? row.service : 'all',
     expires_at: typeof row.expires_at === 'string' ? row.expires_at : undefined,
@@ -127,6 +139,7 @@ async function insertCanonicalApiKeyDirect(record: {
   organization_id: string
   user_id: string
   access_level: string
+  key_context?: ApiKeyContext | null
   permissions: string[]
   expires_at?: string
   created_at: string
@@ -167,6 +180,11 @@ async function insertCanonicalApiKeyDirect(record: {
   if (columns.has('description')) {
     fieldNames.push('description')
     values.push(record.description ?? null)
+  }
+
+  if (columns.has('key_context') && record.key_context !== undefined) {
+    fieldNames.push('key_context')
+    values.push(record.key_context ?? null)
   }
 
   const placeholders = values.map((_, index) => `$${index + 1}`)
@@ -325,6 +343,7 @@ export interface ApiKey {
   key?: string // Only returned on creation
   user_id: string
   access_level: string
+  key_context?: ApiKeyContext | null
   permissions: string[]
   service: string // 'all' or 'specific' - controls external service access
   service_scopes?: ServiceScope[] // Populated when service = 'specific'
@@ -358,6 +377,7 @@ interface ApiKeyRecord {
   key_hash: string
   user_id: string
   access_level: string
+  key_context?: ApiKeyContext | null
   permissions?: string[]
   service?: string // 'all' or 'specific'
   expires_at?: string
@@ -395,6 +415,8 @@ export const VALID_SCOPES = new Set([
   // Wildcard (all permissions)
   '*'
 ])
+
+const VALID_API_KEY_CONTEXTS = new Set<ApiKeyContext>(['personal', 'team', 'enterprise'])
 
 /**
  * Generate a secure API key with lano_ prefix
@@ -484,6 +506,55 @@ export function normalizeScopes(scopes?: string[]): string[] {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const ALLOWED_ACCESS_LEVELS = new Set(['public', 'authenticated', 'team', 'admin', 'enterprise'])
 
+function normalizeApiKeyContext(value?: string | null): ApiKeyContext | null | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (value === null) {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase()
+  if (normalized.length === 0) {
+    return null
+  }
+
+  if (VALID_API_KEY_CONTEXTS.has(normalized as ApiKeyContext)) {
+    return normalized as ApiKeyContext
+  }
+
+  throw new Error('Invalid key_context. Allowed: personal, team, enterprise')
+}
+
+function getContextDefaultScope(keyContext: ApiKeyContext): string {
+  switch (keyContext) {
+    case 'personal':
+      return 'memories:personal:*'
+    case 'team':
+      return 'memories:team:*'
+    case 'enterprise':
+      return 'memories:*'
+  }
+}
+
+function resolveApiKeyPermissions(scopes: string[] | undefined, keyContext: ApiKeyContext | null | undefined): string[] {
+  if (!keyContext) {
+    return normalizeScopes(scopes)
+  }
+
+  const normalizedScopes = scopes && scopes.length > 0 ? normalizeScopes(scopes) : []
+  const requiredScope = getContextDefaultScope(keyContext)
+
+  return normalizedScopes.includes(requiredScope)
+    ? normalizedScopes
+    : normalizeScopes([...normalizedScopes, requiredScope])
+}
+
+function resolveValidatedKeyContext(value: unknown): ApiKeyContext | 'legacy' {
+  return readApiKeyContextValue(value) ?? 'legacy'
+}
+
 function normalizeApiKeyDescription(description?: string | null): string | null | undefined {
   if (description === undefined) {
     return undefined
@@ -520,6 +591,7 @@ function mapApiKeyRecord(record: ApiKeyRecord, serviceScopes?: ServiceScope[]): 
     description: record.description ?? null,
     user_id: record.user_id,
     access_level: record.access_level,
+    key_context: record.key_context ?? null,
     permissions: record.permissions || [],
     service: record.service || 'all',
     service_scopes: serviceScopes,
@@ -543,6 +615,7 @@ export async function createApiKey(
     expires_in_days?: number
     description?: string | null
     scopes?: string[]  // Scoped permissions for the API key
+    key_context?: ApiKeyContext | null
     organization_id?: string  // Required by security_service.api_keys FK
   }
 ): Promise<ApiKey> {
@@ -558,7 +631,8 @@ export async function createApiKey(
     }
 
     // Validate and normalize scopes
-    const permissions = normalizeScopes(params.scopes)
+    const keyContext = normalizeApiKeyContext(params.key_context)
+    const permissions = resolveApiKeyPermissions(params.scopes, keyContext)
 
     // Resolve organization_id — required by security_service.api_keys (FK constraint)
     // Auth controller guarantees every issued token carries a valid org UUID.
@@ -611,6 +685,10 @@ export async function createApiKey(
       is_active: true,
     } as any
 
+    if (keyContext !== undefined) {
+      apiKeyRecord.key_context = keyContext
+    }
+
     const insertResult = await authGatewayApiKeysTable()
       .insert(apiKeyRecord)
       .select()
@@ -620,6 +698,7 @@ export async function createApiKey(
       ? await insertCanonicalApiKeyDirect({
           ...apiKeyRecord,
           access_level: apiKeyRecord.access_level,
+          key_context: apiKeyRecord.key_context,
           permissions,
           service: 'all',
         })
@@ -636,6 +715,7 @@ export async function createApiKey(
       payload: {
         user_id,
         access_level: data.access_level,
+        key_context: data.key_context ?? keyContext ?? null,
         permissions: data.permissions || permissions,
         expires_at: data.expires_at,
         name: data.name,
@@ -941,6 +1021,7 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
       payload: {
         user_id: updatedKey.user_id,
         access_level: updatedKey.access_level,
+        key_context: updatedKey.key_context ?? null,
         expires_at: updatedKey.expires_at,
       },
       metadata: {
@@ -949,16 +1030,9 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
     })
 
     return {
-      id: updatedKey.id,
-      name: updatedKey.name,
+      ...mapApiKeyRecord(updatedKey),
       key: newApiKey, // Return new key
-      user_id: updatedKey.user_id,
-      access_level: updatedKey.access_level,
       permissions: updatedKey.permissions || [],
-      service: updatedKey.service || 'all',
-      expires_at: updatedKey.expires_at,
-      created_at: updatedKey.created_at,
-      is_active: updatedKey.is_active,
     }
   } catch (error) {
     throw new Error(`Rotate API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -1062,6 +1136,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
   userId?: string
   organizationId?: string
   projectScope?: string
+  keyContext?: ApiKeyContext | 'legacy'
   permissions?: string[]
   reason?: string
   /** DB primary key of the matched api_key record. Used for audit attribution. */
@@ -1280,6 +1355,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
             keyRecord.access_level ||
             keyRecord.project_id ||
             keyRecord.organization_id,
+          keyContext: resolveValidatedKeyContext(keyRecord.key_context),
           permissions,
           keyId: keyRecord.id ?? undefined,
         }
@@ -1515,6 +1591,7 @@ export async function createApiKeyWithServiceScopes(
     expires_in_days?: number
     description?: string | null
     scopes?: string[] // Permission scopes (memories:read, etc.)
+    key_context?: ApiKeyContext | null
     service_type?: 'all' | 'specific' // External service access type
     service_keys?: string[] // If service_type = 'specific', which services
     rate_limits?: Record<string, { per_minute?: number; per_day?: number }>
@@ -1528,6 +1605,7 @@ export async function createApiKeyWithServiceScopes(
     expires_in_days: params.expires_in_days,
     description: params.description,
     scopes: params.scopes,
+    key_context: params.key_context,
     organization_id: params.organization_id,
   })
 

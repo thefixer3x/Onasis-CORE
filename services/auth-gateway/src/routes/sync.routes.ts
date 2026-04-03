@@ -21,7 +21,7 @@ const router = Router()
  *
  * POST /v1/sync/api-key
  * Headers: X-Webhook-Secret (for authentication)
- * Body: { event_type, id, user_id, organization_id, name, key_hash, access_level, permissions, expires_at, created_at, is_active }
+ * Body: { event_type, id, user_id, organization_id, name, key_hash, access_level, key_context, permissions, expires_at, created_at, is_active }
  */
 router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -45,6 +45,7 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
       name,
       key_hash,  // ✅ Now included from edge function
       access_level,
+      key_context,
       permissions,
       expires_at,
       created_at,
@@ -102,15 +103,16 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
           `
           INSERT INTO security_service.api_keys (
             id, name, key_hash, organization_id, user_id,
-            permissions, expires_at, created_at, is_active
+            permissions, key_context, expires_at, created_at, is_active
           ) VALUES (
             $1::uuid, $2, $3, $4::uuid, $5::uuid,
-            $6::jsonb, $7::timestamptz, $8::timestamptz, $9
+            $6::jsonb, $7::text, $8::timestamptz, $9::timestamptz, $10
           )
           ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             key_hash = EXCLUDED.key_hash,
             permissions = EXCLUDED.permissions,
+            key_context = EXCLUDED.key_context,
             expires_at = EXCLUDED.expires_at,
             is_active = EXCLUDED.is_active
           `,
@@ -121,6 +123,7 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
             organization_id,  // ✅ User's actual organization for proper RLS
             user_id,
             JSON.stringify(permissions || []),
+            key_context || null,
             expires_at || null,
             created_at || new Date().toISOString(),
             is_active !== false,
@@ -138,6 +141,7 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
           payload: {
             user_id,
             access_level: access_level || 'authenticated',
+            key_context: key_context || null,
             permissions: permissions || [],
             expires_at,
             name,
@@ -326,13 +330,14 @@ router.post('/backfill-api-keys', async (req: Request, res: Response): Promise<v
             `
             INSERT INTO security_service.api_keys (
               id, name, key_hash, organization_id, user_id,
-              permissions, expires_at, created_at, is_active
+              permissions, key_context, expires_at, created_at, is_active
             ) VALUES (
               $1::uuid, $2, $3, $4::uuid, $5::uuid,
-              $6::jsonb, $7::timestamptz, $8::timestamptz, $9
+              $6::jsonb, $7::text, $8::timestamptz, $9::timestamptz, $10
             )
             ON CONFLICT (id) DO UPDATE SET
               key_hash = EXCLUDED.key_hash,
+              key_context = EXCLUDED.key_context,
               is_active = EXCLUDED.is_active
             `,
             [
@@ -342,6 +347,7 @@ router.post('/backfill-api-keys', async (req: Request, res: Response): Promise<v
               key.organization_id,  // ✅ User's actual organization
               key.user_id,
               JSON.stringify(key.permissions || []),
+              key.key_context || null,
               key.expires_at || null,
               key.created_at || new Date().toISOString(),
               key.is_active !== false,

@@ -10,6 +10,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const migrations = [
   '003_create_api_keys_table.sql',
   '006_api_key_management_service.sql',
+  '017_add_api_key_context.sql',
 ];
 
 try {
