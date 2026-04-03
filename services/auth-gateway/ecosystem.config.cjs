@@ -12,15 +12,19 @@ module.exports = {
   apps: [
     {
       name: 'auth-gateway',
-      script: 'start.js',
+      // Always launch through the package start script so dotenvx decrypts and
+      // injects .env.production before node boots the gateway.
+      script: 'npm',
+      args: 'start',
       cwd: __dirname,
       instances: 1,
-      exec_mode: 'cluster',
+      exec_mode: 'fork',
+      interpreter: 'none',
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
-      // Secrets injected at runtime by dotenvx from .env.production
-      // Start command: dotenvx run --ops-off -f .env.production -- node start.js
+      // Secrets are injected at runtime by the npm start command:
+      // dotenvx run --ops-off -f .env.production -- node start.js
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
