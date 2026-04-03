@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../db/client.js';
+import { supabaseAdmin, supabaseUsers } from '../../db/client.js';
 import { generateTokenPair } from '../utils/jwt.js';
 import { createSession } from '../services/session.service.js';
 import { upsertUserAccount } from '../services/user.service.js';
@@ -18,7 +18,7 @@ export async function mcpAuth(req, res) {
     }
     try {
         // Authenticate with Supabase
-        const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+        const { data, error } = await supabaseUsers.auth.signInWithPassword({
             email,
             password,
         });
@@ -112,7 +112,7 @@ export async function cliLogin(req, res) {
     }
     try {
         // Authenticate with Supabase
-        const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+        const { data, error } = await supabaseUsers.auth.signInWithPassword({
             email,
             password,
         });

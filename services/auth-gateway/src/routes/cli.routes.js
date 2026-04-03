@@ -580,18 +580,41 @@ router.get("/cli-login", (req, res) => {
             const returnTo = urlParams.get('return_to');
             
             if (returnTo) {
-              // OAuth flow: Redirect back to OAuth authorize endpoint
-              // Use a full page reload to ensure cookies are sent
-              showMessage('✓ Authentication successful! Redirecting...', 'success');
-              setTimeout(() => {
-                // Decode and redirect - ensure full URL if needed
-                const redirectUrl = decodeURIComponent(returnTo);
-                // If it's a relative URL, make it absolute
-                const finalUrl = redirectUrl.startsWith('http') 
-                  ? redirectUrl 
-                  : window.location.origin + redirectUrl;
-                window.location.replace(finalUrl);
-              }, 1000); // Slightly longer delay to ensure cookie is set
+              // OAuth flow with token fallback for headless environments
+              const token = data.api_key || data.access_token;
+              if (token) { window.currentToken = token; }
+              const redirectUrl = decodeURIComponent(returnTo);
+              const finalUrl = redirectUrl.startsWith('http')
+                ? redirectUrl
+                : window.location.origin + redirectUrl;
+
+              showMessage(
+                '<strong>✅ Authentication Successful!</strong><br><br>' +
+                (token
+                  ? '<details style="margin-bottom:12px;cursor:pointer;">' +
+                    '<summary style="color:#ffbd2e;font-size:12px;">⚙️ Headless/Remote? Copy token manually</summary>' +
+                    '<div class="token-display" style="margin-top:8px;">' + token + '</div>' +
+                    '<button type="button" class="copy-btn btn" id="copy-token-btn" style="margin-top:6px;">📋 COPY TOKEN</button>' +
+                    '<small style="display:block;margin-top:6px;">Paste this token into your CLI when prompted.</small>' +
+                    '</details>'
+                  : '') +
+                '<span class="loading">Redirecting to complete OAuth flow...</span>',
+                'success'
+              );
+
+              if (token) {
+                setTimeout(function() {
+                  var copyBtn = document.getElementById('copy-token-btn');
+                  if (copyBtn) {
+                    copyBtn.addEventListener('click', function(e) {
+                      e.preventDefault();
+                      copyToClipboard(window.currentToken);
+                    });
+                  }
+                }, 0);
+              }
+
+              setTimeout(() => { window.location.replace(finalUrl); }, 3000);
             } else {
               // CLI token flow: Display token for copying
               if (data.access_token || data.api_key) {
