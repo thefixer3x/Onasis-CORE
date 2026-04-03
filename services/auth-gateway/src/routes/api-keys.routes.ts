@@ -142,6 +142,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       expires_in_days,
       description,
       scopes,
+      organization_id: req.user.organizationId,
       service_type: service_type || 'all',
       service_keys,
       rate_limits,

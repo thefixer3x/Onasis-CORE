@@ -1,11 +1,321 @@
 import crypto from 'crypto'
-import { supabaseAdmin, supabaseUsers } from '../../db/client.js'
+import { dbPool, supabaseAdmin, supabaseUsers } from '../../db/client.js'
 import { appendEventWithOutbox } from './event.service.js'
 
 const AUTH_GATEWAY_API_KEYS_SCHEMA = 'security_service'
 
 function authGatewayApiKeysTable() {
   return supabaseAdmin.schema(AUTH_GATEWAY_API_KEYS_SCHEMA).from('api_keys')
+}
+
+interface CanonicalApiKeyRow extends Record<string, unknown> {
+  id: string
+  name: string
+  description?: string | null
+  key_hash: string
+  organization_id?: string
+  user_id: string
+  access_level?: string
+  permissions?: unknown
+  service?: string | null
+  last_used?: string | null
+  last_used_at?: string | null
+  expires_at?: string | null
+  created_at: string
+  is_active: boolean
+}
+
+let canonicalApiKeyColumnsPromise: Promise<Set<string>> | null = null
+
+function shouldFallbackToDirectDb(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false
+  const message = (error.message || '').toLowerCase()
+  return (
+    error.code === '42P01' ||
+    message.includes('invalid api key') ||
+    message.includes('schema must be one of') ||
+    message.includes('does not exist') ||
+    message.includes('relation') ||
+    message.includes('schema')
+  )
+}
+
+async function getCanonicalApiKeyColumns(): Promise<Set<string>> {
+  if (!canonicalApiKeyColumnsPromise) {
+    canonicalApiKeyColumnsPromise = dbPool
+      .query<{ column_name: string }>(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'security_service'
+          AND table_name = 'api_keys'
+        `
+      )
+      .then(({ rows }) => new Set(rows.map(row => row.column_name)))
+      .catch(error => {
+        canonicalApiKeyColumnsPromise = null
+        throw error
+      })
+  }
+
+  return canonicalApiKeyColumnsPromise
+}
+
+function normalizePermissionsValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === 'string')
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (Array.isArray(parsed)) {
+        return parsed.filter((entry): entry is string => typeof entry === 'string')
+      }
+    } catch {
+      return value.trim().length > 0 ? [value] : []
+    }
+  }
+
+  return []
+}
+
+function mapCanonicalApiKeyRow(row: CanonicalApiKeyRow): ApiKeyRecord {
+  return {
+    id: row.id,
+    name: row.name,
+    description: (row.description as string | null | undefined) ?? null,
+    key_hash: row.key_hash,
+    user_id: row.user_id,
+    access_level: typeof row.access_level === 'string' ? row.access_level : 'authenticated',
+    permissions: normalizePermissionsValue(row.permissions),
+    service: typeof row.service === 'string' ? row.service : 'all',
+    expires_at: typeof row.expires_at === 'string' ? row.expires_at : undefined,
+    last_used_at:
+      typeof row.last_used_at === 'string'
+        ? row.last_used_at
+        : typeof row.last_used === 'string'
+          ? row.last_used
+          : undefined,
+    created_at: row.created_at,
+    is_active: Boolean(row.is_active),
+  }
+}
+
+async function hasActiveCanonicalKeyWithName(userId: string, name: string, excludeKeyId?: string): Promise<boolean> {
+  const { rows } = await dbPool.query<{ id: string }>(
+    `
+    SELECT id
+    FROM security_service.api_keys
+    WHERE user_id = $1
+      AND name = $2
+      AND is_active = true
+      ${excludeKeyId ? 'AND id <> $3' : ''}
+    LIMIT 1
+    `,
+    excludeKeyId ? [userId, name, excludeKeyId] : [userId, name]
+  )
+
+  return rows.length > 0
+}
+
+async function insertCanonicalApiKeyDirect(record: {
+  id: string
+  name: string
+  description?: string | null
+  key_hash: string
+  organization_id: string
+  user_id: string
+  access_level: string
+  permissions: string[]
+  expires_at?: string
+  created_at: string
+  is_active: boolean
+  service?: string
+}): Promise<ApiKeyRecord> {
+  const columns = await getCanonicalApiKeyColumns()
+  const fieldNames = [
+    'id',
+    'name',
+    'key_hash',
+    'organization_id',
+    'user_id',
+    'access_level',
+    'permissions',
+    'expires_at',
+    'created_at',
+    'is_active',
+  ]
+  const values: unknown[] = [
+    record.id,
+    record.name,
+    record.key_hash,
+    record.organization_id,
+    record.user_id,
+    record.access_level,
+    JSON.stringify(record.permissions),
+    record.expires_at ?? null,
+    record.created_at,
+    record.is_active,
+  ]
+
+  if (columns.has('service')) {
+    fieldNames.push('service')
+    values.push(record.service ?? 'all')
+  }
+
+  if (columns.has('description')) {
+    fieldNames.push('description')
+    values.push(record.description ?? null)
+  }
+
+  const placeholders = values.map((_, index) => `$${index + 1}`)
+  const { rows } = await dbPool.query<CanonicalApiKeyRow>(
+    `
+    INSERT INTO security_service.api_keys (${fieldNames.join(', ')})
+    VALUES (${placeholders.join(', ')})
+    RETURNING *
+    `,
+    values
+  )
+
+  return mapCanonicalApiKeyRow(rows[0])
+}
+
+async function listCanonicalApiKeysDirect(userId: string, activeOnly = true): Promise<ApiKeyRecord[]> {
+  const params: unknown[] = [userId]
+  const activeFilter = activeOnly ? 'AND is_active = true' : ''
+  const { rows } = await dbPool.query<CanonicalApiKeyRow>(
+    `
+    SELECT *
+    FROM security_service.api_keys
+    WHERE user_id = $1
+    ${activeFilter}
+    ORDER BY created_at DESC
+    `,
+    params
+  )
+
+  return rows.map(mapCanonicalApiKeyRow)
+}
+
+async function getCanonicalApiKeyDirect(keyId: string, userId: string): Promise<ApiKeyRecord | null> {
+  const { rows } = await dbPool.query<CanonicalApiKeyRow>(
+    `
+    SELECT *
+    FROM security_service.api_keys
+    WHERE id = $1
+      AND user_id = $2
+    LIMIT 1
+    `,
+    [keyId, userId]
+  )
+
+  return rows[0] ? mapCanonicalApiKeyRow(rows[0]) : null
+}
+
+async function updateCanonicalApiKeyDirect(
+  keyId: string,
+  userId: string,
+  updatePayload: Record<string, unknown>
+): Promise<ApiKeyRecord | null> {
+  const columns = await getCanonicalApiKeyColumns()
+  const assignments: string[] = []
+  const values: unknown[] = []
+
+  for (const [field, rawValue] of Object.entries(updatePayload)) {
+    let column = field
+    let value = rawValue
+
+    if (field === 'last_used_at') {
+      column = columns.has('last_used_at') ? 'last_used_at' : 'last_used'
+    }
+
+    if (!columns.has(column)) {
+      continue
+    }
+
+    if (field === 'permissions') {
+      value = JSON.stringify(rawValue)
+    }
+
+    values.push(value)
+    assignments.push(`${column} = $${values.length}`)
+  }
+
+  if (assignments.length === 0) {
+    return getCanonicalApiKeyDirect(keyId, userId)
+  }
+
+  values.push(keyId, userId)
+  const { rows } = await dbPool.query<CanonicalApiKeyRow>(
+    `
+    UPDATE security_service.api_keys
+    SET ${assignments.join(', ')}
+    WHERE id = $${values.length - 1}
+      AND user_id = $${values.length}
+    RETURNING *
+    `,
+    values
+  )
+
+  return rows[0] ? mapCanonicalApiKeyRow(rows[0]) : null
+}
+
+async function updateCanonicalApiKeyByIdDirect(
+  keyId: string,
+  updatePayload: Record<string, unknown>
+): Promise<void> {
+  const columns = await getCanonicalApiKeyColumns()
+  const assignments: string[] = []
+  const values: unknown[] = []
+
+  for (const [field, rawValue] of Object.entries(updatePayload)) {
+    let column = field
+    let value = rawValue
+
+    if (field === 'last_used_at') {
+      column = columns.has('last_used_at') ? 'last_used_at' : 'last_used'
+    }
+
+    if (!columns.has(column)) {
+      continue
+    }
+
+    if (field === 'permissions') {
+      value = JSON.stringify(rawValue)
+    }
+
+    values.push(value)
+    assignments.push(`${column} = $${values.length}`)
+  }
+
+  if (assignments.length === 0) {
+    return
+  }
+
+  values.push(keyId)
+  await dbPool.query(
+    `
+    UPDATE security_service.api_keys
+    SET ${assignments.join(', ')}
+    WHERE id = $${values.length}
+    `,
+    values
+  )
+}
+
+async function deleteCanonicalApiKeyDirect(keyId: string, userId: string): Promise<boolean> {
+  const result = await dbPool.query(
+    `
+    DELETE FROM security_service.api_keys
+    WHERE id = $1
+      AND user_id = $2
+    `,
+    [keyId, userId]
+  )
+
+  return Boolean(result.rowCount)
 }
 
 export interface ApiKey {
@@ -258,14 +568,24 @@ export async function createApiKey(
     }
 
     // Check for duplicate name
-    const { data: existingByName } = await authGatewayApiKeysTable()
+    let duplicateExists = false
+    const duplicateLookup = await authGatewayApiKeysTable()
       .select('id')
       .eq('user_id', user_id)
       .eq('name', params.name)
       .eq('is_active', true)
       .limit(1)
 
-    if (existingByName && existingByName.length > 0) {
+    if (duplicateLookup.error && shouldFallbackToDirectDb(duplicateLookup.error)) {
+      console.warn('[api-key.service] Falling back to direct DB duplicate check:', duplicateLookup.error.message)
+      duplicateExists = await hasActiveCanonicalKeyWithName(user_id, params.name)
+    } else if (duplicateLookup.error) {
+      throw new Error(`Failed to check existing API keys: ${duplicateLookup.error.message}`)
+    } else {
+      duplicateExists = Boolean(duplicateLookup.data && duplicateLookup.data.length > 0)
+    }
+
+    if (duplicateExists) {
       throw new Error('An active API key with this name already exists')
     }
 
@@ -291,13 +611,22 @@ export async function createApiKey(
       is_active: true,
     } as any
 
-    const { data, error } = await authGatewayApiKeysTable()
+    const insertResult = await authGatewayApiKeysTable()
       .insert(apiKeyRecord)
       .select()
       .single()
 
-    if (error) {
-      throw new Error(`Failed to create API key: ${error.message}`)
+    const data = insertResult.error && shouldFallbackToDirectDb(insertResult.error)
+      ? await insertCanonicalApiKeyDirect({
+          ...apiKeyRecord,
+          access_level: apiKeyRecord.access_level,
+          permissions,
+          service: 'all',
+        })
+      : insertResult.data
+
+    if (!data) {
+      throw new Error(`Failed to create API key: ${insertResult.error?.message || 'No API key returned'}`)
     }
 
     await appendEventWithOutbox({
@@ -340,10 +669,13 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
       query = query.eq('is_active', true)
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false })
+    const result = await query.order('created_at', { ascending: false })
+    const data = result.error && shouldFallbackToDirectDb(result.error)
+      ? await listCanonicalApiKeysDirect(user_id, params?.active_only !== false)
+      : result.data
 
-    if (error) {
-      throw new Error(`Failed to list API keys: ${error.message}`)
+    if (!data) {
+      throw new Error(`Failed to list API keys: ${result.error?.message || 'No API keys returned'}`)
     }
 
     // Fetch service scopes if requested
@@ -372,13 +704,17 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
  */
   export async function getApiKey(key_id: string, user_id: string): Promise<ApiKey> {
   try {
-    const { data, error } = await authGatewayApiKeysTable()
+    const result = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
       .eq('user_id', user_id)
       .single()
 
-    if (error || !data) {
+    const data = result.error && shouldFallbackToDirectDb(result.error)
+      ? await getCanonicalApiKeyDirect(key_id, user_id)
+      : result.data
+
+    if (!data) {
       throw new Error('API key not found')
     }
 
@@ -410,13 +746,17 @@ export async function updateApiKey(
   }
 ): Promise<ApiKey> {
   try {
-    const { data: existingKey, error: fetchError } = await authGatewayApiKeysTable()
+    const existingResult = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
       .eq('user_id', user_id)
       .single()
 
-    if (fetchError || !existingKey) {
+    const existingKey = existingResult.error && shouldFallbackToDirectDb(existingResult.error)
+      ? await getCanonicalApiKeyDirect(key_id, user_id)
+      : existingResult.data
+
+    if (!existingKey) {
       throw new Error('API key not found')
     }
 
@@ -430,14 +770,21 @@ export async function updateApiKey(
       }
 
       if (normalizedName !== existingKey.name) {
-        const { data: duplicateByName } = await authGatewayApiKeysTable()
+        const duplicateResult = await authGatewayApiKeysTable()
           .select('id')
           .eq('user_id', user_id)
           .eq('name', normalizedName)
           .eq('is_active', true)
           .limit(1)
 
-        if (duplicateByName && duplicateByName.some((record: { id: string }) => record.id !== key_id)) {
+        const duplicateExists = duplicateResult.error && shouldFallbackToDirectDb(duplicateResult.error)
+          ? await hasActiveCanonicalKeyWithName(user_id, normalizedName, key_id)
+          : Boolean(
+              duplicateResult.data &&
+              duplicateResult.data.some((record: { id: string }) => record.id !== key_id)
+            )
+
+        if (duplicateExists) {
           throw new Error('An active API key with this name already exists')
         }
       }
@@ -481,14 +828,18 @@ export async function updateApiKey(
       throw new Error('At least one updatable field is required')
     }
 
-    const { data: updatedKey, error: updateError } = await authGatewayApiKeysTable()
+    const updateResult = await authGatewayApiKeysTable()
       .update(updatePayload)
       .eq('id', key_id)
       .eq('user_id', user_id)
       .select()
       .single()
 
-    if (updateError || !updatedKey) {
+    const updatedKey = updateResult.error && shouldFallbackToDirectDb(updateResult.error)
+      ? await updateCanonicalApiKeyDirect(key_id, user_id, updatePayload)
+      : updateResult.data
+
+    if (!updatedKey) {
       throw new Error('Failed to update API key')
     }
 
@@ -543,13 +894,17 @@ export async function updateApiKeyScopes(key_id: string, user_id: string, scopes
 export async function rotateApiKey(key_id: string, user_id: string): Promise<ApiKey> {
   try {
     // Get existing key
-    const { data: existingKey, error: fetchError } = await authGatewayApiKeysTable()
+    const existingResult = await authGatewayApiKeysTable()
       .select('*')
       .eq('id', key_id)
       .eq('user_id', user_id)
       .single()
 
-    if (fetchError || !existingKey) {
+    const existingKey = existingResult.error && shouldFallbackToDirectDb(existingResult.error)
+      ? await getCanonicalApiKeyDirect(key_id, user_id)
+      : existingResult.data
+
+    if (!existingKey) {
       throw new Error('API key not found')
     }
 
@@ -558,7 +913,7 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
     const newKeyHash = await hashApiKey(newApiKey)
 
     // Update with new key
-    const { data: updatedKey, error: updateError } = await authGatewayApiKeysTable()
+    const updateResult = await authGatewayApiKeysTable()
       .update({
         key_hash: newKeyHash,
         created_at: new Date().toISOString(),
@@ -568,7 +923,14 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
       .select()
       .single()
 
-    if (updateError || !updatedKey) {
+    const updatedKey = updateResult.error && shouldFallbackToDirectDb(updateResult.error)
+      ? await updateCanonicalApiKeyDirect(key_id, user_id, {
+          key_hash: newKeyHash,
+          created_at: new Date().toISOString(),
+        })
+      : updateResult.data
+
+    if (!updatedKey) {
       throw new Error('Failed to rotate API key')
     }
 
@@ -608,13 +970,18 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
  */
 export async function revokeApiKey(key_id: string, user_id: string): Promise<boolean> {
   try {
-    const { error } = await authGatewayApiKeysTable()
+    const result = await authGatewayApiKeysTable()
       .update({ is_active: false })
       .eq('id', key_id)
       .eq('user_id', user_id)
 
-    if (error) {
-      throw new Error(`Failed to revoke API key: ${error.message}`)
+    if (result.error && shouldFallbackToDirectDb(result.error)) {
+      const updated = await updateCanonicalApiKeyDirect(key_id, user_id, { is_active: false })
+      if (!updated) {
+        throw new Error('Failed to revoke API key: API key not found')
+      }
+    } else if (result.error) {
+      throw new Error(`Failed to revoke API key: ${result.error.message}`)
     }
 
     await appendEventWithOutbox({
@@ -641,13 +1008,18 @@ export async function revokeApiKey(key_id: string, user_id: string): Promise<boo
  */
 export async function deleteApiKey(key_id: string, user_id: string): Promise<boolean> {
   try {
-    const { error } = await authGatewayApiKeysTable()
+    const result = await authGatewayApiKeysTable()
       .delete()
       .eq('id', key_id)
       .eq('user_id', user_id)
 
-    if (error) {
-      throw new Error(`Failed to delete API key: ${error.message}`)
+    if (result.error && shouldFallbackToDirectDb(result.error)) {
+      const deleted = await deleteCanonicalApiKeyDirect(key_id, user_id)
+      if (!deleted) {
+        throw new Error('Failed to delete API key: API key not found')
+      }
+    } else if (result.error) {
+      throw new Error(`Failed to delete API key: ${result.error.message}`)
     }
 
     await appendEventWithOutbox({
@@ -672,9 +1044,13 @@ export async function deleteApiKey(key_id: string, user_id: string): Promise<boo
  * Update last_used_at timestamp for an API key
  */
 export async function updateApiKeyUsage(key_id: string): Promise<void> {
-  await authGatewayApiKeysTable()
+  const result = await authGatewayApiKeysTable()
     .update({ last_used_at: new Date().toISOString() })
     .eq('id', key_id)
+
+  if (result.error && shouldFallbackToDirectDb(result.error)) {
+    await updateCanonicalApiKeyByIdDirect(key_id, { last_used_at: new Date().toISOString() })
+  }
 }
 
 /**
@@ -735,7 +1111,22 @@ export async function validateAPIKey(apiKey: string): Promise<{
         .select('*')
         .eq('is_active', true)
 
-      if (gwError) {
+      if (gwError && shouldFallbackToDirectDb(gwError)) {
+        const { rows } = await dbPool.query<CanonicalApiKeyRow>(
+          `
+          SELECT *
+          FROM security_service.api_keys
+          WHERE is_active = true
+          `
+        )
+        rows.forEach((key) => {
+          const mapped = mapCanonicalApiKeyRow(key)
+          allKeys.push({
+            ...mapped,
+            organization_id: key.organization_id,
+          })
+        })
+      } else if (gwError) {
         if (!(gwError.code === '42P01' ||
           gwError.message?.includes('does not exist') ||
           gwError.message?.includes('schema must be one of'))) {
@@ -1142,9 +1533,13 @@ export async function createApiKeyWithServiceScopes(
 
   // Set service field
   const serviceType = params.service_type || 'all'
-  await authGatewayApiKeysTable()
+  const updateResult = await authGatewayApiKeysTable()
     .update({ service: serviceType })
     .eq('id', apiKey.id)
+
+  if (updateResult.error && shouldFallbackToDirectDb(updateResult.error)) {
+    await updateCanonicalApiKeyByIdDirect(apiKey.id, { service: serviceType })
+  }
 
   // Set service scopes if specific
   let serviceScopes: ServiceScope[] = []

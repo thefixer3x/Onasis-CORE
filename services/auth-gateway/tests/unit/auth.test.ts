@@ -15,6 +15,10 @@ vi.mock('../../src/services/session.service.js', () => ({
   findSessionByToken: vi.fn()
 }))
 
+vi.mock('../../src/services/user.service.js', () => ({
+  resolveOrganizationIdForUser: vi.fn(),
+}))
+
 const mockGetUserById = vi.fn()
 
 vi.mock('../../db/client.js', () => ({
@@ -30,9 +34,10 @@ vi.mock('../../db/client.js', () => ({
 import { verifyToken, extractBearerToken } from '../../src/utils/jwt.js'
 import { validateAPIKey } from '../../src/services/api-key.service.js'
 import { findSessionByToken } from '../../src/services/session.service.js'
+import { resolveOrganizationIdForUser } from '../../src/services/user.service.js'
 
 // Import after mocks are set up
-const authModule = await import('../../src/middleware/auth.js')
+const authModule = await import('../../src/middleware/auth.ts')
 const { requireAuth, requireScope, requireScopes, requireAllScopes, optionalAuth, hasScope } = authModule
 
 describe('Auth Middleware', () => {
@@ -77,6 +82,33 @@ describe('Auth Middleware', () => {
         project_scope: 'lanonasis-maas'
       })
       expect(mockReq.scopes).toEqual(['*'])
+    })
+
+    it('hydrates organizationId for JWT sessions when the token claim is missing', async () => {
+      const mockPayload = {
+        sub: 'user-123',
+        email: 'test@example.com',
+        role: 'authenticated',
+        project_scope: 'lanonasis-maas',
+        iat: Date.now() / 1000,
+        exp: Date.now() / 1000 + 3600,
+      }
+
+      ;(extractBearerToken as any).mockReturnValue('valid-token')
+      ;(verifyToken as any).mockReturnValue(mockPayload)
+      ;(findSessionByToken as any).mockResolvedValue({ id: 'session-123' })
+      ;(resolveOrganizationIdForUser as any).mockResolvedValue('org-123')
+
+      await requireAuth(mockReq as Request, mockRes as Response, mockNext)
+
+      expect(resolveOrganizationIdForUser).toHaveBeenCalledWith('user-123')
+      expect(mockNext).toHaveBeenCalled()
+      expect(mockReq.user).toMatchObject({
+        organizationId: 'org-123',
+        app_metadata: expect.objectContaining({
+          organization_id: 'org-123',
+        }),
+      })
     })
 
     it('should return 401 when session is revoked', async () => {

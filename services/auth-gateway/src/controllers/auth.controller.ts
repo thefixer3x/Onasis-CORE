@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { supabaseUsers } from '../../db/client.js'
 import { generateTokenPairWithUAI, verifyToken as verifyJwtToken, extractBearerToken } from '../utils/jwt.js'
 import { createSession, revokeSession, getUserSessions, findSessionByToken } from '../services/session.service.js'
-import { upsertUserAccount, findUserAccountById } from '../services/user.service.js'
+import { upsertUserAccount, findUserAccountById, resolveOrganizationIdForUser } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { auditCorrelation } from '../utils/correlation.js'
 import * as apiKeyService from '../services/api-key.service.js'
@@ -173,6 +173,15 @@ function classifyApiKeySource(credential: string): IntrospectAuthSource {
   return /^(lano_|lns_|pk_)/i.test(credential) ? 'vendor_key' : 'api_key'
 }
 
+function normalizeOrganizationId(value?: string | null): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  if (!normalized || normalized === 'unknown') {
+    return undefined
+  }
+  return normalized
+}
+
 async function resolveValidatedProjectScope(options: {
   requestedScope?: string
   fallbackScope?: string
@@ -232,7 +241,10 @@ async function buildIntrospectedIdentity(options: {
     )
   }
 
-  const organizationId = options.organizationId ?? uai.organizationId
+  const organizationId =
+    normalizeOrganizationId(options.organizationId) ??
+    normalizeOrganizationId(uai.organizationId) ??
+    (await resolveOrganizationIdForUser(options.userId))
   if (!organizationId) {
     // Missing organization_id indicates a server configuration issue (user exists but org linkage missing)
     // Return 503 gateway_unavailable instead of 401 invalid_credential to indicate this is not a client auth failure
@@ -1982,10 +1994,13 @@ export async function createApiKey(req: Request, res: Response) {
     }
 
     const organizationIdFromSession =
-      req.user.organizationId ||
-      (typeof req.user.app_metadata?.organization_id === 'string'
-        ? req.user.app_metadata.organization_id
-        : undefined)
+      normalizeOrganizationId(req.user.organizationId) ||
+      normalizeOrganizationId(
+        typeof req.user.app_metadata?.organization_id === 'string'
+          ? req.user.app_metadata.organization_id
+          : undefined
+      ) ||
+      (await resolveOrganizationIdForUser(req.user.sub))
 
     const apiKey = await apiKeyService.createApiKey(req.user.sub, {
       ...req.body,

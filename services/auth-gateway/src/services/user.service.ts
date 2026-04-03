@@ -1,4 +1,4 @@
-import { dbPool } from '../../db/client.js'
+import { dbPool, supabaseUsers } from '../../db/client.js'
 import { appendEventWithOutbox } from './event.service.js'
 
 export interface UpsertUserAccountParams {
@@ -19,6 +19,29 @@ export interface UserAccount {
   created_at: string
   last_sign_in_at: string | null
   updated_at: string
+}
+
+export async function resolveOrganizationIdForUser(userId: string): Promise<string | undefined> {
+  try {
+    const { data, error } = await supabaseUsers
+      .from('users')
+      .select('organization_id')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (error) {
+      return undefined
+    }
+
+    if (typeof data?.organization_id !== 'string') {
+      return undefined
+    }
+
+    const normalized = data.organization_id.trim()
+    return normalized.length > 0 ? normalized : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export async function upsertUserAccount(params: UpsertUserAccountParams): Promise<UserAccount> {

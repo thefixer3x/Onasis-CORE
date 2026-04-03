@@ -3,6 +3,7 @@ import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.j
 import { validateAPIKey } from '../services/api-key.service.js'
 import { findSessionByToken } from '../services/session.service.js'
 import { generateRequestId } from '../utils/correlation.js'
+import { resolveOrganizationIdForUser } from '../services/user.service.js'
 
 /**
  * Unified user type for auth-gateway middleware
@@ -92,6 +93,9 @@ const getProjectScope = (user?: UnifiedUser): string | undefined => {
   return user.project_scope
 }
 
+const hasResolvedOrganizationId = (value?: string | null): value is string =>
+  typeof value === 'string' && value.trim().length > 0 && value !== 'unknown'
+
 /**
  * Middleware to verify JWT token or API key and attach user to request
  * Supports both authentication methods:
@@ -125,7 +129,13 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           code: 'SESSION_UNAVAILABLE',
         })
       }
-      const jwtUser = buildUnifiedUserFromJwt(payload)
+      const organizationId = hasResolvedOrganizationId(payload.organization_id)
+        ? payload.organization_id
+        : await resolveOrganizationIdForUser(payload.sub)
+      const jwtUser = buildUnifiedUserFromJwt({
+        ...payload,
+        organization_id: organizationId ?? payload.organization_id,
+      })
       jwtUser.authSource = 'jwt'
       req.user = jwtUser
       // JWT tokens get full access by default
@@ -160,19 +170,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
           }
 
           let organizationId: string | undefined
-          try {
-            const { supabaseUsers } = await import('../../db/client.js')
-            const { data: userRecord } = await supabaseUsers
-              .from('users')
-              .select('organization_id')
-              .eq('id', introspection.user_id)
-              .maybeSingle()
-            if (typeof userRecord?.organization_id === 'string') {
-              organizationId = userRecord.organization_id
-            }
-          } catch {
-            // Organization lookup failed — continue with unknown org context
-          }
+          organizationId = await resolveOrganizationIdForUser(introspection.user_id)
 
           req.user = buildUnifiedUserFromApiKey({
             userId: introspection.user_id,
