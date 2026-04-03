@@ -1,5 +1,11 @@
 # Supabase REST API Design for MCP Server (19 Tools)
 
+> **Historical design document:** This file captures the original 2025 design
+> phase. It should not be treated as the current execution spec for live route
+> names, API-key prefixes, or helper paths. For current-state behavior, prefer
+> `DIRECT_API_ROUTES.md`, `SUPABASE_REST_API_OPENAPI.yaml`, and
+> `docs/plans/memory-context-separation.md`.
+
 **Version:** 1.0.0
 **Date:** 2025-12-24
 **Status:** Design Phase

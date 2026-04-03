@@ -1,6 +1,12 @@
 # Database Reorganization Guide
 ## DISRUPTOR Ecosystem - Supabase Database Restructuring
 
+> **Planning artifact:** This guide captures a proposed new-project database
+> reorganization approach from late 2025. It is not the authoritative source
+> for the current live Supabase host, current route inventory, or current
+> memory-context execution plan. Treat it as historical planning context unless
+> it is explicitly revalidated against the monorepo.
+
 **Version:** 2.0
 **Created:** December 22, 2025
 **Updated:** December 29, 2025

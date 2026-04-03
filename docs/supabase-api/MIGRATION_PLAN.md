@@ -1,5 +1,11 @@
 # Supabase REST API Migration Plan
 
+> **Historical document:** This file records the original Netlify → Supabase
+> migration rollout. It is not the current execution spec for memory-context
+> separation or live route/auth semantics. For current-state behavior, start
+> with `DIRECT_API_ROUTES.md`, `SUPABASE_REST_API_OPENAPI.yaml`, and
+> `docs/plans/memory-context-separation.md`.
+
 **Version:** 2.1.0
 **Date:** 2025-12-27
 **Status:** ✅ IMPLEMENTATION COMPLETE (Phases 1-4)

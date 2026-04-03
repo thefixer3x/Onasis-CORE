@@ -1,5 +1,12 @@
 # Supabase Implementation Guide
 
+> **Historical implementation guide:** This file describes an earlier planned
+> Supabase function layout and includes stale `shared/` paths. The current live
+> code uses `_shared/` helpers and should be verified directly in
+> `apps/onasis-core/supabase/functions/`. For current API behavior, prefer
+> `DIRECT_API_ROUTES.md`, `SUPABASE_REST_API_OPENAPI.yaml`, and the monorepo
+> execution specs under `docs/plans/`.
+
 **Version:** 1.0.0
 **Date:** 2025-12-24
 
@@ -61,7 +68,7 @@ supabase init
 supabase link --project-ref your-project-ref
 
 # Generate TypeScript types from database
-supabase gen types typescript --local > supabase/functions/shared/database.types.ts
+supabase gen types typescript --local > supabase/functions/_shared/database.types.ts
 ```
 
 ### 2. Project Structure
@@ -93,7 +100,7 @@ mcp-core/
 │   │   │   ├── health/index.ts
 │   │   │   ├── auth-status/index.ts
 │   │   │   └── config/index.ts
-│   │   └── shared/
+│   │   └── _shared/
 │   │       ├── auth.ts
 │   │       ├── cors.ts
 │   │       ├── rate-limit.ts
@@ -370,7 +377,7 @@ CREATE POLICY "Users can view own audit logs"
 
 ### Shared Authentication Middleware
 
-Create `supabase/functions/shared/auth.ts`:
+Create `supabase/functions/_shared/auth.ts`:
 
 ```typescript
 import { createClient } from '@supabase/supabase-js';
@@ -464,7 +471,7 @@ async function hashApiKey(key: string): Promise<string> {
 
 ### CORS Middleware
 
-Create `supabase/functions/shared/cors.ts`:
+Create `supabase/functions/_shared/cors.ts`:
 
 ```typescript
 const ALLOWED_ORIGINS = [
@@ -501,7 +508,7 @@ export function handleCors(req: Request): Response | null {
 
 ### Error Handling
 
-Create `supabase/functions/shared/errors.ts`:
+Create `supabase/functions/_shared/errors.ts`:
 
 ```typescript
 export enum ErrorCode {
@@ -557,9 +564,9 @@ Create `supabase/functions/memories-create/index.ts`:
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Configuration, OpenAIApi } from 'https://esm.sh/openai@3.3.0';
-import { authenticate } from '../shared/auth.ts';
-import { corsHeaders, handleCors } from '../shared/cors.ts';
-import { createErrorResponse, ErrorCode } from '../shared/errors.ts';
+import { authenticate } from '../_shared/auth.ts';
+import { corsHeaders, handleCors } from '../_shared/cors.ts';
+import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
 
 interface CreateMemoryRequest {
   title: string;
@@ -693,9 +700,9 @@ Create `supabase/functions/memories-search/index.ts`:
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { Configuration, OpenAIApi } from 'https://esm.sh/openai@3.3.0';
-import { authenticate } from '../shared/auth.ts';
-import { corsHeaders, handleCors } from '../shared/cors.ts';
-import { createErrorResponse, ErrorCode } from '../shared/errors.ts';
+import { authenticate } from '../_shared/auth.ts';
+import { corsHeaders, handleCors } from '../_shared/cors.ts';
+import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
 
 interface SearchMemoriesRequest {
   query: string;

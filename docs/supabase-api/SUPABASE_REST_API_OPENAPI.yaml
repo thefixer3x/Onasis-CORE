@@ -23,6 +23,13 @@ info:
     - `type`: Used by MCP tools for compatibility with the MCP protocol
     - `memory_type`: Preferred REST API field name, matches database column
 
+    ### Route Compatibility
+
+    The canonical public memory REST routes use the plural `/memories/*`
+    family. The production redirect layer still accepts singular
+    `/memory/*` aliases for compatibility, but new clients should target the
+    plural form documented in this specification.
+
     ## Authentication
 
     This API supports three authentication methods:
@@ -33,7 +40,11 @@ info:
        - Scopes: `mcp:full`, `memories:read`, `memories:write`, `profile`
 
     2. **API Key** (Fallback)
-       - Header: `X-API-Key: lms_live_*`
+       - Header: `X-API-Key: lano_*`
+       - Compatibility note: the live edge auth layer still accepts several
+         legacy/internal prefixes (`lms_`, `lns_`, `vibe_`, `sk_`, `pk_`,
+         `master_`), but public clients should treat `lano_*` as the canonical
+         platform key format.
 
     3. **JWT Token** (Legacy)
        - Header: `Authorization: Bearer <jwt_token>`

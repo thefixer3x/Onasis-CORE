@@ -7,6 +7,11 @@
 > - [`../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md`](../../../../docs/security/auth-centralization-overhaul-plan-2026-03-17.md)
 > - [`../../../../docs/security/auth-centralization-sprint-0-checklist-2026-03-18.md`](../../../../docs/security/auth-centralization-sprint-0-checklist-2026-03-18.md)
 > - [`./MEMORY_EDGE_AUTH_DEPLOYMENT.md`](./MEMORY_EDGE_AUTH_DEPLOYMENT.md)
+>
+> **Public route note:** this routing inventory includes singular `/api/v1/memory/*`
+> aliases because `_redirects` still supports them for compatibility. Public API
+> docs should continue to document the plural `/api/v1/memories/*` family as
+> canonical.
 
 ## Overview
 

@@ -1,11 +1,18 @@
 # Supabase Direct API Routes
 
-**Base URL:** `https://mxtsdgkwzjzlttpotole.supabase.co`
+**Direct Edge Base URL:** `https://mxtsdgkwzjzlttpotole.supabase.co`
+**Vanity Compatibility Host:** `https://lanonasis.supabase.co`
 **Project Ref:** `mxtsdgkwzjzlttpotole`
-**Last Updated:** 2026-04-01
+**Last Updated:** 2026-04-03
 
 > **Note:** These routes bypass Netlify routing and connect directly to Supabase.
 > For production use via `api.lanonasis.com`, see the `_redirects` configuration.
+>
+> **Host naming note:** The raw project-ref host above is the canonical direct
+> Supabase endpoint for this inventory. Some existing redirects, deploy notes,
+> and examples still use the vanity alias `lanonasis.supabase.co`; both
+> currently target the same Supabase project. For new direct-edge smoke tests,
+> prefer the raw project-ref host.
 >
 > **Current-state note (2026-03-18):** Use this file as a direct Edge route
 > inventory, not as the single source of truth for auth-centralization
@@ -22,15 +29,24 @@ All authenticated endpoints require one of:
 
 | Header          | Format                             | Example                                    |
 | --------------- | ---------------------------------- | ------------------------------------------ |
-| `X-API-Key`     | `lano_*`, `vibe_*`, `sk_*`, `pk_*` | `X-API-Key: $LANONASIS_API_KEY`            |
+| `X-API-Key`     | Public examples use `lano_*`; edge auth also accepts `lms_*`, `lns_*`, `vibe_*`, `sk_*`, `pk_*`, and `master_*` for compatibility/internal flows | `X-API-Key: $LANONASIS_API_KEY`            |
 | `Authorization` | `Bearer <token>`                   | `Authorization: Bearer $LANONASIS_API_KEY` |
 | `apikey`        | Supabase anon/service key          | For PostgREST direct access                |
+
+> **Canonical platform key note:** Per the validated Capstone execution spec,
+> keep `lano_` as the public platform key prefix. Do not build new clients
+> against `lms_p_` / `lms_t_`, and do not treat the compatibility prefixes
+> above as the primary contract.
 
 ---
 
 ## Edge Functions (`/functions/v1/...`)
 
 ### Memory & MaaS API (Complete - 2025-12-27)
+
+**Public route convention:** document plural `/api/v1/memories/*` as the
+canonical REST path family. Singular `/api/v1/memory/*` remains supported as a
+compatibility alias in `_redirects` and legacy clients.
 
 | Function             | Method         | URL                                | Auth | Description                                  |
 | -------------------- | -------------- | ---------------------------------- | ---- | -------------------------------------------- |

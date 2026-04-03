@@ -1,5 +1,10 @@
 # Supabase REST API Design - Executive Summary
 
+> **Current-state note:** This summary is useful as a quick overview, but the
+> live route/auth contract is defined by `DIRECT_API_ROUTES.md` and
+> `SUPABASE_REST_API_OPENAPI.yaml`. Use those files for current examples and
+> exact endpoint behavior.
+
 **Date:** 2025-12-24
 **Version:** 1.0.0
 **Status:** Design Complete ✅
@@ -123,7 +128,7 @@ Client → Supabase Edge Functions → PostgreSQL + pgvector
 ```
 1. Create API key via dashboard or API
 2. Store securely (shown only once)
-3. API requests with: X-API-Key: lms_live_***
+3. API requests with: X-API-Key: lano_***
 ```
 
 ### JWT Token (Legacy)
