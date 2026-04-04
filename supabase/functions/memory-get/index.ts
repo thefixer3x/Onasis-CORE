@@ -8,6 +8,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { authenticate } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
+import { applyMemoryBoundary, resolveMemoryBoundary } from '../_shared/memory-context.ts';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -75,8 +76,8 @@ async function resolveMemoryIdOrPrefix(
       .order('id', { ascending: true })
       .range(offset, offset + PREFIX_SCAN_PAGE_SIZE - 1);
 
-    if (auth && !auth.is_master) {
-      query = query.eq('organization_id', auth.organization_id);
+    if (auth) {
+      query = applyMemoryBoundary(query, auth, { route: 'memory-get:prefix' });
     }
 
     if (!includeDeleted) {
@@ -184,6 +185,7 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+    const boundary = resolveMemoryBoundary(auth);
 
     const resolved = await resolveMemoryIdOrPrefix(supabase, auth, memoryId ?? '', includeDeleted);
     if (resolved.response) {
@@ -193,15 +195,12 @@ serve(async (req: Request) => {
     const resolvedMemoryId = resolved.id!;
 
     // Fetch memory with organization scope
-    const query = supabase
+    let query = supabase
       .from('memory_entries')
       .select('id, title, content, memory_type, tags, metadata, user_id, organization_id, topic_id, created_at, updated_at, last_accessed, access_count, deleted_at')
       .eq('id', resolvedMemoryId);
 
-    // Apply org scope unless master key
-    if (!auth.is_master) {
-      query.eq('organization_id', auth.organization_id);
-    }
+    query = applyMemoryBoundary(query, auth, { route: 'memory-get' });
 
     if (!includeDeleted) {
       query.is('deleted_at', null);
@@ -237,7 +236,8 @@ serve(async (req: Request) => {
 
     return new Response(JSON.stringify({
       data: responseMemory,
-      message: 'Memory retrieved successfully'
+      message: 'Memory retrieved successfully',
+      memory_context: boundary.context,
     }), {
       status: 200,
       headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }

@@ -16,40 +16,43 @@
 # ============================================================================
 
 # Memory Search - Semantic vector search with embeddings
-/api/v1/memory/search       https://lanonasis.supabase.co/functions/v1/memory-search       200!
-/api/v1/memories/search     https://lanonasis.supabase.co/functions/v1/memory-search       200!
+/api/v1/memory/search       /.netlify/functions/memory-proxy/search       200!
+/api/v1/memories/search     /.netlify/functions/memory-proxy/search       200!
 
 # Memory Stats - Statistics and analytics
-/api/v1/memory/stats        https://lanonasis.supabase.co/functions/v1/memory-stats        200!
-/api/v1/memories/stats      https://lanonasis.supabase.co/functions/v1/memory-stats        200!
+/api/v1/memory/stats        /.netlify/functions/memory-proxy/stats        200!
+/api/v1/memories/stats      /.netlify/functions/memory-proxy/stats        200!
 
 # Memory Bulk Operations
-/api/v1/memory/bulk/delete  https://lanonasis.supabase.co/functions/v1/memory-bulk-delete  200!
-/api/v1/memories/bulk/delete https://lanonasis.supabase.co/functions/v1/memory-bulk-delete 200!
-/api/v1/memory/bulk-delete  https://lanonasis.supabase.co/functions/v1/memory-bulk-delete  200!
-/api/v1/memories/bulk-delete https://lanonasis.supabase.co/functions/v1/memory-bulk-delete 200!
+/api/v1/memory/bulk/delete  /.netlify/functions/memory-proxy/bulk-delete  200!
+/api/v1/memories/bulk/delete /.netlify/functions/memory-proxy/bulk-delete 200!
+/api/v1/memory/bulk-delete  /.netlify/functions/memory-proxy/bulk-delete  200!
+/api/v1/memories/bulk-delete /.netlify/functions/memory-proxy/bulk-delete 200!
 
 # Memory Health Check
-/api/v1/memory/health       https://lanonasis.supabase.co/functions/v1/system-health       200!
+/api/v1/memory/health       /.netlify/functions/memory-proxy/health       200!
 
 # Memory List - Paginated list with filtering
-/api/v1/memory/list         https://lanonasis.supabase.co/functions/v1/memory-list         200!
-/api/v1/memories/list       https://lanonasis.supabase.co/functions/v1/memory-list         200!
+/api/v1/memory/list         /.netlify/functions/memory-proxy/list         200!
+/api/v1/memories/list       /.netlify/functions/memory-proxy/list         200!
 
 # Memory CRUD by ID (order matters: specific before wildcard)
 # Memory Update - PUT/PATCH (requires body with id)
-/api/v1/memory/update       https://lanonasis.supabase.co/functions/v1/memory-update       200!
+/api/v1/memory/update       /.netlify/functions/memory-proxy/update       200!
 
 # Memory Delete single - DELETE (requires body with id or query param)
-/api/v1/memory/delete       https://lanonasis.supabase.co/functions/v1/memory-delete       200!
+/api/v1/memory/delete       /.netlify/functions/memory-proxy/delete       200!
+
+# Compatibility getter for clients that still call /memory/get?id=...
+/api/v1/memory/get          /.netlify/functions/memory-proxy/legacy-get    200!
 
 # GET /api/v1/memory/:id and /api/v1/memories/:id
-/api/v1/memory/:id          https://lanonasis.supabase.co/functions/v1/memory-get/:id      200!
-/api/v1/memories/:id        https://lanonasis.supabase.co/functions/v1/memory-get/:id      200!
+/api/v1/memory/:id          /.netlify/functions/memory-proxy/get/:id      200!
+/api/v1/memories/:id        /.netlify/functions/memory-proxy/get/:id      200!
 
 # Memory Create - POST /api/v1/memory (with auto-embedding)
-/api/v1/memory              https://lanonasis.supabase.co/functions/v1/memory-create       200!
-/api/v1/memories            https://lanonasis.supabase.co/functions/v1/memory-create       200!
+/api/v1/memory              /.netlify/functions/memory-proxy/collection    200!
+/api/v1/memories            /.netlify/functions/memory-proxy/collection    200!
 
 # Fallback to Netlify for any unmatched memory routes (legacy support)
 /api/v1/memories/*          /.netlify/functions/maas-api/:splat  200

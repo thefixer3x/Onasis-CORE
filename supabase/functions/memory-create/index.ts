@@ -10,6 +10,7 @@ import { authenticate, createSupabaseClient } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
+import { scoreMemoryWrite } from "../_shared/memory-quality.ts";
 import { suggestTopicKey, isValidTopicKey, normalizeTopicKey } from "../_shared/topic-key.ts";
 
 type MemoryType =
@@ -380,6 +381,61 @@ serve(async (req: Request) => {
         );
         const title = body.title.trim() || String(existing.title || "").trim();
 
+        const continuityQualityDecision = await scoreMemoryWrite(supabase, auth, {
+          title,
+          content: incomingContent,
+          tags: mergedTags,
+          memory_type: mergedMemoryType,
+          write_intent: writeControl.write_intent,
+        });
+
+        if (continuityQualityDecision && continuityQualityDecision.mode !== "pass") {
+          writeAudit(supabase, {
+            user_id: auth.user_id,
+            organization_id: auth.organization_id,
+            action: "memory.quality_gate",
+            resource_type: "memory",
+            resource_id: existing.id,
+            metadata: {
+              title,
+              memory_type: mergedMemoryType,
+              routed_by: "continuity",
+              quality_mode: continuityQualityDecision.mode,
+              reasons: continuityQualityDecision.reasons,
+              duplicate_memory_id: continuityQualityDecision.duplicate_memory_id ?? null,
+              needs_signal_check: continuityQualityDecision.needs_signal_check,
+              boundary_context: continuityQualityDecision.boundary.context,
+            },
+            result: continuityQualityDecision.mode === "hard_fail" ? "denied" : "warning",
+            failure_reason: continuityQualityDecision.mode === "hard_fail"
+              ? "quality_gate_blocked"
+              : undefined,
+            route_source: "edge_function",
+            auth_source: auth.auth_source,
+            actor_id: auth.user_id,
+            actor_type: "user",
+            api_key_id: auth.api_key_id,
+            project_scope: auth.project_scope,
+            ...reqCtx,
+          });
+
+          if (continuityQualityDecision.mode === "hard_fail") {
+            const response = createErrorResponse(
+              ErrorCode.VALIDATION_ERROR,
+              "Memory update rejected by quality gate",
+              422,
+              continuityQualityDecision,
+            );
+            return new Response(response.body, {
+              status: 422,
+              headers: {
+                ...corsHeaders(req),
+                "Content-Type": "application/json",
+              },
+            });
+          }
+        }
+
         const { embedding, provider } = await generateEmbedding(
           title,
           mergedContent,
@@ -519,10 +575,62 @@ serve(async (req: Request) => {
       }
     }
 
+    const qualityDecision = await scoreMemoryWrite(supabase, auth, {
+      title: body.title.trim(),
+      content: body.content.trim(),
+      tags: normalizeTags(body.tags),
+      memory_type: memoryType,
+      write_intent: writeControl.write_intent,
+    });
+
+    if (qualityDecision && qualityDecision.mode !== "pass") {
+      writeAudit(supabase, {
+        user_id: auth.user_id,
+        organization_id: auth.organization_id,
+        action: "memory.quality_gate",
+        resource_type: "memory",
+        metadata: {
+          title: body.title.trim(),
+          memory_type: memoryType,
+          routed_by: "create",
+          quality_mode: qualityDecision.mode,
+          reasons: qualityDecision.reasons,
+          duplicate_memory_id: qualityDecision.duplicate_memory_id ?? null,
+          needs_signal_check: qualityDecision.needs_signal_check,
+          boundary_context: qualityDecision.boundary.context,
+        },
+        result: qualityDecision.mode === "hard_fail" ? "denied" : "warning",
+        failure_reason: qualityDecision.mode === "hard_fail"
+          ? "quality_gate_blocked"
+          : undefined,
+        route_source: "edge_function",
+        auth_source: auth.auth_source,
+        actor_id: auth.user_id,
+        actor_type: "user",
+        api_key_id: auth.api_key_id,
+        project_scope: auth.project_scope,
+        ...reqCtx,
+      });
+
+      if (qualityDecision.mode === "hard_fail") {
+        const response = createErrorResponse(
+          ErrorCode.VALIDATION_ERROR,
+          "Memory rejected by quality gate",
+          422,
+          qualityDecision,
+        );
+        return new Response(response.body, {
+          status: 422,
+          headers: { ...corsHeaders(req), "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const { embedding, provider } = await generateEmbedding(
       body.title.trim(),
       body.content.trim(),
     );
+
     const metadata = buildMetadata(
       undefined,
       body.metadata,

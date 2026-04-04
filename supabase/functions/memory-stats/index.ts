@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authenticate } from "../_shared/auth.ts";
 import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
+import { resolveMemoryBoundary } from "../_shared/memory-context.ts";
 
 const MEMORY_TYPES = [
   "context",
@@ -63,20 +64,22 @@ serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+    const boundary = resolveMemoryBoundary(auth);
 
     // Try to use the memory_stats RPC function if available.
     // The migration defines filter_organization_id/filter_user_id, so we align with that contract here.
     const { data: rpcStats, error: rpcError } = await supabase.rpc(
       "memory_stats",
       {
-        filter_organization_id: auth.is_master ? null : auth.organization_id,
-        filter_user_id: null,
+        filter_organization_id: boundary.organization_id,
+        filter_user_id: boundary.user_id,
       },
     );
 
-    const baseFilter = auth.is_master
-      ? {}
-      : { organization_id: auth.organization_id };
+    const baseFilter = {
+      ...(boundary.organization_id ? { organization_id: boundary.organization_id } : {}),
+      ...(boundary.user_id ? { user_id: boundary.user_id } : {}),
+    };
     const encoder = new TextEncoder();
     const normalizedRpcStats = isRecord(rpcStats) ? rpcStats : null;
 
@@ -307,7 +310,8 @@ serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         data: stats,
-        organization_id: auth.organization_id,
+        organization_id: boundary.organization_id ?? auth.organization_id,
+        memory_context: boundary.context,
         generated_at: new Date().toISOString(),
       }),
       {

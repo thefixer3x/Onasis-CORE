@@ -8,6 +8,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { authenticate } from '../_shared/auth.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
+import { applyMemoryBoundary, resolveMemoryBoundary } from '../_shared/memory-context.ts';
 
 interface ListParams {
   limit?: number;
@@ -70,16 +71,14 @@ serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
+    const boundary = resolveMemoryBoundary(auth);
 
     // Build query
     let query = supabase
       .from('memory_entries')
       .select('id, title, content, memory_type, tags, metadata, user_id, organization_id, created_at, updated_at, last_accessed, access_count', { count: 'exact' });
 
-    // Apply organization scope (unless master key)
-    if (!auth.is_master) {
-      query = query.eq('organization_id', auth.organization_id);
-    }
+    query = applyMemoryBoundary(query, auth, { route: 'memory-list' });
 
     if (!includeDeleted) {
       query = query.is('deleted_at', null);
@@ -143,7 +142,8 @@ serve(async (req: Request) => {
         sort_by: sortBy,
         sort_order: sortOrder
       },
-      organization_id: auth.organization_id
+      organization_id: auth.organization_id,
+      memory_context: boundary.context
     }), {
       status: 200,
       headers: { ...corsHeaders(req), 'Content-Type': 'application/json' }

@@ -10,6 +10,8 @@
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+type MemoryKeyContext = 'personal' | 'team' | 'enterprise' | 'legacy';
+
 export interface AuthContext {
   user_id: string;
   organization_id: string;
@@ -19,6 +21,8 @@ export interface AuthContext {
   api_key_id?: string;
   auth_source?: 'api_key' | 'auth_gateway' | 'supabase';
   project_scope?: string;
+  permissions?: string[];
+  key_context?: MemoryKeyContext;
 }
 
 const PROJECT_SCOPE_UUID_REGEX =
@@ -91,6 +95,41 @@ function normalizeProjectScope(req: Request): string | undefined {
   return value && value.trim().length > 0 ? value.trim() : undefined;
 }
 
+function normalizePermissions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => typeof entry === 'string' ? entry.trim() : '')
+    .filter(Boolean);
+}
+
+function normalizeKeyContext(value: unknown): MemoryKeyContext | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === 'personal' || normalized === 'team' ||
+    normalized === 'enterprise' || normalized === 'legacy'
+  ) {
+    return normalized;
+  }
+  return undefined;
+}
+
+function inferKeyContextFromPermissions(
+  permissions: string[],
+): MemoryKeyContext | undefined {
+  const normalized = permissions.map((permission) => permission.toLowerCase());
+  if (normalized.some((permission) => permission.startsWith('memories:personal:'))) {
+    return 'personal';
+  }
+  if (normalized.some((permission) => permission.startsWith('memories:team:'))) {
+    return 'team';
+  }
+  if (normalized.some((permission) => permission.startsWith('memories:enterprise:'))) {
+    return 'enterprise';
+  }
+  return undefined;
+}
+
 /**
  * Authenticate via auth-gateway's /oauth/introspect endpoint
  * This handles auth-gateway issued JWTs (from OAuth flows, OTP, etc.)
@@ -153,6 +192,9 @@ async function authenticateViaAuthGateway(
       is_master: data.scope?.includes('admin') || false,
       auth_source: 'auth_gateway',
       project_scope: data.project_scope || undefined,
+      permissions: typeof data.scope === 'string'
+        ? data.scope.split(' ').map((scope: string) => scope.trim()).filter(Boolean)
+        : [],
     };
   } catch (error) {
     // Auth-gateway unavailable or network error - fall back to Supabase
@@ -193,6 +235,7 @@ async function authenticateViaSupabase(
         email: userData.email || user.email || '',
         is_master: false,
         auth_source: 'supabase',
+        permissions: ['*'],
       };
     }
 
@@ -219,6 +262,15 @@ async function authenticateApiKey(
   requestedProjectScope?: string,
 ): Promise<AuthContext | null> {
   console.log(`[auth] Authenticating API key: ${apiKey.substring(0, 10)}...`);
+
+  const gatewayResult = await authenticateApiKeyViaAuthGateway(
+    supabase,
+    apiKey,
+    requestedProjectScope,
+  );
+  if (gatewayResult) {
+    return gatewayResult;
+  }
 
   // First, try to find by exact key match (plaintext stored keys)
   let keyData = await findApiKeyByPlaintext(supabase, apiKey);
@@ -289,6 +341,10 @@ async function authenticateApiKey(
     keyData.access_level === 'enterprise' ||
     keyData.name?.toLowerCase().includes('master') ||
     keyData.name?.toLowerCase().includes('admin');
+  const permissions = normalizePermissions(keyData.permissions);
+  const keyContext = normalizeKeyContext(keyData.key_context) ??
+    inferKeyContextFromPermissions(permissions) ??
+    'legacy';
 
   console.log(`[auth] Auth successful - org: ${organizationId}, master: ${isMaster}`);
 
@@ -300,7 +356,79 @@ async function authenticateApiKey(
     is_master: isMaster,
     api_key_id: keyData.id,
     project_scope: validatedProjectScope,
+    permissions,
+    key_context: keyContext,
   };
+}
+
+async function authenticateApiKeyViaAuthGateway(
+  supabase: SupabaseClient,
+  apiKey: string,
+  requestedProjectScope?: string,
+): Promise<AuthContext | null> {
+  const authGatewayUrl = Deno.env.get('AUTH_GATEWAY_URL') || 'https://auth.lanonasis.com';
+
+  try {
+    const response = await fetch(`${authGatewayUrl}/v1/auth/verify-api-key`, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      console.log('[auth] Auth-gateway API key verification returned non-OK status:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    if (!data.valid || !data.userId) {
+      return null;
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('organization_id, email')
+      .eq('id', data.userId)
+      .single();
+
+    if (userError || !userData?.organization_id) {
+      console.log('[auth] Auth-gateway API key verification could not hydrate organization:', userError?.message || 'missing organization');
+      return null;
+    }
+
+    const validatedProjectScope = await resolveProjectScopeForApiKey(
+      supabase,
+      data.userId,
+      userData.organization_id,
+      requestedProjectScope || data.projectScope || undefined,
+    );
+    const permissions = normalizePermissions(data.permissions);
+    const keyContext = normalizeKeyContext(data.keyContext) ??
+      inferKeyContextFromPermissions(permissions) ??
+      'legacy';
+    const isMaster = apiKey.startsWith('master_') ||
+      permissions.includes('*') ||
+      permissions.includes('admin.*');
+
+    console.log(`[auth] Auth-gateway API key verification successful for user: ${data.userId}`);
+
+    return {
+      user_id: data.userId,
+      organization_id: userData.organization_id,
+      access_level: 'authenticated',
+      email: userData.email || '',
+      is_master: isMaster,
+      api_key_id: typeof data.keyId === 'string' ? data.keyId : undefined,
+      auth_source: 'api_key',
+      project_scope: validatedProjectScope || data.projectScope || undefined,
+      permissions,
+      key_context: keyContext,
+    };
+  } catch (error) {
+    console.log('[auth] Auth-gateway API key verification failed, falling back to local key store:', error);
+    return null;
+  }
 }
 
 async function resolveProjectScopeForApiKey(
@@ -369,17 +497,7 @@ async function findApiKeyByPlaintext(
   supabase: SupabaseClient,
   apiKey: string
 ): Promise<ApiKeyRecord | null> {
-  const { data, error } = await supabase
-    .from('api_keys')
-    .select('id, user_id, access_level, name, is_active, expires_at')
-    .eq('key', apiKey)
-    .maybeSingle();
-
-  if (error) {
-    console.error('[auth] Plaintext key lookup error:', error.message);
-    return null;
-  }
-  return data;
+  return await findApiKeyRecord(supabase, 'key', apiKey, '[auth] Plaintext key lookup');
 }
 
 /**
@@ -389,14 +507,36 @@ async function findApiKeyByHash(
   supabase: SupabaseClient,
   keyHash: string
 ): Promise<ApiKeyRecord | null> {
+  return await findApiKeyRecord(supabase, 'key_hash', keyHash, '[auth] Hash key lookup');
+}
+
+async function findApiKeyRecord(
+  supabase: SupabaseClient,
+  column: 'key' | 'key_hash',
+  value: string,
+  logPrefix: string,
+): Promise<ApiKeyRecord | null> {
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, user_id, access_level, name, is_active, expires_at')
-    .eq('key_hash', keyHash)
+    .select('id, user_id, access_level, name, is_active, expires_at, permissions, key_context')
+    .eq(column, value)
     .maybeSingle();
 
   if (error) {
-    console.error('[auth] Hash key lookup error:', error.message);
+    if (error.message?.includes('key_context')) {
+      const fallback = await supabase
+        .from('api_keys')
+        .select('id, user_id, access_level, name, is_active, expires_at, permissions')
+        .eq(column, value)
+        .maybeSingle();
+
+      if (fallback.error) {
+        console.error(`${logPrefix} error:`, fallback.error.message);
+        return null;
+      }
+      return fallback.data;
+    }
+    console.error(`${logPrefix} error:`, error.message);
     return null;
   }
   return data;
@@ -409,6 +549,8 @@ interface ApiKeyRecord {
   name: string;
   is_active: boolean;
   expires_at?: string;
+  permissions?: string[];
+  key_context?: string | null;
 }
 
 /**
