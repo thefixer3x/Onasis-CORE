@@ -31,6 +31,11 @@ const supabase =
       })
     : null;
 
+const supabaseEdgeBaseUrl = `${
+  (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "https://lanonasis.supabase.co").replace(/\/$/, "")
+}/functions/v1`;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
+
 // CORS configuration
 app.use(
   require("cors")({
@@ -150,6 +155,144 @@ const hashSecret = (value) =>
     .createHash("sha256")
     .update(value || "")
     .digest("hex");
+
+function getExpressHeader(req, name) {
+  return req.get(name) || req.headers?.[name.toLowerCase()] || "";
+}
+
+function buildQueryStringFromObject(query = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      value.forEach((entry) => params.append(key, String(entry)));
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  return params.toString();
+}
+
+function getMemoryProxyRoute(normalizedPath, method, queryString) {
+  switch (normalizedPath) {
+    case "/api/v1/memory":
+      return method === "GET"
+        ? { targetPath: "memory-list", query: queryString }
+        : { targetPath: "memory-create" };
+    case "/api/v1/memory/list":
+      return { targetPath: "memory-list", query: queryString };
+    case "/api/v1/memory/search":
+      return { targetPath: "memory-search", query: queryString };
+    case "/api/v1/memory/stats":
+      return { targetPath: "memory-stats", query: queryString };
+    case "/api/v1/memory/health":
+      return { targetPath: "system-health", query: queryString };
+    case "/api/v1/memory/update":
+      return { targetPath: "memory-update" };
+    case "/api/v1/memory/delete":
+      return { targetPath: "memory-delete", query: queryString };
+    case "/api/v1/memory/get":
+      return { targetPath: "memory-get", query: queryString };
+    case "/api/v1/memory/bulk/delete":
+    case "/api/v1/memory/bulk-delete":
+      return { targetPath: "memory-bulk-delete", query: queryString };
+    default:
+      break;
+  }
+
+  const itemMatch = normalizedPath.match(/^\/api\/v1\/memory\/([^/]+)$/);
+  if (itemMatch) {
+    const memoryId = decodeURIComponent(itemMatch[1]);
+    if (method === "GET" || method === "HEAD") {
+      return { targetPath: `memory-get/${encodeURIComponent(memoryId)}`, query: queryString };
+    }
+    if (method === "DELETE") {
+      return { targetPath: `memory-delete/${encodeURIComponent(memoryId)}`, query: queryString };
+    }
+    if (method === "PUT" || method === "PATCH" || method === "POST") {
+      return { targetPath: "memory-update", injectId: memoryId };
+    }
+  }
+
+  return null;
+}
+
+async function proxyMemoryEdgeRoute(req, res, next) {
+  if (!supabaseAnonKey) {
+    return next();
+  }
+
+  const mountedPath = `${req.baseUrl || ""}${req.path || ""}` || "/";
+  const originalPath = ((req.originalUrl || req.url || "").split("?")[0] || mountedPath || "/");
+  const routePath = originalPath.startsWith("/api/v1/")
+    ? originalPath
+    : mountedPath;
+  const normalizedPath = routePath.replace(/^\/api\/v1\/memories/, "/api/v1/memory");
+  const queryString = buildQueryStringFromObject(req.query || {});
+  const route = getMemoryProxyRoute(normalizedPath, req.method, queryString);
+
+  if (!route) {
+    return next();
+  }
+
+  const targetUrl = new URL(`${supabaseEdgeBaseUrl}/${route.targetPath}`);
+  if (route.query) {
+    targetUrl.search = route.query;
+  }
+
+  const incomingAuthorization = getExpressHeader(req, "authorization");
+  const incomingApiKey = getExpressHeader(req, "x-api-key");
+  const incomingProjectScope = getExpressHeader(req, "x-project-scope");
+  const incomingClientInfo = getExpressHeader(req, "x-client-info");
+  const contentType = getExpressHeader(req, "content-type") || "application/json";
+
+  let body;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    const payload = route.injectId
+      ? { ...(req.body || {}), id: route.injectId }
+      : req.body;
+    body = payload === undefined ? undefined : JSON.stringify(payload);
+  }
+
+  const headers = {
+    "Content-Type": contentType,
+    apikey: supabaseAnonKey,
+    Authorization: incomingAuthorization || `Bearer ${supabaseAnonKey}`,
+  };
+
+  if (incomingApiKey) {
+    headers["X-API-Key"] = incomingApiKey;
+  }
+  if (incomingProjectScope) {
+    headers["x-project-scope"] = incomingProjectScope;
+  }
+  if (incomingClientInfo) {
+    headers["x-client-info"] = incomingClientInfo;
+  }
+
+  try {
+    const upstream = await fetch(targetUrl, {
+      method: req.method,
+      headers,
+      body,
+    });
+    const responseText = await upstream.text();
+    res.status(upstream.status);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader(
+      "Content-Type",
+      upstream.headers.get("content-type") || "application/json"
+    );
+    res.setHeader("X-Lanonasis-Memory-Proxy", "edge-compat");
+    return res.send(responseText);
+  } catch (error) {
+    console.error("[maas-api] memory proxy failed:", error);
+    return res.status(502).json({
+      error: "Failed to reach memory edge functions",
+      code: "UPSTREAM_UNAVAILABLE",
+    });
+  }
+}
 
 /**
  * Resolve organization_id from vendor_org_id or return existing organization_id
@@ -633,6 +776,8 @@ const verifyJwtToken = async (req, res, next) => {
 };
 
 // Apply auth middleware to protected routes
+app.use("/api/v1/memory", proxyMemoryEdgeRoute);
+app.use("/api/v1/memories", proxyMemoryEdgeRoute);
 app.use("/api/v1/memory", verifyJwtToken);
 
 // Temporary alias for legacy /api/v1/memories paths
