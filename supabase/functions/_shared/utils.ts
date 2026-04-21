@@ -520,7 +520,7 @@ export async function setCache(
     tokens_saved: tokensSaved,
     expires_at: expiresAt.toISOString(),
     hit_count: 0,
-  });
+  }, { onConflict: "cache_key" });
 }
 
 // AI chat completion - uses AI Router if configured, otherwise OpenAI
