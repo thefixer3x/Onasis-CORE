@@ -23,6 +23,11 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_memory_restart: '500M',
+      min_uptime: '10s',       // Must stay up 10s before counted as stable
+      max_restarts: 10,        // Stop restarting after 10 failures (prevents runaway loops)
+      restart_delay: 5000,          // Wait 5s on first restart
+      exp_backoff_restart_delay: 100, // Then double each attempt (100→200→400...→15000ms cap)
+      kill_timeout: 10000,     // Give app 10s to gracefully shut down
       // Secrets are injected at runtime by the npm start command:
       // dotenvx run --ops-off -f .env.production -- node start.js
       env: {

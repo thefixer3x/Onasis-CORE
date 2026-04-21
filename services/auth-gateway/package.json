@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p .",
-    "start": "dotenvx run --ops-off -f .env.production -- node start.js",
+    "start": "dotenvx run --strict --ops-off -f .env.production -- node start.js",
     "start:pm2": "pm2-runtime start ecosystem.config.cjs",
     "db:migrate": "node run-migration.mjs",
     "db:migrate:status": "node run-migration.mjs --status",
