@@ -62,6 +62,7 @@ export interface UAIResolutionResult {
 export class UAISessionCacheService {
   private redis: RedisClientType | null = null
   private pgPool: Pool | null = null
+  private pgPostgresUrl: string | null = null
   private memoryCache: Map<string, CachedUAISession> = new Map()
   private readonly ttlSeconds: number
   private activeLayers: CacheLayer[] = []
@@ -111,12 +112,15 @@ export class UAISessionCacheService {
   }
 
   private async initPostgres(postgresUrl: string): Promise<void> {
+    this.pgPostgresUrl = postgresUrl
     try {
       this.pgPool = new Pool({
         connectionString: postgresUrl,
         max: 5, // Small pool for cache operations
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000,
         ssl: {
           rejectUnauthorized: false // Accept self-signed certificates for Supabase
         }
@@ -357,7 +361,24 @@ export class UAISessionCacheService {
       )
       return result.rowCount || 0
     } catch (error) {
-      console.warn('Postgres cleanup error:', error)
+      const err = error as Error
+      console.warn('Postgres cleanup error:', err.message)
+
+      // Recreate the pool if the connection was terminated or timed out
+      const isConnectionError = err.message.includes('terminated') ||
+        err.message.includes('timeout') ||
+        err.message.includes('ECONNRESET') ||
+        err.message.includes('Connection')
+
+      if (isConnectionError && this.pgPostgresUrl) {
+        console.warn('UAI Session Cache: Recreating Postgres pool after connection error')
+        try {
+          await this.pgPool.end().catch(() => { })
+        } catch { /* ignore end() errors */ }
+        this.pgPool = null
+        await this.initPostgres(this.pgPostgresUrl)
+      }
+
       return 0
     }
   }
