@@ -59,7 +59,7 @@ interface DeviceCodeData {
 function generateUserCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ' // No I, O (confusing)
   const nums = '23456789' // No 0, 1 (confusing)
-  
+
   let code = ''
   for (let i = 0; i < 4; i++) {
     code += chars[crypto.randomInt(chars.length)]
@@ -87,7 +87,7 @@ function generateDeviceCode(): string {
 router.post('/device', async (req: Request, res: Response): Promise<void> => {
   const clientId = req.body.client_id as string
   const scope = req.body.scope as string || 'lanonasis-maas'
-  
+
   if (!clientId) {
     res.status(400).json({
       error: 'invalid_request',
@@ -258,7 +258,7 @@ router.post('/device/verify', async (req: Request, res: Response): Promise<void>
 
   if (!email) {
     res.status(400).json({
-      error: 'invalid_request', 
+      error: 'invalid_request',
       error_description: 'email is required'
     })
     return
@@ -302,10 +302,77 @@ router.post('/device/verify', async (req: Request, res: Response): Promise<void>
       )
     }
 
+    // Send OTP via Supabase
+    const { supabaseAuth } = await import('../../db/client.js')
+    const { error: otpError } = await supabaseAuth.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        shouldCreateUser: true, // Allow new users
+        // Note: Not setting emailRedirectTo for device flow since we use OTP codes, not magic links
+      }
+    })
+
+    if (otpError) {
+      logger.warn('Device OTP send failed', {
+        email: email.substring(0, 3) + '***',
+        userCode,
+        error: otpError.message,
+        status: otpError.status
+      })
+
+      await logAuthEvent({
+        event_type: 'device_otp_send_failed',
+        platform: 'cli',
+        ip_address: req.ip,
+        user_agent: req.headers['user-agent'],
+        success: false,
+        error_message: otpError.message,
+        metadata: {
+          email: email.substring(0, 3) + '***',
+          user_code: userCode,
+          error_status: otpError.status
+        },
+        ...auditCorrelation(req),
+      })
+
+      // Provide helpful error message
+      let errorMessage = 'Failed to send verification code'
+      if (otpError.message?.includes('rate')) {
+        errorMessage = 'Too many OTP requests. Please try again in a few minutes.'
+      } else if (otpError.status === 429) {
+        errorMessage = 'Rate limited. Please try again later.'
+      }
+
+      res.status(otpError.status || 500).json({
+        error: 'otp_send_failed',
+        error_description: errorMessage,
+        message: errorMessage
+      })
+      return
+    }
+
+    await logAuthEvent({
+      event_type: 'device_otp_sent',
+      platform: 'cli',
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+      metadata: {
+        email: email.substring(0, 3) + '***',
+        user_code: userCode
+      },
+      ...auditCorrelation(req),
+    })
+
+    logger.info('Device OTP sent successfully', {
+      email: email.substring(0, 3) + '***',
+      userCode
+    })
+
     // Return success - frontend will now show OTP input
     res.json({
       success: true,
-      message: 'Email registered. Check your inbox for the verification code.',
+      message: 'Verification code sent! Check your email inbox for the 6-digit code.',
       requires_otp: true
     })
   } catch (error) {
