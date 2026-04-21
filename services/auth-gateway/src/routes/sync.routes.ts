@@ -229,7 +229,7 @@ router.post('/user', async (req: Request, res: Response): Promise<void> => {
             last_sign_in_at = COALESCE(EXCLUDED.last_sign_in_at, auth_gateway.user_accounts.last_sign_in_at),
             updated_at = NOW()
         `,
-        [id, email, role || 'authenticated', provider || 'email', metadata || {}, last_sign_in_at || null]
+        [id, email, role || 'user', provider || 'email', metadata || {}, last_sign_in_at || null]
       )
 
       // Emit UserUpserted event
@@ -240,7 +240,7 @@ router.post('/user', async (req: Request, res: Response): Promise<void> => {
           event_type: 'UserUpserted',
           payload: {
             email,
-            role: role || 'authenticated',
+            role: role || 'user',
             provider: provider || 'email',
             last_sign_in_at,
           },
