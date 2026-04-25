@@ -58,32 +58,166 @@ app.options("/health", (_req, res) => {
   res.status(204).end();
 });
 
+app.options("/ready", (_req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  res.status(204).end();
+});
+
 app.get("/health", async (_req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
   res.setHeader("Access-Control-Allow-Credentials", "true");
-  const { checkDatabaseHealth } = await import("../db/client.js");
-  const { checkRedisHealth } = await import("./services/cache.service.js");
-  const { getOutboxStats } = await import("./services/event.service.js");
-  const { getCacheStats } = await import("./services/uai-session-cache.service.js");
-  const dbStatus = await checkDatabaseHealth();
-  const redisStatus = await checkRedisHealth();
-  const outboxStatus = await getOutboxStats();
-  const uaiCacheStats = await getCacheStats();
-  const overallStatus = dbStatus.healthy ? (redisStatus.healthy ? "ok" : "degraded") : "unhealthy";
+  // Liveness only - process is up, config loaded, HTTP server can serve.
+  // Must NOT fail because Redis is absent, DB is down, or background jobs are degraded.
+  // DB/Redis errors are swallowed and reported as info, not as liveness failures.
+  let dbInfo: { healthy: boolean | null; error: string | null } = { healthy: null, error: null };
+  let redisInfo: { healthy: boolean | null; error: string | null } = { healthy: null, error: null };
+  try {
+    const { checkDatabaseHealth } = await import("../db/client.js");
+    const result = await checkDatabaseHealth();
+    dbInfo = { healthy: result.healthy, error: result.error ?? null };
+  } catch (_) {}
+  try {
+    const { checkRedisHealth } = await import("./services/cache.service.js");
+    const result = await checkRedisHealth();
+    redisInfo = { healthy: result.healthy, error: result.error ?? null };
+  } catch (_) {}
   res.json({
-    status: overallStatus,
+    status: "ok",
     service: "auth-gateway",
-    database: dbStatus,
-    cache: redisStatus,
-    uaiCache: {
-      layers: uaiCacheStats.layers,
-      memoryCacheSize: uaiCacheStats.memoryCacheSize,
-      postgresCacheSize: uaiCacheStats.postgresCacheSize,
-    },
-    outbox: outboxStatus,
+    liveness: "pass",
+    database: dbInfo,
+    cache: redisInfo,
     timestamp: new Date().toISOString()
+  });
+});
+
+// /ready - Strict readiness probe for load balancer decisions
+// Returns 200 only when this origin is safe to receive OAuth/device/token traffic
+app.get("/ready", async (_req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-project-scope, X-Project-Scope, X-Requested-With");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Max-Age", "86400");
+
+  const failures: string[] = [];
+  const details: Record<string, { status: 'ok' | 'degraded' | 'fail'; reason?: string; latency_ms?: number }> = {};
+
+  const startTime = Date.now();
+  const CANONICAL_ISSUER = 'https://auth.lanonasis.com';
+
+  // 1. Check canonical issuer config
+  // AUTH_BASE_URL must be explicitly set to the canonical issuer - no fallback allowed.
+  // An origin without explicit AUTH_BASE_URL is misconfigured and must not report ready.
+  const issuerConfigured = env.AUTH_BASE_URL;
+  if (!issuerConfigured) {
+    failures.push('issuer_not_configured: AUTH_BASE_URL is not set');
+    details.issuer = { status: 'fail', reason: 'AUTH_BASE_URL is not set - this origin has no explicit issuer configured' };
+  } else if (issuerConfigured !== CANONICAL_ISSUER) {
+    failures.push(`issuer_mismatch: expected ${CANONICAL_ISSUER}, got ${issuerConfigured}`);
+    details.issuer = { status: 'fail', reason: `Issuer mismatch: expected ${CANONICAL_ISSUER}, got ${issuerConfigured}` };
+  } else {
+    details.issuer = { status: 'ok' };
+  }
+
+  // 2. Check Postgres reachability and auth tables
+  try {
+    const dbStart = Date.now();
+    const { checkDatabaseHealth } = await import('../db/client.js');
+    const dbHealth = await checkDatabaseHealth();
+    details.postgres = {
+      status: dbHealth.healthy ? 'ok' : 'fail',
+      reason: dbHealth.healthy ? undefined : dbHealth.error,
+      latency_ms: Date.now() - dbStart
+    };
+    if (!dbHealth.healthy) {
+      failures.push(`postgres_unreachable: ${dbHealth.error}`);
+    }
+  } catch (err) {
+    const msg = (err as Error).message;
+    failures.push(`postgres_error: ${msg}`);
+    details.postgres = { status: 'fail', reason: msg };
+  }
+
+  // 3. Check shared state store path (auth_gateway.oauth_states as used by real auth flows)
+  // Use fully-qualified table name - do NOT borrow a pooled client and mutate its search_path.
+  // Leaking connection-local state into the shared pool would corrupt future requests.
+  try {
+    const { dbPool } = await import('../db/client.js');
+    const stateStart = Date.now();
+    const stateCheck = await dbPool.query(
+      "SELECT 1 FROM auth_gateway.oauth_states LIMIT 1"
+    );
+    details.sharedState = { status: 'ok', latency_ms: Date.now() - stateStart };
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg.includes('does not exist') || (msg.includes('relation') && msg.includes('does not exist'))) {
+      failures.push('shared_state_missing: auth_gateway.oauth_states table not found');
+      details.sharedState = { status: 'fail', reason: 'auth_gateway.oauth_states table not found - shared auth state unavailable' };
+    } else {
+      failures.push(`shared_state_error: ${msg}`);
+      details.sharedState = { status: 'fail', reason: msg };
+    }
+  }
+
+  // 4. Session verification path operational (check JWT_SECRET is configured)
+  const jwtSecretStatus = env.JWT_SECRET && env.JWT_SECRET.length >= 32 ? 'ok' : 'fail';
+  details.session = { status: jwtSecretStatus, reason: jwtSecretStatus === 'fail' ? 'JWT_SECRET missing or too short' : undefined };
+  if (jwtSecretStatus === 'fail') {
+    failures.push('session_verification_unavailable');
+  }
+
+  // 5. Redis readiness (only blocker if configured as mandatory)
+  const redisMandatory = process.env.REDIS_ENABLED === 'true' || process.env.REDIS_URL;
+  try {
+    const { checkRedisHealth } = await import('./services/cache.service.js');
+    const redisStart = Date.now();
+    const redisHealth = await checkRedisHealth();
+    details.redis = {
+      status: redisHealth.healthy ? 'ok' : (redisMandatory ? 'fail' : 'degraded'),
+      reason: redisHealth.healthy ? undefined : redisHealth.error,
+      latency_ms: Date.now() - redisStart
+    };
+    if (!redisHealth.healthy && redisMandatory) {
+      failures.push(`redis_required_but_unavailable: ${redisHealth.error}`);
+    }
+  } catch (err) {
+    const msg = (err as Error).message;
+    details.redis = { status: redisMandatory ? 'fail' : 'degraded', reason: msg };
+    if (redisMandatory) {
+      failures.push(`redis_error: ${msg}`);
+    }
+  }
+
+  // 6. Check for signing keyset (JWKS contract - placeholder for asymmetric keys)
+  // During bridge phase, we check that legacy JWT_SECRET is available (asymmetric will be added)
+  const signingKeyAvailable = Boolean(env.JWT_SECRET && env.JWT_SECRET.length >= 32);
+  details.signingKeys = {
+    status: signingKeyAvailable ? 'ok' : 'fail',
+    reason: signingKeyAvailable ? undefined : 'No signing key material available'
+  };
+  if (!signingKeyAvailable) {
+    failures.push('signing_keys_unavailable');
+  }
+
+  const overallStatus = failures.length === 0 ? 'ready' : 'not_ready';
+  const httpStatus = overallStatus === 'ready' ? 200 : 503;
+
+  res.status(httpStatus).json({
+    status: overallStatus,
+    service: 'auth-gateway',
+    canonical_issuer: CANONICAL_ISSUER,
+    issuer_configured: issuerConfigured,
+    checks: details,
+    failures: failures.length > 0 ? failures : undefined,
+    timestamp: new Date().toISOString(),
+    total_latency_ms: Date.now() - startTime
   });
 });
 
@@ -265,7 +399,7 @@ app.get('/.well-known/oauth-authorization-server', (_req, res) => {
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
     grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
-    code_challenge_methods_supported: ['S256', 'plain'],
+    code_challenge_methods_supported: ['S256'],
     // RFC 8628 Device Authorization Grant (GitHub-style CLI auth)
     device_authorization_endpoint: `${baseUrl}/oauth/device`,
     service_documentation: 'https://docs.lanonasis.com/mcp/oauth',
@@ -322,7 +456,7 @@ app.post('/register', express.json(), async (req, res) => {
       client_name || 'MCP Client',
       'public', // MCP clients are public (no client_secret for token requests)
       true, // require PKCE
-      ['S256', 'plain'],
+      ['S256'],
       JSON.stringify(redirect_uris),
       scope.split(' '),
       ['memories:read', 'mcp:connect'],

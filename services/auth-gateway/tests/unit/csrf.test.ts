@@ -8,15 +8,32 @@ vi.mock('../../config/env.js', () => ({
   }
 }))
 
+const csrfRecords = new Map<string, { created: number; clientId?: string; sessionId?: string }>()
+
+vi.mock('../../src/services/csrf-store.js', () => ({
+  PostgresCSRFStore: {
+    set: vi.fn(async (token: string, data: { created: number; clientId?: string; sessionId?: string }) => {
+      csrfRecords.set(token, data)
+    }),
+    consume: vi.fn(async (token: string) => {
+      const record = csrfRecords.get(token) ?? null
+      if (record) {
+        csrfRecords.delete(token)
+      }
+      return record
+    })
+  }
+}))
+
 import {
   generateCSRFToken,
-  validateCSRFToken,
+  validateCSRFTokenAsync,
   generateAuthorizeCSRF,
-  validateTokenCSRF,
+  validateTokenCSRFAsync,
   enhanceStateParameter,
   doubleSubmitCookie,
   setCSRFCookie
-} from '../../src/middleware/csrf.js'
+} from '../../src/middleware/csrf.ts'
 
 describe('CSRF Protection', () => {
   let mockReq: Partial<Request>
@@ -25,6 +42,7 @@ describe('CSRF Protection', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    csrfRecords.clear()
     mockReq = {
       method: 'GET',
       query: {},
@@ -53,36 +71,36 @@ describe('CSRF Protection', () => {
       expect(token1).not.toBe(token2)
     })
 
-    it('should store clientId and sessionId', () => {
+    it('should store clientId and sessionId', async () => {
       const token = generateCSRFToken('client-123', 'session-456')
-      expect(validateCSRFToken(token, 'client-123', 'session-456')).toBe(true)
+      await expect(validateCSRFTokenAsync(token, 'client-123', 'session-456')).resolves.toBe(true)
     })
   })
 
-  describe('validateCSRFToken', () => {
-    it('should validate a valid token', () => {
+  describe('validateCSRFTokenAsync', () => {
+    it('should validate a valid token', async () => {
       const token = generateCSRFToken()
-      expect(validateCSRFToken(token)).toBe(true)
+      await expect(validateCSRFTokenAsync(token)).resolves.toBe(true)
     })
 
-    it('should reject an invalid token', () => {
-      expect(validateCSRFToken('invalid-token')).toBe(false)
+    it('should reject an invalid token', async () => {
+      await expect(validateCSRFTokenAsync('invalid-token')).resolves.toBe(false)
     })
 
-    it('should reject token with wrong clientId', () => {
+    it('should reject token with wrong clientId', async () => {
       const token = generateCSRFToken('client-123')
-      expect(validateCSRFToken(token, 'wrong-client')).toBe(false)
+      await expect(validateCSRFTokenAsync(token, 'wrong-client')).resolves.toBe(false)
     })
 
-    it('should reject token with wrong sessionId', () => {
+    it('should reject token with wrong sessionId', async () => {
       const token = generateCSRFToken(undefined, 'session-123')
-      expect(validateCSRFToken(token, undefined, 'wrong-session')).toBe(false)
+      await expect(validateCSRFTokenAsync(token, undefined, 'wrong-session')).resolves.toBe(false)
     })
 
-    it('should be one-time use (token consumed after validation)', () => {
+    it('should be one-time use (token consumed after validation)', async () => {
       const token = generateCSRFToken()
-      expect(validateCSRFToken(token)).toBe(true)
-      expect(validateCSRFToken(token)).toBe(false) // Second use should fail
+      await expect(validateCSRFTokenAsync(token)).resolves.toBe(true)
+      await expect(validateCSRFTokenAsync(token)).resolves.toBe(false) // Second use should fail
     })
   })
 
@@ -119,46 +137,41 @@ describe('CSRF Protection', () => {
     })
   })
 
-  describe('validateTokenCSRF', () => {
-    it('should skip non-authorization_code grants', () => {
+  describe('validateTokenCSRFAsync', () => {
+    it('should skip non-authorization_code grants', async () => {
       mockReq.body = { grant_type: 'refresh_token' }
 
-      validateTokenCSRF(mockReq as Request, mockRes as Response, mockNext)
+      await validateTokenCSRFAsync(mockReq as Request, mockRes as Response, mockNext)
 
       expect(mockNext).toHaveBeenCalled()
       expect(mockRes.status).not.toHaveBeenCalled()
     })
 
-    it('should reject missing state parameter', () => {
+    it('should allow missing state parameter for compatibility', async () => {
       mockReq.body = { grant_type: 'authorization_code' }
 
-      validateTokenCSRF(mockReq as Request, mockRes as Response, mockNext)
+      await validateTokenCSRFAsync(mockReq as Request, mockRes as Response, mockNext)
 
-      expect(mockRes.status).toHaveBeenCalledWith(400)
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        error: 'invalid_request',
-        error_description: 'Missing or invalid state parameter'
-      }))
+      expect(mockNext).toHaveBeenCalled()
+      expect(mockRes.status).not.toHaveBeenCalled()
     })
 
-    it('should reject invalid state format', () => {
+    it('should allow plain state without CSRF suffix', async () => {
       mockReq.body = { grant_type: 'authorization_code', state: 'no-dot-separator' }
 
-      validateTokenCSRF(mockReq as Request, mockRes as Response, mockNext)
+      await validateTokenCSRFAsync(mockReq as Request, mockRes as Response, mockNext)
 
-      expect(mockRes.status).toHaveBeenCalledWith(400)
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        error_description: 'Invalid state parameter format'
-      }))
+      expect(mockNext).toHaveBeenCalled()
+      expect(mockReq.originalState).toBe('no-dot-separator')
     })
 
-    it('should reject invalid CSRF token', () => {
+    it('should reject invalid CSRF token when suffix is present', async () => {
       mockReq.body = {
         grant_type: 'authorization_code',
         state: 'userState.invalidCsrfToken'
       }
 
-      validateTokenCSRF(mockReq as Request, mockRes as Response, mockNext)
+      await validateTokenCSRFAsync(mockReq as Request, mockRes as Response, mockNext)
 
       expect(mockRes.status).toHaveBeenCalledWith(400)
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
@@ -166,7 +179,7 @@ describe('CSRF Protection', () => {
       }))
     })
 
-    it('should validate correct CSRF token and extract user state', () => {
+    it('should validate correct CSRF token and extract user state', async () => {
       const csrfToken = generateCSRFToken('test-client')
       mockReq.body = {
         grant_type: 'authorization_code',
@@ -174,7 +187,7 @@ describe('CSRF Protection', () => {
         client_id: 'test-client'
       }
 
-      validateTokenCSRF(mockReq as Request, mockRes as Response, mockNext)
+      await validateTokenCSRFAsync(mockReq as Request, mockRes as Response, mockNext)
 
       expect(mockNext).toHaveBeenCalled()
       expect(mockReq.originalState).toBe('myUserState')

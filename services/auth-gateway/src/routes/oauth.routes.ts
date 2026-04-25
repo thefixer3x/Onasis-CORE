@@ -17,6 +17,7 @@ import {
   generateAuthorizeCSRF,
   setCSRFCookie,
   doubleSubmitCookie,
+  validateTokenCSRFAsync,
 } from "../middleware/csrf.js";
 
 const router = express.Router();
@@ -39,8 +40,8 @@ router.get(
   validateSessionCookie,
   oauthController.authorize
 );
-// OAuth token endpoint - No CSRF needed (protected by state parameter + PKCE)
-router.post("/token", tokenRateLimit, oauthController.token);
+// OAuth token endpoint - optional CSRF validation when clients send state with a .csrf suffix
+router.post("/token", tokenRateLimit, validateTokenCSRFAsync, oauthController.token);
 router.post(
   "/revoke",
   revokeRateLimit,

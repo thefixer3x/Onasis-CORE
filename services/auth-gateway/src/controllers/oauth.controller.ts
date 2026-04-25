@@ -145,7 +145,7 @@ export async function authorize(req: Request, res: Response) {
                     'MCP Client (auto-registered)',
                     'public',
                     true,
-                    ['S256', 'plain'],
+                    ['S256'],
                     JSON.stringify([payload.redirect_uri]),
                     ['memories:read', 'memories:write', 'mcp:connect', 'mcp:full', 'api:access'],
                     ['memories:read', 'mcp:connect'],

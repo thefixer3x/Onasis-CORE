@@ -89,7 +89,9 @@ const envSchema = z.object({
   AUTH_BASE_URL: z
     .string()
     .url('AUTH_BASE_URL must be a valid URL')
-    .default('https://auth.lanonasis.com'),
+    // No default - origin must explicitly configure this to the canonical issuer.
+    // Readiness check depends on this being intentionally set, not auto-filled.
+    .optional(),
   ADDITIONAL_SUBDOMAINS: optionalNonEmptyString('ADDITIONAL_SUBDOMAINS'),
   ENABLE_SUBDOMAIN_AUTO_REGISTRATION: booleanString(false),
   REQUIRE_PKCE: booleanString(true),
