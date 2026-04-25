@@ -6,6 +6,7 @@ import {
     OAuthServiceError,
     createAuthorizationCode,
     consumeAuthorizationCode,
+    exchangeAuthorizationCode,
     findRefreshToken,
     introspectToken,
     isChallengeMethodAllowed,
@@ -281,54 +282,24 @@ export async function token(req: Request, res: Response) {
         }
 
         if (payload.grant_type === 'authorization_code') {
-            const authorizationCode = await consumeAuthorizationCode({
-                client,
+            const { exchangeAuthorizationCode } = await import('../services/oauth.service.js')
+
+            const exchangeResult = await exchangeAuthorizationCode({
                 code: payload.code,
-                redirectUri: payload.redirect_uri,
-            })
-
-            // Validate PKCE only if authorization code was issued with a code_challenge
-            const pkceWasUsed = authorizationCode.code_challenge && authorizationCode.code_challenge.length > 0
-            if (pkceWasUsed) {
-                if (!payload.code_verifier) {
-                    throw new OAuthServiceError('code_verifier is required for PKCE flow', 'invalid_grant', 400)
-                }
-                if (!verifyCodeChallenge(
-                    payload.code_verifier,
-                    authorizationCode.code_challenge,
-                    authorizationCode.code_challenge_method
-                )) {
-                    throw new OAuthServiceError('Invalid code_verifier', 'invalid_grant', 400)
-                }
-            }
-
-            const tokenPair = await issueTokenPair({
                 client,
-                userId: authorizationCode.user_id,
-                scope: authorizationCode.scope ?? [],
+                redirectUri: payload.redirect_uri,
+                codeVerifier: payload.code_verifier,
                 ipAddress: req.ip,
                 userAgent: req.get('user-agent') || undefined,
             })
 
-            await logOAuthEvent({
-                event_type: 'token_issued',
-                client_id: client.client_id,
-                user_id: authorizationCode.user_id,
-                scope: authorizationCode.scope ?? undefined,
-                grant_type: 'authorization_code',
-                ip_address: req.ip,
-                user_agent: req.get('user-agent') || undefined,
-                success: true,
-                metadata: oauthAuditMetadata(req),
-            })
-
             return res.json({
                 token_type: 'Bearer',
-                access_token: tokenPair.accessToken.value,
-                expires_in: tokenPair.accessTokenExpiresIn,
-                refresh_token: tokenPair.refreshToken.value,
-                refresh_expires_in: tokenPair.refreshTokenExpiresIn,
-                scope: (authorizationCode.scope ?? []).join(' '),
+                access_token: exchangeResult.tokenPair.accessToken.value,
+                expires_in: exchangeResult.tokenPair.accessTokenExpiresIn,
+                refresh_token: exchangeResult.tokenPair.refreshToken.value,
+                refresh_expires_in: exchangeResult.tokenPair.refreshTokenExpiresIn,
+                scope: (exchangeResult.authorizationCode.scope ?? []).join(' '),
             })
         }
 

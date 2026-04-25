@@ -12,7 +12,7 @@
 **Updated:** December 29, 2025
 **Status:** Planning Phase - NEW PROJECT APPROACH
 **Current LIVE Project:** `mxtsdgkwzjzlttpotole` (https://mxtsdgkwzjzlttpotole.supabase.co - Production with 95+ tables in public)
-**New EMPTY Project:** `hjplkyeuycajchayuylw` (Clean slate, no tables yet)
+
 **Reference:** Neon DB structure at `ep-snowy-surf-adqqsawd-pooler.c-2.us-east-1.aws.neon.tech`
 
 ---

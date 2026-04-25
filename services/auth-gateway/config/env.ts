@@ -98,6 +98,10 @@ const envSchema = z.object({
   ALLOW_PLAIN_PKCE: booleanString(false),
   ENFORCE_STATE_PARAMETER: booleanString(true),
   OAUTH_ISSUER: optionalUrlString('OAUTH_ISSUER'),
+  OAUTH_ASYMMETRIC_PRIVATE_KEY: optionalNonEmptyString('OAUTH_ASYMMETRIC_PRIVATE_KEY'),
+  OAUTH_ASYMMETRIC_KID: optionalNonEmptyString('OAUTH_ASYMMETRIC_KID'),
+  OAUTH_NEXT_ASYMMETRIC_PRIVATE_KEY: optionalNonEmptyString('OAUTH_NEXT_ASYMMETRIC_PRIVATE_KEY'),
+  OAUTH_NEXT_KID: optionalNonEmptyString('OAUTH_NEXT_KID'),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace'])
     .default('info'),

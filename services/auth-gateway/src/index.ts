@@ -39,6 +39,12 @@ import { standardCors } from './middleware/cors.js'
 import { uaiRouter, requireUAI } from './middleware/uai-router.middleware.js'
 import { startCacheCleanup, getCacheStats } from './services/uai-session-cache.service.js'
 import { requestCorrelation } from './utils/correlation.js'
+import {
+    getJWKS,
+    getActiveKid,
+    isAsymmetricSigningEnabled,
+    recordKeyLoadError,
+} from './services/signing.service.js'
 
 const app = express()
 const isTestEnv = process.env.NODE_ENV === 'test'
@@ -107,7 +113,7 @@ app.get("/ready", async (_req, res) => {
   res.setHeader("Access-Control-Max-Age", "86400");
 
   const failures: string[] = [];
-  const details: Record<string, { status: 'ok' | 'degraded' | 'fail'; reason?: string; latency_ms?: number }> = {};
+  const details: Record<string, { status: 'ok' | 'degraded' | 'fail'; reason?: string; latency_ms?: number; asymmetric?: boolean; activeKid?: string | null }> = {};
 
   const startTime = Date.now();
   const CANONICAL_ISSUER = 'https://auth.lanonasis.com';
@@ -195,15 +201,33 @@ app.get("/ready", async (_req, res) => {
     }
   }
 
-  // 6. Check for signing keyset (JWKS contract - placeholder for asymmetric keys)
-  // During bridge phase, we check that legacy JWT_SECRET is available (asymmetric will be added)
-  const signingKeyAvailable = Boolean(env.JWT_SECRET && env.JWT_SECRET.length >= 32);
+  // 6. Check for signing keyset (JWKS contract)
+  // During bridge phase: asymmetric key is authoritative, JWT_SECRET is fallback for legacy validation
+  const asymmetricReady = isAsymmetricSigningEnabled()
+  const legacySecretReady = Boolean(env.JWT_SECRET && env.JWT_SECRET.length >= 32)
+  const signingKeyAvailable = asymmetricReady || legacySecretReady
+
+  let signingStatus: 'ok' | 'degraded' | 'fail' = 'fail'
+  let signingReason: string | undefined
+
+  if (asymmetricReady) {
+    signingStatus = 'ok'
+  } else if (legacySecretReady) {
+    signingStatus = 'degraded'
+    signingReason = 'Using legacy symmetric signing (asymmetric key not configured)'
+  } else {
+    signingReason = 'No signing key material available'
+  }
+
   details.signingKeys = {
-    status: signingKeyAvailable ? 'ok' : 'fail',
-    reason: signingKeyAvailable ? undefined : 'No signing key material available'
-  };
+    status: signingStatus,
+    reason: signingReason,
+    asymmetric: asymmetricReady,
+    activeKid: asymmetricReady ? getActiveKid() : undefined,
+  }
+
   if (!signingKeyAvailable) {
-    failures.push('signing_keys_unavailable');
+    failures.push('signing_keys_unavailable')
   }
 
   const overallStatus = failures.length === 0 ? 'ready' : 'not_ready';
@@ -404,6 +428,41 @@ app.get('/.well-known/oauth-authorization-server', (_req, res) => {
     device_authorization_endpoint: `${baseUrl}/oauth/device`,
     service_documentation: 'https://docs.lanonasis.com/mcp/oauth',
   })
+})
+
+// OIDC Discovery (RFC 5785 + OpenID Connect Discovery 1.0)
+app.get('/.well-known/openid-configuration', (_req, res) => {
+  const baseUrl = env.AUTH_BASE_URL || 'https://auth.lanonasis.com'
+  const asymmetricEnabled = isAsymmetricSigningEnabled()
+  const signingAlg = asymmetricEnabled ? 'RS256' : 'none'
+
+  res.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/oauth/authorize`,
+    token_endpoint: `${baseUrl}/oauth/token`,
+    userinfo_endpoint: `${baseUrl}/oauth/userinfo`,
+    revocation_endpoint: `${baseUrl}/oauth/revoke`,
+    introspection_endpoint: `${baseUrl}/oauth/introspect`,
+    registration_endpoint: `${baseUrl}/register`,
+    jwks_uri: `${baseUrl}/oauth/jwks.json`,
+    scopes_supported: ['openid', 'memories:read', 'memories:write', 'mcp:connect', 'api:access'],
+    response_types_supported: ['code'],
+    response_modes_supported: ['query'],
+    grant_types_supported: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'],
+    code_challenge_methods_supported: ['S256'],
+    signing_certificates: asymmetricEnabled ? [`${baseUrl}/oauth/jwks.json`] : [],
+    signing_algs_supported: asymmetricEnabled ? ['RS256', 'RS512'] : [],
+    id_token_signing_alg_values_supported: asymmetricEnabled ? ['RS256', 'RS512'] : [],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post', 'none'],
+    device_authorization_endpoint: `${baseUrl}/oauth/device`,
+    service_documentation: 'https://docs.lanonasis.com/mcp/oauth',
+  })
+})
+
+// JWKS endpoint (RFC 7517)
+app.get('/oauth/jwks.json', (_req, res) => {
+  const jwks = getJWKS()
+  res.json(jwks)
 })
 
 // OAuth 2.0 Dynamic Client Registration (RFC 7591)

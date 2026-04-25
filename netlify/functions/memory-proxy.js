@@ -10,7 +10,41 @@ function getHeader(headers, name) {
 }
 
 function getProxyPath(event) {
-  return (event.path || '').replace('/.netlify/functions/memory-proxy', '') || '/';
+  const path = event.path || '';
+  const reservedPublicSuffixes = new Set([
+    '/list',
+    '/search',
+    '/stats',
+    '/health',
+    '/create',
+    '/update',
+    '/delete',
+    '/get',
+    '/bulk-delete',
+    '/bulk/delete',
+  ]);
+
+  if (path.startsWith('/.netlify/functions/memory-proxy')) {
+    return path.replace('/.netlify/functions/memory-proxy', '') || '/';
+  }
+
+  const normalizedPublicPath = path.replace(/^\/api\/v1\/memories/, '/api/v1/memory');
+  if (!normalizedPublicPath.startsWith('/api/v1/memory')) {
+    return path || '/';
+  }
+
+  const suffix = normalizedPublicPath.slice('/api/v1/memory'.length) || '';
+  if (!suffix || suffix === '/') {
+    return '/collection';
+  }
+  if (suffix === '/get') {
+    return '/legacy-get';
+  }
+  if (!reservedPublicSuffixes.has(suffix) && /^\/[^/]+$/.test(suffix)) {
+    return `/get${suffix}`;
+  }
+
+  return suffix;
 }
 
 function getRawQuery(event) {

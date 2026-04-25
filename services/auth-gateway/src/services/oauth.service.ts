@@ -334,6 +334,132 @@ export interface ConsumeAuthorizationCodeParams {
     redirectUri?: string
 }
 
+export interface ExchangeCodeParams {
+    code: string
+    client: OAuthClient
+    redirectUri?: string
+    codeVerifier?: string
+    codeChallenge?: string
+    codeChallengeMethod?: CodeChallengeMethod
+    ipAddress?: string
+    userAgent?: string
+}
+
+export interface ExchangeCodeResult {
+    authorizationCode: AuthorizationCodeRecord
+    tokenPair: IssuedTokenPair
+}
+
+export async function exchangeAuthorizationCode(
+    params: ExchangeCodeParams
+): Promise<ExchangeCodeResult> {
+    const { code, client, redirectUri, codeVerifier, ipAddress, userAgent } = params
+
+    ensureClientActive(client)
+
+    const hashedCode = hashAuthorizationCode(code)
+
+    return withTransaction(async (txClient) => {
+        const selectResult = await txClient.query(
+            `
+        SELECT * FROM auth_gateway.oauth_authorization_codes
+        WHERE code_hash = $1
+        FOR UPDATE
+      `,
+            [hashedCode]
+        )
+
+        if (selectResult.rowCount === 0) {
+            await AuthCodeCache.consume(hashedCode)
+            throw new OAuthServiceError('Authorization code not found', 'invalid_grant', 400)
+        }
+
+        const record = selectResult.rows[0] as AuthorizationCodeRecord
+
+        if (record.client_id !== client.client_id) {
+            throw new OAuthServiceError('Authorization code does not belong to client', 'invalid_grant', 400)
+        }
+
+        if (redirectUri && record.redirect_uri !== redirectUri) {
+            throw new OAuthServiceError('Redirect URI mismatch', 'invalid_grant', 400)
+        }
+
+        if (record.consumed) {
+            throw new OAuthServiceError('Authorization code already used', 'invalid_grant', 400)
+        }
+
+        if (record.expires_at.getTime() <= Date.now()) {
+            await txClient.query('DELETE FROM auth_gateway.oauth_authorization_codes WHERE id = $1', [record.id])
+            throw new OAuthServiceError('Authorization code expired', 'invalid_grant', 400)
+        }
+
+        if (record.code_challenge && record.code_challenge.length > 0) {
+            if (!codeVerifier) {
+                throw new OAuthServiceError('code_verifier is required for PKCE flow', 'invalid_grant', 400)
+            }
+            const method = record.code_challenge_method || 'S256'
+            const { verifyCodeChallenge } = await import('../utils/pkce.js')
+            if (!verifyCodeChallenge(codeVerifier, record.code_challenge, method)) {
+                throw new OAuthServiceError('Invalid code_verifier', 'invalid_grant', 400)
+            }
+        }
+
+        const updateResult = await txClient.query(
+            `
+        UPDATE auth_gateway.oauth_authorization_codes
+        SET consumed = TRUE, consumed_at = NOW()
+        WHERE id = $1
+        RETURNING *
+      `,
+            [record.id]
+        )
+
+        await AuthCodeCache.consume(hashedCode)
+
+        const consumedCode = updateResult.rows[0] as AuthorizationCodeRecord
+
+        const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000)
+        const refreshToken = await insertToken(
+            txClient,
+            'refresh',
+            {
+                clientId: client.client_id,
+                userId: consumedCode.user_id,
+                scope: consumedCode.scope ?? [],
+                ipAddress: ipAddress || null,
+                userAgent: userAgent || null,
+                parentTokenId: null,
+            },
+            refreshExpiresAt
+        )
+
+        const accessExpiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000)
+        const accessToken = await insertToken(
+            txClient,
+            'access',
+            {
+                clientId: client.client_id,
+                userId: consumedCode.user_id,
+                scope: consumedCode.scope ?? [],
+                ipAddress: ipAddress || null,
+                userAgent: userAgent || null,
+                parentTokenId: refreshToken.record.id,
+            },
+            accessExpiresAt
+        )
+
+        return {
+            authorizationCode: consumedCode,
+            tokenPair: {
+                accessToken,
+                refreshToken,
+                accessTokenExpiresIn: ACCESS_TOKEN_TTL_SECONDS,
+                refreshTokenExpiresIn: REFRESH_TOKEN_TTL_SECONDS,
+            },
+        }
+    })
+}
+
 export async function consumeAuthorizationCode(
     params: ConsumeAuthorizationCodeParams
 ): Promise<AuthorizationCodeRecord> {
@@ -352,7 +478,6 @@ export async function consumeAuthorizationCode(
         )
 
         if (selectResult.rowCount === 0) {
-            // Remove stale cache entry
             await AuthCodeCache.consume(hashedCode)
             throw new OAuthServiceError('Authorization code not found', 'invalid_grant', 400)
         }
@@ -386,7 +511,6 @@ export async function consumeAuthorizationCode(
             [record.id]
         )
 
-        // Invalidate cache after consuming
         await AuthCodeCache.consume(hashedCode)
 
         return updateResult.rows[0] as AuthorizationCodeRecord
@@ -579,6 +703,24 @@ export async function rotateRefreshToken(
     ensureClientActive(params.client)
 
     return withTransaction(async (client) => {
+        const lockResult = await client.query(
+            `
+        SELECT id, revoked FROM auth_gateway.oauth_tokens
+        WHERE id = $1
+        FOR UPDATE
+      `,
+            [params.existingToken.id]
+        )
+
+        if ((lockResult.rowCount ?? 0) === 0) {
+            throw new OAuthServiceError('Refresh token not found during rotation', 'invalid_grant', 400)
+        }
+
+        const lockedRow = lockResult.rows[0] as { id: string; revoked: boolean }
+        if (lockedRow.revoked) {
+            throw new OAuthServiceError('Refresh token already revoked (replay detected)', 'invalid_grant', 400)
+        }
+
         await client.query(
             `
         UPDATE auth_gateway.oauth_tokens
