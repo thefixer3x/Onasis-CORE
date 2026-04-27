@@ -72,6 +72,7 @@ const buildUnifiedUserFromApiKey = (options: {
   authSource?: UnifiedUser['authSource']
 }): UnifiedUser => ({
   userId: options.userId,
+  sub: options.userId,
   organizationId: options.organizationId ?? 'unknown',
   role: options.role,
   plan: options.plan,
