@@ -36,6 +36,7 @@ import resolveRoutes from './routes/resolve.routes.js'
 // Import middleware
 import { validateSessionCookie } from './middleware/session.js'
 import { standardCors } from './middleware/cors.js'
+import { requireObjectBody } from './middleware/body.js'
 import { uaiRouter, requireUAI } from './middleware/uai-router.middleware.js'
 import { startCacheCleanup, getCacheStats } from './services/uai-session-cache.service.js'
 import { requestCorrelation } from './utils/correlation.js'
@@ -340,6 +341,7 @@ if (!isTestEnv) {
 app.use(cookieParser())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+app.use(requireObjectBody)
 app.use(requestCorrelation)
 
 // XSS Protection (aligned with SHA-256 security standards)
@@ -562,6 +564,13 @@ app.use((_req: express.Request, res: express.Response) => {
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if ((err as Error & { status?: number; type?: string }).type === 'entity.parse.failed') {
+    return res.status(400).json({
+      error: 'Request body is invalid',
+      code: 'INVALID_BODY',
+    })
+  }
+
   console.error('Server error:', err)
   res.status(500).json({
     error: 'Internal server error',
