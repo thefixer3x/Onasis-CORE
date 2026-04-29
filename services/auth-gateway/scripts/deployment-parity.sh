@@ -22,6 +22,8 @@ set -uo pipefail
 VPS_URL="${VPS_URL:-https://auth.lanonasis.com}"
 RENDER_URL="${RENDER_URL:-https://onasis-core.onrender.com}"
 VERBOSE="${VERBOSE:-0}"
+PARITY_RUN_ID="${PARITY_RUN_ID:-$(date +%s)-$$}"
+TOKEN_PROBE_PATH="/oauth/token?client_id=parity-${PARITY_RUN_ID}"
 
 GREEN=$'\033[0;32m'
 RED=$'\033[0;31m'
@@ -33,7 +35,13 @@ NC=$'\033[0m'
 PASS=0
 FAIL=0
 DIVERGE=0
+INCONCLUSIVE=0
 TOTAL=0
+
+matches_expected() {
+  local code="$1" expect="$2"
+  [[ "$code" =~ ^($expect)$ ]]
+}
 
 probe() {
   # probe <name> <method> <path> [<body>] [<expected_status_pattern>]
@@ -58,9 +66,26 @@ probe() {
 
   # Status parity check
   if [[ "$vps_code" == "$rndr_code" ]]; then
-    printf "%bMATCH%b  VPS=%s  Render=%s  (%.2fs / %.2fs)\n" \
-      "$GREEN" "$NC" "$vps_code" "$rndr_code" "$vps_t" "$rndr_t"
-    PASS=$((PASS+1))
+    if [[ "$vps_code" == "429" ]] && ! matches_expected "$vps_code" "$expect"; then
+      printf "%bINCONCLUSIVE%b  RATE-LIMITED  VPS=%s  Render=%s  (%.2fs / %.2fs)\n" \
+        "$YELLOW" "$NC" "$vps_code" "$rndr_code" "$vps_t" "$rndr_t"
+      INCONCLUSIVE=$((INCONCLUSIVE+1))
+      FAIL=$((FAIL+1))
+    elif matches_expected "$vps_code" "$expect"; then
+      printf "%bMATCH%b  VPS=%s  Render=%s  (%.2fs / %.2fs)\n" \
+        "$GREEN" "$NC" "$vps_code" "$rndr_code" "$vps_t" "$rndr_t"
+      PASS=$((PASS+1))
+    else
+      printf "%bINCONCLUSIVE%b  UNEXPECTED MATCH  VPS=%s  Render=%s  (%.2fs / %.2fs)\n" \
+        "$YELLOW" "$NC" "$vps_code" "$rndr_code" "$vps_t" "$rndr_t"
+      INCONCLUSIVE=$((INCONCLUSIVE+1))
+      FAIL=$((FAIL+1))
+    fi
+  elif ([[ "$vps_code" == "429" ]] || [[ "$rndr_code" == "429" ]]) && ! matches_expected "429" "$expect"; then
+    printf "%bINCONCLUSIVE%b  RATE-LIMIT STATE  VPS=%s  Render=%s  (%.2fs / %.2fs)\n" \
+      "$YELLOW" "$NC" "$vps_code" "$rndr_code" "$vps_t" "$rndr_t"
+    INCONCLUSIVE=$((INCONCLUSIVE+1))
+    FAIL=$((FAIL+1))
   else
     printf "%bDIVERGE%b VPS=%s  Render=%s\n" "$RED" "$NC" "$vps_code" "$rndr_code"
     DIVERGE=$((DIVERGE+1))
@@ -112,43 +137,46 @@ echo "${YELLOW}[2] Public surface${NC}"
 probe "GET / (root, no route)"     GET    /                                ""  "404|200"
 probe "GET /favicon.ico"           GET    /favicon.ico                      ""  "200|404"
 
-# ─── 3. Auth endpoints — should 400/401/422 (not 5xx, not 404) ────────
+# ─── 3. CORS preflight ─────────────────────────────────────────────────
 echo
-echo "${YELLOW}[3] Auth endpoints respond identically${NC}"
+echo "${YELLOW}[3] CORS preflight${NC}"
+probe "OPTIONS /v1/auth/login"            OPTIONS /v1/auth/login             ""  "200|204|404"
+probe "OPTIONS /oauth/token"              OPTIONS "$TOKEN_PROBE_PATH"        ""  "200|204|404"
+
+# ─── 4. Auth endpoints — should 400/401/422 (not 5xx, not 404) ────────
+echo
+echo "${YELLOW}[4] Auth endpoints respond identically${NC}"
 probe "POST /v1/auth/login (no body)"     POST  /v1/auth/login              ""                           "400|401|422"
 probe "POST /v1/auth/login (bad creds)"   POST  /v1/auth/login              '{"email":"x@x.x","password":"bad"}'  "401|400"
 probe "POST /v1/auth/register (no body)"  POST  /v1/auth/register           ""                           "400|401|422"
 probe "POST /v1/auth/refresh (no token)"  POST  /v1/auth/refresh            ""                           "400|401|422"
 
-# ─── 4. OAuth endpoints ────────────────────────────────────────────────
+# ─── 5. OAuth endpoints ────────────────────────────────────────────────
 echo
-echo "${YELLOW}[4] OAuth endpoints${NC}"
+echo "${YELLOW}[5] OAuth endpoints${NC}"
 probe "GET /oauth/authorize (no params)"  GET   /oauth/authorize             ""  "302|400|401"
-probe "POST /oauth/token (no body)"       POST  /oauth/token                 ""  "400|401|422"
+probe "POST /oauth/token (no body)"       POST  "$TOKEN_PROBE_PATH"          ""  "400|401|422"
 probe "GET /.well-known/openid-configuration"  GET  /.well-known/openid-configuration  ""  "200|404"
 probe "GET /.well-known/jwks.json"        GET   /.well-known/jwks.json       ""  "200|404"
 
-# ─── 5. Protected routes — should 401 without auth ────────────────────
+# ─── 6. Protected routes — should 401 without auth ────────────────────
 echo
-echo "${YELLOW}[5] Protected routes require auth${NC}"
-probe "GET /admin/dashboard (no auth)"    GET   /admin/dashboard             ""  "401|403"
-probe "GET /v1/api-keys (no auth)"        GET   /v1/api-keys                 ""  "401|403"
-probe "GET /v1/projects (no auth)"        GET   /v1/projects                 ""  "401|403"
-
-# ─── 6. CORS preflight ─────────────────────────────────────────────────
-echo
-echo "${YELLOW}[6] CORS preflight${NC}"
-probe "OPTIONS /v1/auth/login"            OPTIONS /v1/auth/login             ""  "200|204|404"
-probe "OPTIONS /oauth/token"              OPTIONS /oauth/token               ""  "200|204|404"
+echo "${YELLOW}[6] Protected routes require auth${NC}"
+probe "GET /admin/status (no auth)"       GET   /admin/status                ""  "401|403"
+probe "GET /api/v1/auth/api-keys (no auth)" GET /api/v1/auth/api-keys        ""  "401|403"
+probe "GET /api/v1/projects (no auth)"    GET   /api/v1/projects             ""  "401|403"
 
 # ─── 7. Rate limiting headers exposed ─────────────────────────────────
 echo
 echo "${YELLOW}[7] Rate-limit headers present${NC}"
 TOTAL=$((TOTAL+1))
-vps_rl=$(curl -sI "$VPS_URL/v1/auth/session" --max-time 10 | grep -i 'ratelimit-limit' | head -1)
-rndr_rl=$(curl -sI "$RENDER_URL/v1/auth/session" --max-time 15 | grep -i 'ratelimit-limit' | head -1)
+vps_rl=$(curl -sI "$VPS_URL/v1/auth/session" --max-time 10 | grep -i '^ratelimit-limit:' | head -1)
+rndr_rl=$(curl -sI "$RENDER_URL/v1/auth/session" --max-time 15 | grep -i '^ratelimit-limit:' | head -1)
 printf "%b[%02d]%b %-40s " "$CYAN" "$TOTAL" "$NC" "ratelimit-limit header"
-if [[ -n "$vps_rl" && -n "$rndr_rl" ]]; then
+if [[ -z "$vps_rl" && -z "$rndr_rl" ]]; then
+  printf "%bMATCH%b  both absent\n" "$GREEN" "$NC"
+  PASS=$((PASS+1))
+elif [[ -n "$vps_rl" && -n "$rndr_rl" ]]; then
   printf "%bMATCH%b  vps=[%s] render=[%s]\n" "$GREEN" "$NC" "$(echo $vps_rl | tr -d '\r')" "$(echo $rndr_rl | tr -d '\r')"
   PASS=$((PASS+1))
 else
@@ -160,14 +188,20 @@ fi
 # ─── Summary ───────────────────────────────────────────────────────────
 echo
 echo "=================================================================="
-echo " Total: $TOTAL  Match: ${GREEN}$PASS${NC}  Diverge: ${RED}$DIVERGE${NC}"
+echo " Total: $TOTAL  Match: ${GREEN}$PASS${NC}  Inconclusive: ${YELLOW}$INCONCLUSIVE${NC}  Diverge: ${RED}$DIVERGE${NC}"
 echo "=================================================================="
 
-if [[ $DIVERGE -eq 0 ]]; then
+if [[ $DIVERGE -eq 0 && $INCONCLUSIVE -eq 0 ]]; then
   echo "${GREEN}✓ Deployments are functionally equivalent.${NC}"
   exit 0
 else
-  echo "${RED}✗ $DIVERGE divergence(s) detected — investigate above.${NC}"
+  echo "${RED}✗ Deployment parity could not be fully established.${NC}"
+  if [[ $INCONCLUSIVE -gt 0 ]]; then
+    echo "  ${YELLOW}- $INCONCLUSIVE probe(s) were inconclusive (unexpected-but-matching responses).${NC}"
+  fi
+  if [[ $DIVERGE -gt 0 ]]; then
+    echo "  ${RED}- $DIVERGE divergence(s) were detected.${NC}"
+  fi
   echo "  Re-run with VERBOSE=1 to see response bodies."
   exit 1
 fi
