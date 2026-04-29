@@ -145,8 +145,8 @@ probe "OPTIONS /oauth/token"              OPTIONS /oauth/token               "" 
 echo
 echo "${YELLOW}[7] Rate-limit headers present${NC}"
 TOTAL=$((TOTAL+1))
-vps_rl=$(curl -sI "$VPS_URL/health" --max-time 10 | grep -i 'ratelimit-limit' | head -1)
-rndr_rl=$(curl -sI "$RENDER_URL/health" --max-time 15 | grep -i 'ratelimit-limit' | head -1)
+vps_rl=$(curl -sI "$VPS_URL/v1/auth/session" --max-time 10 | grep -i 'ratelimit-limit' | head -1)
+rndr_rl=$(curl -sI "$RENDER_URL/v1/auth/session" --max-time 15 | grep -i 'ratelimit-limit' | head -1)
 printf "%b[%02d]%b %-40s " "$CYAN" "$TOTAL" "$NC" "ratelimit-limit header"
 if [[ -n "$vps_rl" && -n "$rndr_rl" ]]; then
   printf "%bMATCH%b  vps=[%s] render=[%s]\n" "$GREEN" "$NC" "$(echo $vps_rl | tr -d '\r')" "$(echo $rndr_rl | tr -d '\r')"
