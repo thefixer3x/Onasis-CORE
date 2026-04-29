@@ -80,6 +80,9 @@ Both write to the same Postgres + Redis, so user-visible state is identical rega
 ### Render via CLI
 
 ```bash
+# Install / upgrade the CLI in this environment
+bash /opt/lanonasis/onasis-core/scripts/install-render-cli.sh
+
 # Workspace once: render workspace set  (interactive)
 render services --output text                                  # list services
 render services update srv-d5n60uemcj7s73cg2uog --confirm ...  # ⚠️ CLI v2.15.1 silently drops --start-command, use REST API
@@ -113,6 +116,44 @@ pm2 describe auth-gateway                                  # full config
 cd /opt/lanonasis/onasis-core/services/auth-gateway
 git pull && bun install && bun run build && pm2 reload auth-gateway   # full update
 ```
+
+## GitHub Actions deploy contract
+
+Workflow: `.github/workflows/auth-gateway-dual-deploy.yml`
+
+- **PRs touching `services/auth-gateway/**`** run `bun install --frozen-lockfile`, `bun run test:ci`, and `bun run build`.
+- **Pushes to `main` touching `services/auth-gateway/**`** run the same verification, then:
+  1. SSH to the VPS checkout at `/opt/lanonasis/onasis-core`
+  2. `git pull --ff-only origin main`
+  3. `bash services/auth-gateway/scripts/deploy/reload-production.sh`
+  4. Trigger a Render deploy with `render deploys create ... --wait`
+
+### Required GitHub secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `AUTH_GATEWAY_VPS_HOST` | VPS hostname or IP |
+| `AUTH_GATEWAY_VPS_PORT` | VPS SSH port (optional, defaults to `22`) |
+| `AUTH_GATEWAY_VPS_USER` | SSH user for deploys |
+| `AUTH_GATEWAY_VPS_SSH_PRIVATE_KEY` | Private key loaded into the GitHub runner |
+| `AUTH_GATEWAY_VPS_KNOWN_HOSTS` | Optional pinned host key entry; if absent, the workflow falls back to `ssh-keyscan` |
+| `RENDER_API_KEY` | Render API key for non-interactive CLI deploys |
+
+### Required Render setting
+
+If this workflow is the deploy source of truth, set the Render service's **Auto-Deploy** mode to **Off**. Otherwise a push to `main` will cause:
+
+1. one Render deploy from the linked Git branch, and
+2. a second Render deploy from GitHub Actions.
+
+If you prefer Render to keep managing git-based deploy initiation, remove the `deploy-render` job and switch Auto-Deploy to **After CI Checks Pass** instead.
+
+### Why the workflow keeps VPS and Render different
+
+- **VPS:** reloads through `dotenvx --ops-off` because `.env.production` is encrypted on disk and `.env.keys` is the source of truth.
+- **Render:** does **not** use `dotenvx`; it inherits plain environment variables from the Render dashboard at runtime.
+
+The workflow intentionally never tries to copy `.env.production` or `.env.keys` to Render. New variables must still be added in both places.
 
 ---
 

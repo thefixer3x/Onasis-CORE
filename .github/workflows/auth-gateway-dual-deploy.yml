@@ -1,0 +1,150 @@
+name: Auth Gateway Dual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: Which production targets to update after verification
+        required: true
+        type: choice
+        default: both
+        options:
+          - verify-only
+          - vps-only
+          - render-only
+          - both
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'services/auth-gateway/**'
+      - '.github/workflows/auth-gateway-dual-deploy.yml'
+      - 'scripts/install-render-cli.sh'
+  push:
+    branches:
+      - main
+    paths:
+      - 'services/auth-gateway/**'
+      - '.github/workflows/auth-gateway-dual-deploy.yml'
+      - 'scripts/install-render-cli.sh'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-gateway-dual-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AUTH_GATEWAY_DIR: services/auth-gateway
+  RENDER_OUTPUT: json
+  RENDER_SERVICE_ID: srv-d5n60uemcj7s73cg2uog
+
+jobs:
+  verify:
+    name: Verify auth-gateway
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/auth-gateway
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.4
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run focused deploy smoke tests
+        run: bun run test:ci
+
+      - name: Build auth-gateway
+        run: bun run build
+
+  deploy-vps:
+    name: Deploy to VPS via PM2
+    runs-on: ubuntu-latest
+    needs: verify
+    if: >
+      needs.verify.result == 'success' &&
+      (
+        github.event_name == 'push' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          contains(fromJSON('["both","vps-only"]'), inputs.deploy_target)
+        )
+      )
+    steps:
+      - name: Load deployment SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.AUTH_GATEWAY_VPS_SSH_PRIVATE_KEY }}
+
+      - name: Trust VPS host key
+        env:
+          VPS_HOST: ${{ secrets.AUTH_GATEWAY_VPS_HOST }}
+          VPS_PORT: ${{ secrets.AUTH_GATEWAY_VPS_PORT }}
+          VPS_KNOWN_HOSTS: ${{ secrets.AUTH_GATEWAY_VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          if [[ -n "${VPS_KNOWN_HOSTS}" ]]; then
+            printf '%s\n' "${VPS_KNOWN_HOSTS}" >> ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "${VPS_PORT:-22}" "${VPS_HOST}" >> ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Pull latest code and reload auth-gateway
+        env:
+          VPS_HOST: ${{ secrets.AUTH_GATEWAY_VPS_HOST }}
+          VPS_PORT: ${{ secrets.AUTH_GATEWAY_VPS_PORT }}
+          VPS_USER: ${{ secrets.AUTH_GATEWAY_VPS_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "${VPS_PORT:-22}" "${VPS_USER}@${VPS_HOST}" <<'EOF'
+          set -euo pipefail
+          cd /opt/lanonasis/onasis-core
+          git pull --ff-only origin main
+          bash services/auth-gateway/scripts/deploy/reload-production.sh
+          EOF
+
+  deploy-render:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: verify
+    if: >
+      needs.verify.result == 'success' &&
+      (
+        github.event_name == 'push' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          contains(fromJSON('["both","render-only"]'), inputs.deploy_target)
+        )
+      )
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Render CLI
+        run: |
+          set -euo pipefail
+          export RENDER_CLI_INSTALL_DIR="$RUNNER_TEMP/render-cli/bin"
+          bash scripts/install-render-cli.sh
+          echo "$RENDER_CLI_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Trigger Render deploy and wait for completion
+        env:
+          CI: true
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          render deploys create "$RENDER_SERVICE_ID" --wait --confirm --output json
+
+      - name: Verify Render health endpoint
+        run: curl -fsS https://onasis-core.onrender.com/health >/tmp/render-auth-gateway-health.json
