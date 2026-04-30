@@ -88,12 +88,12 @@ app.get("/health", async (_req, res) => {
     const { checkDatabaseHealth } = await import("../db/client.js");
     const result = await checkDatabaseHealth();
     dbInfo = { healthy: result.healthy, error: result.error ?? null };
-  } catch (_) {}
+  } catch (_) { /* health check failure — dbInfo stays null */ }
   try {
     const { checkRedisHealth } = await import("./services/cache.service.js");
     const result = await checkRedisHealth();
     redisInfo = { healthy: result.healthy, error: result.error ?? null };
-  } catch (_) {}
+  } catch (_) { /* health check failure — redisInfo stays null */ }
   res.json({
     status: "ok",
     service: "auth-gateway",

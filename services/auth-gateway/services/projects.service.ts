@@ -210,7 +210,7 @@ export async function updateProject(
 
   if (updates.settings !== undefined) {
     const settings = normalizeSettings(updates.settings)
-    fields.push(`settings = $${index++}::jsonb`)
+    fields.push(`settings = $${index}::jsonb`)
     values.push(JSON.stringify(settings))
   }
 

@@ -185,7 +185,7 @@ export async function routeToSupabase<T = unknown>(
         service: serviceName,
         timeout,
       })
-      throw new Error(`Request to ${serviceName} timed out after ${timeout}ms`)
+      throw new Error(`Request to ${serviceName} timed out after ${timeout}ms`, { cause: error })
     }
 
     logger.error('Routing to Supabase failed', {

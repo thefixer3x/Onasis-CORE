@@ -390,7 +390,7 @@ export class OAuthStateCache {
             `, [key, JSON.stringify(data), expiresAt])
         } catch (dbError) {
             logger.error('Failed to store OAuth state in database', { key, error: dbError })
-            throw new Error('Failed to store OAuth state')
+            throw new Error('Failed to store OAuth state', { cause: dbError })
         }
     }
 
@@ -568,7 +568,7 @@ export class DeviceCodeCache {
             `, [key, JSON.stringify(data), expiresAt])
         } catch (dbError) {
             logger.error('Failed to store device code in database', { key, error: dbError })
-            throw new Error('Failed to store device code')
+            throw new Error('Failed to store device code', { cause: dbError })
         }
     }
 
@@ -677,7 +677,7 @@ export class OtpStateCache {
             `, [key, JSON.stringify(data), expiresAt])
         } catch (dbError) {
             logger.error('Failed to store OTP state in database', { key, error: dbError })
-            throw new Error('Failed to store OTP state')
+            throw new Error('Failed to store OTP state', { cause: dbError })
         }
     }
 

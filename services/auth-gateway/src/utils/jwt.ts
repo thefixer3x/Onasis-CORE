@@ -147,12 +147,12 @@ export function verifyToken(token: string): JWTPayload {
     return jwt.verify(token, env.JWT_SECRET) as JWTPayload;
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
-      throw new Error('Token expired')
+      throw new Error('Token expired', { cause: error })
     }
     if (error instanceof jwt.JsonWebTokenError) {
-      throw new Error('Invalid token')
+      throw new Error('Invalid token', { cause: error })
     }
-    throw new Error('Token verification failed')
+    throw new Error('Token verification failed', { cause: error })
   }
 }
 

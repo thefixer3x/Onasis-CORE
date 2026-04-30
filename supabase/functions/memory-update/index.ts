@@ -481,7 +481,7 @@ serve(async (req: Request) => {
     }
 
     // Perform update
-    let { data: updated, error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("memory_entries")
       .update(updateData)
       .eq("id", targetMemoryId)

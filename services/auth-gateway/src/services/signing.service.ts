@@ -1,3 +1,4 @@
+import { createPublicKey } from 'node:crypto'
 import { env } from '../../config/env.js'
 import { logger } from '../utils/logger.js'
 
@@ -100,7 +101,6 @@ export function getJWKS(): JWKS {
         if (!key) continue
 
         try {
-            const { createPublicKey } = require('node:crypto')
             const cryptoKey = createPublicKey(key.key)
             const jwk = cryptoKey.export({ format: 'jwk' }) as { n: Buffer; e: Buffer }
 

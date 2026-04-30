@@ -13,7 +13,7 @@ const { Pool } = pg;
  * - Connection pooling is handled by Supabase
  */
 export const dbPool = new Pool({
-    connectionString: env.DATABASE_URL
+    connectionString: env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30_000,
@@ -29,7 +29,7 @@ export async function getClientWithSchema() {
     await client.query("SET search_path TO security_service, public");
     return client;
 }
-export const supabaseAdmin = createClient(env.SUPABASE_URL
+export const supabaseAdmin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: {
         autoRefreshToken: false,
         persistSession: false,

@@ -114,7 +114,7 @@ export const authMiddleware = async (req, res, next) => {
         }
         if (isBearerToken) {
             try {
-                const decoded = jwt.verify(token, env.JWT_SECRET
+                const decoded = jwt.verify(token, env.JWT_SECRET);
                 req.user = decoded;
                 logger.debug('User authenticated via JWT', {
                     userId: decoded.userId,

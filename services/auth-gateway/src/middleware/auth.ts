@@ -174,8 +174,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
             // Supabase lookup failed — proceed with minimal info
           }
 
-          let organizationId: string | undefined
-          organizationId = await resolveOrganizationIdForUser(introspection.user_id)
+          const organizationId: string | undefined = await resolveOrganizationIdForUser(introspection.user_id)
 
           req.user = buildUnifiedUserFromApiKey({
             userId: introspection.user_id,

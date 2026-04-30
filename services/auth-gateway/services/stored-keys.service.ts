@@ -316,7 +316,7 @@ export async function updateStoredKey(
 
   if (updates.metadata !== undefined) {
     const metadata = updates.metadata && typeof updates.metadata === 'object' ? updates.metadata : {}
-    fields.push(`metadata = $${index++}::jsonb`)
+    fields.push(`metadata = $${index}::jsonb`)
     values.push(JSON.stringify(metadata))
   }
 

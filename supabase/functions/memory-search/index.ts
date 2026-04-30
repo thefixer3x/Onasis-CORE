@@ -435,7 +435,7 @@ serve(async (req: Request) => {
       | "semantic_relaxed"
       | "lexical_fallback" = "semantic_strict";
 
-    let { data: results, error } = await runSemanticSearch(
+    const { data: results, error } = await runSemanticSearch(
       supabase,
       providerConfig.rpcFunction,
       queryEmbedding,

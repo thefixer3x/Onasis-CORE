@@ -732,7 +732,7 @@ export async function createApiKey(
       permissions: data.permissions || permissions,
     }
   } catch (error) {
-    throw new Error(`API key creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`API key creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -774,7 +774,7 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
 
     return keys
   } catch (error) {
-    throw new Error(`List API keys failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`List API keys failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -806,7 +806,7 @@ export async function listApiKeys(user_id: string, params?: { active_only?: bool
 
     return mapApiKeyRecord(data, serviceScopes)
   } catch (error) {
-    throw new Error(`Get API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Get API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -957,7 +957,7 @@ export async function updateApiKey(
 
     return mapApiKeyRecord(updatedKey, serviceScopes)
   } catch (error) {
-    throw new Error(`Update API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Update API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -1035,7 +1035,7 @@ export async function rotateApiKey(key_id: string, user_id: string): Promise<Api
       permissions: updatedKey.permissions || [],
     }
   } catch (error) {
-    throw new Error(`Rotate API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Rotate API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -1073,7 +1073,7 @@ export async function revokeApiKey(key_id: string, user_id: string): Promise<boo
 
     return true
   } catch (error) {
-    throw new Error(`Revoke API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Revoke API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -1110,7 +1110,7 @@ export async function deleteApiKey(key_id: string, user_id: string): Promise<boo
 
     return true
   } catch (error) {
-    throw new Error(`Delete API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Delete API key failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
@@ -1528,7 +1528,7 @@ export async function setApiKeyServiceScopes(
 
     return getApiKeyServiceScopes(key_id)
   } catch (error) {
-    throw new Error(`Set service scopes failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(`Set service scopes failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { cause: error })
   }
 }
 
