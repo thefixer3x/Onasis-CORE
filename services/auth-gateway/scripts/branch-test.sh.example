@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Branch lifecycle wrapper for auth-gateway integration tests.
+#
+# Status: TEMPLATE. Inactive until project ptnrwrgzrsbocgxlpvhd moves to
+# Pro plan (current free plan rejects `branches create` with HTTP 402).
+# Once active: rename to branch-test.sh, chmod +x, wire into npm scripts.
+#
+# Usage:
+#   ./scripts/branch-test.sh up         # unpause, wait for healthy, print conn info
+#   ./scripts/branch-test.sh down       # pause to stop hourly billing
+#   ./scripts/branch-test.sh run-tests  # up → run vitest → down (always pauses, even on test failure)
+#   ./scripts/branch-test.sh status     # print branch state
+#
+# Cost note: $0.0134/hr while unpaused. Always run `down` between sessions.
+
+set -euo pipefail
+
+PROJECT_REF="${AUTH_GATEWAY_PROJECT_REF:-ptnrwrgzrsbocgxlpvhd}"
+BRANCH_NAME="${AUTH_GATEWAY_BRANCH:-test-auth-gateway}"
+
+require_supabase_cli() {
+  if ! command -v supabase >/dev/null 2>&1; then
+    echo "supabase CLI not found in PATH" >&2
+    exit 1
+  fi
+}
+
+branch_id() {
+  supabase branches list --project-ref "$PROJECT_REF" --output json \
+    | jq -r --arg name "$BRANCH_NAME" '.[] | select(.name == $name) | .id'
+}
+
+cmd_up() {
+  local id
+  id="$(branch_id)"
+  if [ -z "$id" ]; then
+    echo "Branch '$BRANCH_NAME' does not exist. Create it first:" >&2
+    echo "  supabase branches create $BRANCH_NAME --project-ref $PROJECT_REF --persistent --with-data" >&2
+    exit 1
+  fi
+  echo "Unpausing branch $BRANCH_NAME ($id)..."
+  supabase branches unpause "$BRANCH_NAME" --project-ref "$PROJECT_REF"
+
+  # Poll until healthy (Supabase reports status via `branches get`)
+  for i in $(seq 1 30); do
+    status="$(supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF" --output json | jq -r '.status')"
+    if [ "$status" = "ACTIVE_HEALTHY" ]; then
+      echo "Branch healthy."
+      return 0
+    fi
+    echo "  status=$status (attempt $i/30)..."
+    sleep 4
+  done
+  echo "Timed out waiting for branch to become healthy." >&2
+  exit 2
+}
+
+cmd_down() {
+  echo "Pausing branch $BRANCH_NAME..."
+  supabase branches pause "$BRANCH_NAME" --project-ref "$PROJECT_REF" || \
+    echo "Pause failed (already paused or not found). Continuing." >&2
+}
+
+cmd_run_tests() {
+  trap cmd_down EXIT
+  cmd_up
+  npm run test:integration:live
+}
+
+cmd_status() {
+  supabase branches get "$BRANCH_NAME" --project-ref "$PROJECT_REF"
+}
+
+require_supabase_cli
+
+case "${1:-}" in
+  up)        cmd_up ;;
+  down)      cmd_down ;;
+  run-tests) cmd_run_tests ;;
+  status)    cmd_status ;;
+  *)
+    echo "Usage: $0 {up|down|run-tests|status}" >&2
+    exit 1
+    ;;
+esac

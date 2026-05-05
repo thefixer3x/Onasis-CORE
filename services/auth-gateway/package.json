@@ -19,6 +19,7 @@
     "test:unit": "vitest run tests/unit --reporter=verbose",
     "test:ci": "vitest run tests/unit/auth.test.ts tests/unit/body-validation.test.ts tests/unit/csrf.test.ts tests/unit/pkce.test.ts --reporter=verbose",
     "test:integration": "vitest run tests/integration --reporter=verbose",
+    "test:integration:live": "dotenvx run --strict --ops-off -f .env.test -- cross-env RUN_AUTH_GATEWAY_INTEGRATION=true vitest run tests/integration/auth-introspect.smoke --reporter=verbose",
     "test:security": "vitest run tests/security --reporter=verbose --passWithNoTests",
     "test:load": "k6 run tests/load/oauth-flow.js",
     "test:watch": "vitest --watch",
