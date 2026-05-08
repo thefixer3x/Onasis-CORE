@@ -32,6 +32,8 @@ interface AnalyzePatternsRequest {
   memory_type?: string;
   memory_types?: string[];
   query_scope?: "personal" | "team" | "organization" | "hybrid";
+  /** If true, return pre-reasoned conclusions before calling LLM */
+  prefer_cache?: boolean;
 }
 
 Deno.serve(async (req) => {
@@ -68,8 +70,31 @@ Deno.serve(async (req) => {
       return errorResponse(context.error, context.status);
     }
     const timeRangeDays = body.time_range_days || 30;
-    const includeInsights = body.include_insights !== false;
+const includeInsights = body.include_insights !== false;
     const responseFormat = body.response_format || "json";
+    const supabase = getSupabaseClient();
+
+    // --- prefer_cache layer: read pre-reasoned conclusions before calling LLM ---
+    if (body.prefer_cache) {
+      const { data: cachedConclusions } = await supabase
+        .from("memory_inferred_conclusions")
+        .select("*")
+        .eq("subject_id", userId)
+        .is("superseded_by", null)
+        .gte("freshness", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order("confidence", { ascending: false })
+        .limit(20);
+
+      if (cachedConclusions && cachedConclusions.length > 0) {
+        const tierInfo = await getUserTierInfo(userId);
+        return successResponse(
+          { insights: cachedConclusions, source: "cache", from_conclusions: true },
+          { tokens_used: 0, cost_usd: 0, cached: true },
+          { tier: tierInfo?.tier_name || "free", usage_remaining: access.usage_remaining || 0 }
+        );
+      }
+    }
+    // --- end prefer_cache ---
 
     // Check cache
     const cacheKey = generateCacheKey(
@@ -97,7 +122,6 @@ Deno.serve(async (req) => {
     }
 
     // Fetch memories for analysis
-    const supabase = getSupabaseClient();
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - timeRangeDays);
 
