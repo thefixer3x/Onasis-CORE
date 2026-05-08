@@ -145,6 +145,14 @@ export async function authenticateRequest(
   const authHeader = req.headers.get("Authorization");
   const apiKey = req.headers.get("X-API-Key");
 
+  // Fast path: service role key from internal Edge Function calls
+  // The reasoning-processor calls intelligence EFs via service role fetch().
+  // No DB lookup needed — direct key comparison.
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`) {
+    return { userId: "service-internal", organizationId: null, authSource: "service_role" };
+  }
+
   const supabase = getSupabaseClient();
 
   // Helper to check if token is an API key format

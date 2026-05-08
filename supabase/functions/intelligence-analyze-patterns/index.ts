@@ -53,14 +53,19 @@ Deno.serve(async (req) => {
 
     const userId = auth.userId;
 
-    // Check tier access
-    const access = await checkIntelligenceAccess(userId, TOOL_NAME);
-    if (!access.allowed) {
-      const tierInfo = await getUserTierInfo(userId);
-      return premiumRequiredResponse(
-        access.reason || "Feature not available",
-        tierInfo?.tier_name
-      );
+    // Skip tier/access checks for internal service-role calls from reasoning-processor
+    const isServiceInternal = auth.authSource === "service_role";
+
+    if (!isServiceInternal) {
+      // Check tier access
+      const access = await checkIntelligenceAccess(userId, TOOL_NAME);
+      if (!access.allowed) {
+        const tierInfo = await getUserTierInfo(userId);
+        return premiumRequiredResponse(
+          access.reason || "Feature not available",
+          tierInfo?.tier_name
+        );
+      }
     }
 
     // Parse request
