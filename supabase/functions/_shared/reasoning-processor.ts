@@ -294,7 +294,7 @@ export async function processSubjectReasoningBatch(
   } catch (err) {
     console.error("[reasoning-processor] processing error for subject", subject_id, err);
 
-    // Mark jobs as failed
+    // Mark jobs as failed — do not rethrow; worker catches per-subject
     await supabase
       .from("memory_inference_jobs")
       .update({
@@ -303,8 +303,18 @@ export async function processSubjectReasoningBatch(
         error: err instanceof Error ? err.message : "Unknown error",
       })
       .in("id", jobIds);
-
-    throw err;
+  } finally {
+    // 3h: Reset the batch so this subject is not re-selected by the next cron tick
+    await supabase
+      .from("memory_inference_batches")
+      .update({
+        pending_token_count: 0,
+        pending_memory_count: 0,
+        source_memory_ids: [],
+        last_flushed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("subject_id", subject_id);
   }
 
   return { job_ids: jobIds, conclusion_count: conclusionCount };
