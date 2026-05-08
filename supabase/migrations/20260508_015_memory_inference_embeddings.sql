@@ -89,6 +89,11 @@ BEGIN
 END;
 $$;
 
+REVOKE EXECUTE ON FUNCTION public.get_reasoning_token_threshold(UUID)
+  FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_ready_reasoning_batches(INTEGER)
+  FROM PUBLIC, anon, authenticated;
+
 GRANT EXECUTE ON FUNCTION public.get_reasoning_token_threshold(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_ready_reasoning_batches(INTEGER) TO service_role;
 

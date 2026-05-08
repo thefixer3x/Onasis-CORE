@@ -235,6 +235,17 @@ $$;
 GRANT SELECT ON public.memory_inference_jobs TO service_role;
 GRANT SELECT ON public.memory_inference_batches TO service_role;
 GRANT SELECT ON public.memory_inferred_conclusions TO service_role;
+
+REVOKE EXECUTE ON FUNCTION public.enqueue_memory_inference_job(
+  UUID,
+  UUID,
+  UUID,
+  UUID,
+  TEXT,
+  INTEGER,
+  JSONB
+) FROM PUBLIC, anon, authenticated;
+
 GRANT EXECUTE ON FUNCTION public.enqueue_memory_inference_job(
   UUID,
   UUID,
