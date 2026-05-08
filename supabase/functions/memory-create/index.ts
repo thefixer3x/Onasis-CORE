@@ -1,3 +1,5 @@
+/// <reference lib="deno.ns" />
+
 /**
  * Memory Create Edge Function
  * POST /functions/v1/memory-create
@@ -12,6 +14,7 @@ import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
 import { scoreMemoryWrite } from "../_shared/memory-quality.ts";
 import { suggestTopicKey, isValidTopicKey, normalizeTopicKey } from "../_shared/topic-key.ts";
+import { scheduleMemoryInferenceEnqueue } from "../_shared/memory-inference-queue.ts";
 
 type MemoryType =
   | "context"
@@ -523,6 +526,12 @@ serve(async (req: Request) => {
           : null;
 
         if (updated) {
+          scheduleMemoryInferenceEnqueue(supabase, {
+            auth,
+            memory: updated,
+            sourceEvent: "memory.update",
+          });
+
           const { embedding: _embedding, ...memoryWithoutEmbedding } = updated;
           const responseBody = {
             data: memoryWithoutEmbedding,
@@ -769,6 +778,12 @@ serve(async (req: Request) => {
       api_key_id: auth.api_key_id,
       project_scope: auth.project_scope,
       ...reqCtx,
+    });
+
+    scheduleMemoryInferenceEnqueue(supabase, {
+      auth,
+      memory,
+      sourceEvent: "memory.create",
     });
 
     // Return success response (exclude embedding from response for cleaner output)

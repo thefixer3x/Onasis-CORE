@@ -1,3 +1,5 @@
+/// <reference lib="deno.ns" />
+
 /**
  * Memory Update Edge Function
  * Updates an existing memory, regenerating embeddings if content changes
@@ -10,6 +12,7 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 import { extractRequestContext, writeAudit } from "../_shared/audit.ts";
 import { suggestTopicKey, isValidTopicKey, normalizeTopicKey } from "../_shared/topic-key.ts";
+import { scheduleMemoryInferenceEnqueue } from "../_shared/memory-inference-queue.ts";
 
 type MemoryType =
   | "context"
@@ -481,7 +484,7 @@ serve(async (req: Request) => {
     }
 
     // Perform update
-    const { data: updated, error: updateError } = await supabase
+    const { data: updatedRow, error: updateError } = await supabase
       .from("memory_entries")
       .update(updateData)
       .eq("id", targetMemoryId)
@@ -526,6 +529,7 @@ serve(async (req: Request) => {
         },
       );
     }
+    let updated = updatedRow;
 
     // Create revision snapshot if policy required it
     let revisionCreated = false;
@@ -599,6 +603,12 @@ serve(async (req: Request) => {
       api_key_id: auth.api_key_id,
       project_scope: auth.project_scope,
       ...reqCtx,
+    });
+
+    scheduleMemoryInferenceEnqueue(supabase, {
+      auth,
+      memory: updated,
+      sourceEvent: "memory.update",
     });
 
     return new Response(
