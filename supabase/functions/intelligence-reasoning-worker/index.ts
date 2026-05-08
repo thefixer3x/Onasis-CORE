@@ -10,14 +10,16 @@
  */
 
 import { getSupabaseClient } from "../_shared/utils.ts";
-import { isMemoryInferenceQueueEnabled } from "../_shared/memory-inference-queue";
-import { processSubjectReasoningBatch } from "../_shared/reasoning-processor";
+import { isMemoryInferenceQueueEnabled } from "../_shared/memory-inference-queue.ts";
+import { processSubjectReasoningBatch } from "../_shared/reasoning-processor.ts";
 
 // ---------------------------------------------------------------------------
 // Cron schedule — module top level, required for Deno.cron
 // ---------------------------------------------------------------------------
 
-Deno.cron("intelligence-reasoning-worker", "*/5 * * * *", runReasoningWorker);
+(Deno as unknown as {
+  cron: (name: string, schedule: string, handler: () => Promise<void>) => void;
+}).cron("intelligence-reasoning-worker", "*/5 * * * *", runReasoningWorker);
 
 // ---------------------------------------------------------------------------
 // Worker

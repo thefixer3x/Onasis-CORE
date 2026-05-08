@@ -7,11 +7,15 @@
  * Authenticated. Calls shared reasoning-processor.
  */
 
-import { corsHeaders } from "../_shared/cors.ts";
-import { authenticateRequest } from "../_shared/auth.ts";
-import { getSupabaseClient, successResponse, errorResponse } from "../_shared/utils.ts";
-import { isMemoryInferenceQueueEnabled } from "../_shared/memory-inference-queue";
-import { processSubjectReasoningBatch } from "../_shared/reasoning-processor";
+import {
+  authenticateRequest,
+  corsHeaders,
+  getSupabaseClient,
+  successResponse,
+  errorResponse,
+} from "../_shared/utils.ts";
+import { isMemoryInferenceQueueEnabled } from "../_shared/memory-inference-queue.ts";
+import { processSubjectReasoningBatch } from "../_shared/reasoning-processor.ts";
 
 interface FlushRequest {
   subject_id?: string;

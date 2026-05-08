@@ -10,7 +10,7 @@
  * import from this module. Processing logic is written once here.
  */
 
-import { isMemoryInferenceQueueEnabled } from './memory-inference-queue';
+import { isMemoryInferenceQueueEnabled } from './memory-inference-queue.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -153,7 +153,7 @@ async function findContradictionGroup(
 // ---------------------------------------------------------------------------
 
 export async function processSubjectReasoningBatch(
-  supabase: { from: Function; rpc: Function; query: Function },
+  supabase: { from: Function; rpc: Function },
   options: ProcessSubjectOptions,
 ): Promise<ProcessingResult> {
   if (!isMemoryInferenceQueueEnabled()) {

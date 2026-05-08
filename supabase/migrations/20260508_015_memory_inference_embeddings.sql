@@ -56,8 +56,40 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.get_ready_reasoning_batches(
+  p_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE (
+  subject_id UUID,
+  organization_id UUID,
+  source_memory_ids UUID[],
+  pending_token_count INTEGER,
+  pending_memory_count INTEGER,
+  last_job_id UUID
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'security_service', 'extensions'
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    b.subject_id,
+    b.organization_id,
+    b.source_memory_ids,
+    b.pending_token_count,
+    b.pending_memory_count,
+    b.last_job_id
+  FROM security_service.memory_inference_batches b
+  WHERE b.pending_memory_count > 0
+    AND b.pending_token_count >= public.get_reasoning_token_threshold(b.organization_id)
+  ORDER BY b.updated_at ASC
+  LIMIT GREATEST(COALESCE(p_limit, 10), 1)
+  FOR UPDATE SKIP LOCKED;
+END;
+$$;
+
 GRANT EXECUTE ON FUNCTION public.get_reasoning_token_threshold(UUID) TO service_role;
-GRANT EXECUTE ON FUNCTION public.get_reasoning_token_threshold(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_reasoning_token_threshold(UUID) TO anon;
+GRANT EXECUTE ON FUNCTION public.get_ready_reasoning_batches(INTEGER) TO service_role;
 
 COMMIT;
