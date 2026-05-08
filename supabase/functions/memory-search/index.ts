@@ -12,6 +12,8 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 import {
   applyMemoryBoundary,
+  getMemoryBoundaryQueryFilters,
+  logMemoryBoundary,
   resolveMemoryBoundary,
 } from "../_shared/memory-context.ts";
 
@@ -428,6 +430,8 @@ serve(async (req: Request) => {
     const typeFilters = normalizeTypes(body.memory_type, body.memory_types);
     const primaryFilterType = typeFilters.length === 1 ? typeFilters[0] : null;
     const boundary = resolveMemoryBoundary(auth);
+    const boundaryFilters = getMemoryBoundaryQueryFilters(boundary);
+    logMemoryBoundary(boundary, auth, { route: "memory-search:semantic" });
 
     let thresholdUsed = threshold;
     let searchStrategy:
@@ -441,8 +445,8 @@ serve(async (req: Request) => {
       queryEmbedding,
       thresholdUsed,
       limit,
-      boundary.organization_id,
-      boundary.user_id,
+      boundaryFilters.organization_id,
+      boundaryFilters.user_id,
       primaryFilterType,
     );
 
@@ -485,8 +489,8 @@ serve(async (req: Request) => {
           queryEmbedding,
           relaxed,
           limit,
-          boundary.organization_id,
-          boundary.user_id,
+          boundaryFilters.organization_id,
+          boundaryFilters.user_id,
           primaryFilterType,
         );
         if (!relaxedResponse.error && Array.isArray(relaxedResponse.data)) {
@@ -568,7 +572,7 @@ serve(async (req: Request) => {
       requested_threshold: threshold,
       search_strategy: searchStrategy,
       total: filteredResults.length,
-      organization_id: boundary.organization_id ?? auth.organization_id,
+      organization_id: boundaryFilters.organization_id ?? auth.organization_id,
       memory_context: boundary.context,
     };
 

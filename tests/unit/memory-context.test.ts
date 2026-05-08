@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   applyMemoryBoundary,
+  getMemoryBoundaryQueryFilters,
+  logMemoryBoundary,
   resolveMemoryBoundary,
   resolveMemoryContext,
 } from '../../supabase/functions/_shared/memory-context.ts';
@@ -110,5 +112,68 @@ describe('memory-context helpers', () => {
       { op: 'eq', column: 'organization_id', value: 'org-1' },
       { op: 'eq', column: 'user_id', value: 'user-1' },
     ]);
+  });
+
+  it('keeps semantic RPC user filters disabled in shadow mode', () => {
+    env.FEATURE_MEMORY_CONTEXT_SHADOW = 'true';
+
+    const boundary = resolveMemoryBoundary({
+      user_id: 'user-1',
+      organization_id: 'org-1',
+      key_context: 'personal',
+      permissions: ['memories:personal:*'],
+    });
+
+    expect(getMemoryBoundaryQueryFilters(boundary)).toEqual({
+      organization_id: 'org-1',
+      user_id: null,
+    });
+  });
+
+  it('enables semantic RPC user filters in enforce mode', () => {
+    env.FEATURE_MEMORY_CONTEXT_ENFORCE = 'true';
+
+    const boundary = resolveMemoryBoundary({
+      user_id: 'user-1',
+      organization_id: 'org-1',
+      key_context: 'personal',
+      permissions: ['memories:personal:*'],
+    });
+
+    expect(getMemoryBoundaryQueryFilters(boundary)).toEqual({
+      organization_id: 'org-1',
+      user_id: 'user-1',
+    });
+  });
+
+  it('logs intended and applied personal boundary separately', () => {
+    env.FEATURE_MEMORY_CONTEXT_SHADOW = 'true';
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+
+    const auth = {
+      user_id: 'user-1',
+      organization_id: 'org-1',
+      key_context: 'personal',
+      permissions: ['memories:personal:*'],
+      auth_source: 'api_key',
+    };
+
+    logMemoryBoundary(resolveMemoryBoundary(auth), auth, {
+      route: 'memory-search:semantic',
+    });
+
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse(String(infoSpy.mock.calls[0]?.[1]));
+    expect(payload).toMatchObject({
+      route: 'memory-search:semantic',
+      context: 'personal',
+      enforce: false,
+      intended_organization_id: 'org-1',
+      intended_user_id: 'user-1',
+      applied_organization_id: 'org-1',
+      applied_user_id: null,
+    });
+
+    infoSpy.mockRestore();
   });
 });
