@@ -24,6 +24,11 @@ export interface MemoryBoundaryResolution {
   user_id: string | null;
 }
 
+export interface MemoryBoundaryQueryFilters {
+  organization_id: string | null;
+  user_id: string | null;
+}
+
 function envFlag(name: string): boolean {
   const value = Deno.env.get(name)?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes" || value === "on";
@@ -125,6 +130,41 @@ export function resolveMemoryBoundary(
   };
 }
 
+export function getMemoryBoundaryQueryFilters(
+  resolution: MemoryBoundaryResolution,
+): MemoryBoundaryQueryFilters {
+  return {
+    organization_id: resolution.organization_id,
+    user_id: resolution.flags.enforce ? resolution.user_id : null,
+  };
+}
+
+export function logMemoryBoundary(
+  resolution: MemoryBoundaryResolution,
+  auth: MemoryBoundaryAuthContext,
+  options: { requestId?: string; route?: string } = {},
+): void {
+  if (!resolution.flags.shadow && !resolution.flags.enforce) return;
+
+  const filters = getMemoryBoundaryQueryFilters(resolution);
+  console.info(
+    "[memory-context]",
+    JSON.stringify({
+      route: options.route || "unknown",
+      request_id: options.requestId || null,
+      auth_source: auth.auth_source || "unknown",
+      api_key_id: auth.api_key_id || null,
+      project_scope: auth.project_scope || null,
+      context: resolution.context,
+      enforce: resolution.flags.enforce,
+      intended_organization_id: resolution.organization_id,
+      intended_user_id: resolution.user_id,
+      applied_organization_id: filters.organization_id,
+      applied_user_id: filters.user_id,
+    }),
+  );
+}
+
 export function applyMemoryBoundary<T>(
   query: T,
   auth: MemoryBoundaryAuthContext,
@@ -132,37 +172,23 @@ export function applyMemoryBoundary<T>(
 ): T {
   let scopedQuery = query as Record<string, unknown>;
   const resolution = resolveMemoryBoundary(auth);
+  const filters = getMemoryBoundaryQueryFilters(resolution);
 
-  if (resolution.organization_id) {
+  if (filters.organization_id) {
     scopedQuery =
       (scopedQuery as { eq: (column: string, value: unknown) => unknown }).eq(
         "organization_id",
-        resolution.organization_id,
+        filters.organization_id,
       ) as Record<string, unknown>;
   }
 
-  if (resolution.flags.shadow || resolution.flags.enforce) {
-    console.info(
-      "[memory-context]",
-      JSON.stringify({
-        route: options.route || "unknown",
-        request_id: options.requestId || null,
-        auth_source: auth.auth_source || "unknown",
-        api_key_id: auth.api_key_id || null,
-        project_scope: auth.project_scope || null,
-        context: resolution.context,
-        enforce: resolution.flags.enforce,
-        organization_id: resolution.organization_id,
-        user_id: resolution.user_id,
-      }),
-    );
-  }
+  logMemoryBoundary(resolution, auth, options);
 
-  if (resolution.flags.enforce && resolution.user_id) {
+  if (filters.user_id) {
     scopedQuery =
       (scopedQuery as { eq: (column: string, value: unknown) => unknown }).eq(
         "user_id",
-        resolution.user_id,
+        filters.user_id,
       ) as Record<string, unknown>;
   }
 
