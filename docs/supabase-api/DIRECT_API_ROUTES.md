@@ -5,6 +5,13 @@
 **Project Ref:** `mxtsdgkwzjzlttpotole`
 **Last Updated:** 2026-04-03
 
+> **LIVE SUPABASE SAFETY RULE: never run `supabase db push` against this live project.**
+> This Supabase database is a multi-project database that includes schemas,
+> routes, and deployments unrelated to this repo's current migration ledger.
+> Local migrations may not describe the whole production database. Future agents
+> must use reviewable SQL-only patches with explicit operator approval for live
+> changes, then record the approved change in source control.
+
 > **Note:** These routes bypass Netlify routing and connect directly to Supabase.
 > For production use via `api.lanonasis.com`, see the `_redirects` configuration.
 >
