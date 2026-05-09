@@ -38,7 +38,7 @@ EF catalogue: `docs/supabase-api/DIRECT_API_ROUTES.md`
 
 ## Database — CRITICAL RULES
 
-**Primary Supabase project:** `mxtsdgkwzjzlttpotole.supabase.co`
+**Primary Supabase project:** `mxtsdg*********.supabase.co`
 Vanity alias: `lanonasis.supabase.co` (both point to same project)
 95+ tables currently in `public` schema.
 
