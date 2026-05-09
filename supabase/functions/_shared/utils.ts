@@ -25,7 +25,7 @@ export interface IntelligenceQueryContext {
 
 export interface IntelligenceAuthContext {
   userId: string;
-  organizationId: string;
+  organizationId: string | null;
   authSource?: string;
 }
 
@@ -144,6 +144,14 @@ export async function authenticateRequest(
 ): Promise<IntelligenceAuthContext | { error: string; status: number }> {
   const authHeader = req.headers.get("Authorization");
   const apiKey = req.headers.get("X-API-Key");
+
+  // Fast path: service role key from internal Edge Function calls
+  // The reasoning-processor calls intelligence EFs via service role fetch().
+  // No DB lookup needed — direct key comparison.
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`) {
+    return { userId: "service-internal", organizationId: null, authSource: "service_role" };
+  }
 
   const supabase = getSupabaseClient();
 
@@ -389,6 +397,10 @@ export async function checkIntelligenceAccess(
   userId: string,
   toolName: string,
 ): Promise<AccessCheck> {
+  if (userId === "service-internal") {
+    return { allowed: true, reason: "internal service call", usage_remaining: -1 };
+  }
+
   const supabase = getSupabaseClient();
 
   const { data, error } = await supabase.rpc("check_intelligence_access", {
@@ -413,6 +425,10 @@ export async function checkIntelligenceAccess(
 
 // Get user tier info
 export async function getUserTierInfo(userId: string) {
+  if (userId === "service-internal") {
+    return { tier: "internal", tier_name: "Internal Service", usage_remaining: -1, allowed: true };
+  }
+
   const supabase = getSupabaseClient();
 
   const { data } = await supabase.rpc("get_user_tier_info", {
@@ -437,6 +453,8 @@ export async function logUsage(
   success: boolean,
   errorMessage?: string,
 ) {
+  if (userId === "service-internal") return;
+
   const supabase = getSupabaseClient();
 
   await supabase.rpc("log_intelligence_usage", {
@@ -452,6 +470,8 @@ export async function logUsage(
 }
 
 export async function incrementIntelligenceUsage(userId: string) {
+  if (userId === "service-internal") return;
+
   const supabase = getSupabaseClient();
   const { error } = await supabase.rpc("increment_intelligence_usage", {
     p_user_id: userId,

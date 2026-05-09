@@ -34,6 +34,8 @@ interface ExtractInsightsRequest {
   query_scope?: "personal" | "team" | "organization" | "hybrid";
   insight_types?: Array<"themes" | "connections" | "gaps" | "actions" | "summary">;
   detail_level?: "brief" | "detailed" | "comprehensive";
+  /** If true, return pre-reasoned conclusions from memory_inferred_conclusions before calling LLM */
+  prefer_cache?: boolean;
 }
 
 interface Insight {
@@ -58,13 +60,18 @@ Deno.serve(async (req) => {
 
     const userId = auth.userId;
 
-    const access = await checkIntelligenceAccess(userId, TOOL_NAME);
-    if (!access.allowed) {
-      const tierInfo = await getUserTierInfo(userId);
-      return premiumRequiredResponse(
-        access.reason || "Feature not available",
-        tierInfo?.tier_name
-      );
+    // Skip tier/access checks for internal service-role calls from reasoning-processor
+    const isServiceInternal = auth.authSource === "service_role";
+
+    if (!isServiceInternal) {
+      const access = await checkIntelligenceAccess(userId, TOOL_NAME);
+      if (!access.allowed) {
+        const tierInfo = await getUserTierInfo(userId);
+        return premiumRequiredResponse(
+          access.reason || "Feature not available",
+          tierInfo?.tier_name
+        );
+      }
     }
 
     const body: ExtractInsightsRequest = await req.json().catch(() => ({}));
@@ -77,6 +84,30 @@ Deno.serve(async (req) => {
     const timeRangeDays = body.time_range_days || 30;
 
     const supabase = getSupabaseClient();
+
+    // --- prefer_cache layer: read pre-reasoned conclusions before calling LLM ---
+    // This is a separate, newer layer from the existing checkCache/setCache transient-
+    // compute cache. It reads from memory_inferred_conclusions (the Phase 1 store).
+    if (body.prefer_cache) {
+      const { data: cachedConclusions } = await supabase
+        .from("memory_inferred_conclusions")
+        .select("*")
+        .eq("subject_id", userId)
+        .is("superseded_by", null)
+        .gte("freshness", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order("confidence", { ascending: false })
+        .limit(20);
+
+      if (cachedConclusions && cachedConclusions.length > 0) {
+        const tierInfo = await getUserTierInfo(userId);
+        return successResponse(
+          { insights: cachedConclusions, source: "cache", from_conclusions: true },
+          { tokens_used: 0, cost_usd: 0, cached: true },
+          { tier: tierInfo?.tier_name || "free", usage_remaining: access.usage_remaining || 0 }
+        );
+      }
+    }
+    // --- end prefer_cache ---
 
     // Fetch memories
     let memories;

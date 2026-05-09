@@ -189,6 +189,9 @@
 /api/v1/intelligence/behavior-recall    https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-recall    200!
 /api/v1/intelligence/behavior-suggest   https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-behavior-suggest   200!
 
+# Living Memory Profiles (Phase 2)
+/api/v1/profiles/*  https://mxtsdgkwzjzlttpotole.supabase.co/functions/v1/intelligence-profiles/:splat  200!
+
 # ============================================================================
 # EMBEDDINGS PROXY - SUPABASE EDGE FUNCTION
 # ============================================================================
