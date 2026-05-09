@@ -183,6 +183,13 @@ Deno.serve(async (req) => {
       return errorResponse("subject_id is required", 400);
     }
 
+    // Visibility guard: only the subject themselves or a service-role caller may
+    // access a profile. Prevents any authenticated user from enumerating other
+    // subjects' profiles by supplying an arbitrary subject_id in the URL.
+    if (auth.authSource !== "service_role" && auth.userId !== subjectId) {
+      return errorResponse("Access denied: you may only view your own profile", 403);
+    }
+
     if (operation === "get") {
       return await handleGetProfile(subjectId);
     }
