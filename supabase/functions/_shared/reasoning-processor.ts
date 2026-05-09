@@ -11,6 +11,8 @@
  */
 
 import { isMemoryInferenceQueueEnabled } from './memory-inference-queue.ts';
+import { compileProfileFromConclusions } from './profile-compiler.ts';
+import type { ConclusionInput } from './profile-compiler.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -247,6 +249,8 @@ export async function processSubjectReasoningBatch(
     }
 
     // 3d + 3e: Generate embeddings and handle contradiction detection
+    const insertedConclusions: ConclusionInput[] = [];
+
     for (const conclusion of allConclusions) {
       let embedding: number[] | null = null;
 
@@ -279,6 +283,14 @@ export async function processSubjectReasoningBatch(
 
       if (insertResult?.data && insertResult.data.length > 0) {
         conclusionCount++;
+        insertedConclusions.push({
+          id: insertResult.data[0].id,
+          conclusion_type: conclusion.conclusion_type,
+          content: conclusion.content,
+          confidence: conclusion.confidence,
+          scope: conclusion.scope,
+          evidence_memory_ids: conclusion.evidence_memory_ids,
+        });
       }
     }
 
@@ -290,6 +302,18 @@ export async function processSubjectReasoningBatch(
         completed_at: new Date().toISOString(),
       })
       .in("id", jobIds);
+
+    // 3h-profile: Compile living profile from this batch's conclusions (Phase 2)
+    try {
+      await compileProfileFromConclusions(supabase, {
+        subject_id,
+        organization_id,
+        source_job_id: jobIds[0] ?? "",
+        conclusions: insertedConclusions,
+      });
+    } catch (profileErr) {
+      console.warn("[reasoning-processor] profile compilation failed (non-fatal):", profileErr);
+    }
 
   } catch (err) {
     console.error("[reasoning-processor] processing error for subject", subject_id, err);
