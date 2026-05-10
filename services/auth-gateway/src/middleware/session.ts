@@ -1,11 +1,9 @@
 import type { Request, Response, NextFunction } from 'express'
-import { verifyToken } from '../utils/jwt.js'
+import { verifyToken, type JWTPayload } from '../utils/jwt.js'
 import { findSessionByToken } from '../services/session.service.js'
 
-/**
- * Middleware to validate session cookie
- * Attaches user to request if valid session exists
- */
+const SESSION_DB_TIMEOUT_MS = 3000
+
 export async function validateSessionCookie(
     req: Request,
     res: Response,
@@ -14,54 +12,74 @@ export async function validateSessionCookie(
     const sessionToken = req.cookies.lanonasis_session
 
     if (!sessionToken) {
-        return next() // No session cookie, continue without user
+        return next()
     }
 
+    // Verify JWT signature first — fast, no DB. Throws if tampered/malformed.
+    let payload: JWTPayload
     try {
-        // Verify JWT token
-        const payload = verifyToken(sessionToken)
-        const session = await findSessionByToken(sessionToken)
+        payload = verifyToken(sessionToken)
+    } catch {
+        clearSessionCookies(res)
+        return next()
+    }
 
-        // Check if token is expired
-        if (!session || (payload.exp && payload.exp * 1000 < Date.now())) {
-            // Token expired, clear cookies
-            const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
-            res.clearCookie('lanonasis_session', {
-                domain: cookieDomain,
-                path: '/',
-            })
-            res.clearCookie('lanonasis_user', {
-                domain: cookieDomain,
-                path: '/',
-            })
-            return next()
-        }
+    // Expiry check — no DB needed for clearly expired tokens
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+        clearSessionCookies(res)
+        return next()
+    }
 
-        // Attach user to request (convert JWTPayload to UnifiedUser)
-        req.user = {
-            userId: payload.sub,
-            organizationId: payload.organization_id ?? 'unknown',
-            role: payload.role,
-            plan: payload.plan || 'free',
-            sub: payload.sub,
-            project_scope: payload.project_scope,
-            platform: payload.platform,
-            email: payload.email,
-            authSource: 'sso',
-        }
-        next()
-    } catch (error) {
-        // Invalid token, clear cookies
-        const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
-        res.clearCookie('lanonasis_session', {
-            domain: cookieDomain,
-            path: '/',
-        })
-        res.clearCookie('lanonasis_user', {
-            domain: cookieDomain,
-            path: '/',
-        })
-        next()
+    // DB lookup with timeout — a transient failure must not silently drop a valid session.
+    // If the DB is unavailable, trust the signed JWT and continue in degraded mode.
+    let session: Awaited<ReturnType<typeof findSessionByToken>> | null = null
+    let dbUnavailable = false
+
+    try {
+        const dbTimeout = new Promise<never>((_, reject) =>
+            setTimeout(
+                () => reject(Object.assign(new Error('session_db_timeout'), { code: 'SESSION_DB_TIMEOUT' })),
+                SESSION_DB_TIMEOUT_MS
+            )
+        )
+        session = await Promise.race([findSessionByToken(sessionToken), dbTimeout])
+    } catch {
+        dbUnavailable = true
+    }
+
+    if (dbUnavailable) {
+        // Transient DB failure — trust the signed JWT, preserve cookie
+        req.user = buildUser(payload)
+        return next()
+    }
+
+    if (!session) {
+        // Session genuinely not found or revoked — clear cookie
+        clearSessionCookies(res)
+        return next()
+    }
+
+    req.user = buildUser(payload)
+    next()
+}
+
+function clearSessionCookies(res: Response): void {
+    const cookieDomain = process.env.COOKIE_DOMAIN || '.lanonasis.com'
+    res.clearCookie('lanonasis_session', { domain: cookieDomain, path: '/' })
+    res.clearCookie('lanonasis_user', { domain: cookieDomain, path: '/' })
+}
+
+function buildUser(payload: JWTPayload): NonNullable<Request['user']> {
+    return {
+        userId: payload.sub,
+        organizationId: payload.organization_id ?? 'unknown',
+        role: payload.role,
+        plan: payload.plan || 'free',
+        sub: payload.sub,
+        project_scope: payload.project_scope,
+        platform: payload.platform,
+        email: payload.email,
+        authSource: 'sso',
     }
 }
 
