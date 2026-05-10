@@ -606,6 +606,7 @@ function mapApiKeyRecord(record: ApiKeyRecord, serviceScopes?: ServiceScope[]): 
  * Create a new API key for a user
  * Supports scoped permissions via the scopes parameter
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export async function createApiKey(
   user_id: string,
@@ -633,6 +634,13 @@ export async function createApiKey(
     // Validate and normalize scopes
     const keyContext = normalizeApiKeyContext(params.key_context)
     const permissions = resolveApiKeyPermissions(params.scopes, keyContext)
+
+    // Resolve organization_id — required by security_service.api_keys (FK constraint)
+    // Auth controller guarantees every issued token carries a valid org UUID.
+    const organization_id = params.organization_id
+    if (!organization_id || !UUID_RE.test(organization_id)) {
+      throw new Error('No organization found for this session. Please log out and log in again.')
+    }
 
     // Resolve organization_id — required by security_service.api_keys (FK constraint)
     // Auth controller guarantees every issued token carries a valid org UUID.

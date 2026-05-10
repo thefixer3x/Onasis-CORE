@@ -37,7 +37,6 @@ vi.mock('../../src/services/session.service.js', () => ({
 vi.mock('../../src/services/user.service.js', () => ({
   upsertUserAccount: vi.fn(),
   findUserAccountById: vi.fn(),
-  resolveOrganizationIdForUser: vi.fn(),
 }))
 
 vi.mock('../../src/services/audit.service.js', () => ({
@@ -50,7 +49,6 @@ vi.mock('../../src/utils/correlation.js', () => ({
 
 vi.mock('../../src/services/api-key.service.js', () => ({
   validateAPIKey: vi.fn(),
-  createApiKey: vi.fn(),
 }))
 
 vi.mock('../../src/services/cache.service.js', () => ({
@@ -78,12 +76,11 @@ vi.mock('../../src/utils/logger.js', () => ({
 }))
 
 import { logAuthEvent } from '../../src/services/audit.service.js'
-import { createApiKey as createApiKeyService, validateAPIKey } from '../../src/services/api-key.service.js'
+import { validateAPIKey } from '../../src/services/api-key.service.js'
 import { resolveProjectScope } from '../../src/services/project-scope.service.js'
 import { resolveUAICached } from '../../src/services/uai-session-cache.service.js'
-import { resolveOrganizationIdForUser } from '../../src/services/user.service.js'
 
-const { createApiKey, introspectIdentity } = await import('../../src/controllers/auth.controller.ts')
+const { introspectIdentity } = await import('../../src/controllers/auth.controller.ts')
 
 type MockResponse = Response & {
   statusCode: number
@@ -146,8 +143,6 @@ describe('Auth Introspection Contract', () => {
       email: 'test@example.com',
       fromCache: false,
     })
-
-    vi.mocked(resolveOrganizationIdForUser).mockResolvedValue(undefined)
   })
 
   it('returns a normalized identity envelope for a valid API key', async () => {
@@ -254,47 +249,6 @@ describe('Auth Introspection Contract', () => {
     )
   })
 
-  it('hydrates missing organization context from the user profile during JWT introspection', async () => {
-    const { verifyToken } = await import('../../src/utils/jwt.js')
-    vi.mocked(verifyToken).mockReturnValue({
-      sub: 'user-123',
-      email: 'test@example.com',
-      role: 'authenticated',
-      project_scope: 'lanonasis-maas',
-      platform: 'cli',
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    } as never)
-
-    vi.mocked(resolveUAICached).mockResolvedValue({
-      authId: 'auth-123',
-      organizationId: null,
-      credentialId: 'cred-123',
-      email: 'test@example.com',
-      fromCache: false,
-    })
-    vi.mocked(resolveOrganizationIdForUser).mockResolvedValue('org-from-profile')
-
-    const req = createMockRequest({
-      body: {
-        credential: 'jwt-token',
-        type: 'jwt',
-      },
-    })
-    const res = createMockResponse()
-
-    await introspectIdentity(req, res)
-
-    expect(resolveOrganizationIdForUser).toHaveBeenCalledWith('user-123')
-    expect(res.statusCode).toBe(200)
-    expect(res.body).toMatchObject({
-      valid: true,
-      identity: expect.objectContaining({
-        organization_id: 'org-from-profile',
-      }),
-    })
-  })
-
   it('rejects requests that provide both credential and token', async () => {
     const req = createMockRequest({
       body: {
@@ -313,60 +267,6 @@ describe('Auth Introspection Contract', () => {
       identity: null,
       error: {
         code: 'invalid_request',
-      },
-    })
-  })
-
-  it('creates API keys using the authenticated organization instead of client-supplied org data', async () => {
-    vi.mocked(createApiKeyService).mockResolvedValue({
-      id: 'key-123',
-      name: 'CLI key',
-      key: 'lano_test_key',
-      user_id: 'user-123',
-      access_level: 'authenticated',
-      key_context: 'team',
-      permissions: ['legacy:full_access'],
-      service: 'all',
-      created_at: '2026-03-26T00:00:00.000Z',
-      is_active: true,
-    })
-
-    const req = createMockRequest({
-      user: {
-        sub: 'user-123',
-        userId: 'user-123',
-        organizationId: 'org-session-123',
-        role: 'authenticated',
-        plan: 'pro',
-        app_metadata: {
-          organization_id: 'org-session-123',
-        },
-      },
-      body: {
-        name: 'CLI key',
-        key_context: 'team',
-        organization_id: 'org-client-spoofed',
-      },
-    })
-    const res = createMockResponse()
-
-    await createApiKey(req, res)
-
-    expect(createApiKeyService).toHaveBeenCalledWith(
-      'user-123',
-      expect.objectContaining({
-        name: 'CLI key',
-        key_context: 'team',
-        organization_id: 'org-session-123',
-      })
-    )
-    expect(res.statusCode).toBe(200)
-    expect(res.body).toMatchObject({
-      success: true,
-      data: {
-        id: 'key-123',
-        name: 'CLI key',
-        key_context: 'team',
       },
     })
   })

@@ -182,6 +182,7 @@ function normalizeOrganizationId(value?: string | null): string | undefined {
   return normalized
 }
 
+
 async function resolveValidatedProjectScope(options: {
   requestedScope?: string
   fallbackScope?: string
