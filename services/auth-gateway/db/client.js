@@ -1,10 +1,15 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import ws from 'ws';
+import pg from 'pg';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '../config/env.js';
-// The active write target is the auth-gateway database behind DATABASE_URL.
-// We keep the serverless Postgres driver because it matches the deployed connection shape.
-neonConfig.webSocketConstructor = ws;
+const { Pool } = pg;
+/**
+ * PostgreSQL Connection Pool
+ * Configured for Supabase Pooler (pgbouncer mode)
+ *
+ * Important: When using Supabase Transaction Pooler (port 6543):
+ * - Prepared statements are disabled (pgbouncer compatibility)
+ * - Connection pooling is handled by Supabase
+ */
 export const dbPool = new Pool({
     connectionString: env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
@@ -21,24 +26,6 @@ export const supabaseAdmin = createClient(env.SUPABASE_URL || '', env.SUPABASE_S
         schema: 'public',
     },
 });
-/**
- * Main DB Supabase client (for event projection and user data)
- * Uses MAIN_SUPABASE_URL if available, otherwise falls back to SUPABASE_URL
- */
-export const supabaseUsers = createClient(env.MAIN_SUPABASE_URL || env.SUPABASE_URL || '', env.MAIN_SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '', {
-    auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-    },
-    db: {
-        schema: 'public',
-    },
-});
-/**
- * Supabase Auth client (for authentication operations)
- * Alias for supabaseUsers (Main DB) for backward compatibility
- */
-export const supabaseAuth = supabaseUsers;
 export async function checkDatabaseHealth() {
     try {
         const client = await dbPool.connect();
