@@ -33,6 +33,11 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
+        // Primary database (Supabase)
+        DATABASE_URL: process.env.DATABASE_URL,
+        // Fallback database (Neon) - for failover switchover
+        FALLBACK_DATABASE_URL: process.env.FALLBACK_DATABASE_URL || 'postgresql://neondb_owner:npg_Ltc8QliNJ9YB@ep-snowy-surf-adqqsawd-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require',
+        NEON_DATABASE_URL: process.env.NEON_DATABASE_URL || process.env.FALLBACK_DATABASE_URL,
       },
       env_production: {
         NODE_ENV: 'production',
