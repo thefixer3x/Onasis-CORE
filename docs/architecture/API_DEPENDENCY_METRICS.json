@@ -1,0 +1,430 @@
+{
+  "version": "2.0",
+  "generated_at": "2026-05-11T02:30:00Z",
+  "scope": "api.lanonasis.com Netlify to VPS migration",
+  "summary": {
+    "total_dependencies_found": 24,
+    "total_route_references": 45,
+    "total_domain_references": 7,
+    "dependencies_by_type": {
+      "frontend": 2,
+      "backend": 10,
+      "CLI": 2,
+      "MCP": 3,
+      "auth_flow": 3,
+      "test_suite": 1,
+      "unknown": 0
+    },
+    "dependencies_by_domain": {
+      "api.lanonasis.com": 1,
+      "gateway.lanonasis.com": 1,
+      "mcp.lanonasis.com": 2,
+      "auth.connectionpoint.tech": 1,
+      "lanonasis.supabase.co": 1
+    },
+    "dependencies_by_runtime_owner": {
+      "Netlify": 8,
+      "VPS_Nginx": 1,
+      "auth-gateway": 5,
+      "unified-gateway": 6,
+      "mcp-server": 3,
+      "Supabase_Edge_Function": 2,
+      "nginx_static": 1,
+      "unknown": 0
+    },
+    "dependencies_by_criticality": {
+      "P0": 6,
+      "P1": 10,
+      "P2": 6,
+      "P3": 2
+    },
+    "dependencies_by_blast_radius": {
+      "high": 9,
+      "medium": 10,
+      "low": 5
+    },
+    "dependencies_by_bridge_phase": {
+      "phase_A_infrastructure": 0,
+      "phase_B_static_health": 4,
+      "phase_C_auth_adjacent_readonly": 6,
+      "phase_D_auth_session": 5,
+      "phase_E_long_lived_mcp": 3,
+      "blocked_before_bridge": 6
+    },
+    "unknown_auth_count": 0,
+    "unknown_response_shape_count": 2,
+    "unknown_owner_count": 0,
+    "cors_sensitive_count": 7,
+    "cookie_sensitive_count": 5,
+    "oauth_sensitive_count": 3,
+    "mcp_sensitive_count": 3,
+    "netlify_function_dependent_count": 8,
+    "supabase_direct_dependent_count": 6,
+    "gateway_dependent_count": 10,
+    "ready_for_immediate_bridge_count": 4,
+    "ready_for_phase_C_bridge_count": 6,
+    "blocked_until_phase_D_count": 5,
+    "blocked_until_phase_E_count": 3,
+    "blocked_before_dns_cutover_count": 3
+  },
+  "dependencies": [
+    {
+      "id": "DEP-MCP-WS",
+      "name": "MCP WebSocket Client",
+      "type": "MCP",
+      "route": "/mcp/ws",
+      "methods": ["WS"],
+      "auth": "Bearer JWT",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 85,
+      "bridge_phase": "E"
+    },
+    {
+      "id": "DEP-MCP-SSE",
+      "name": "MCP SSE Client",
+      "type": "MCP",
+      "route": "/mcp/sse",
+      "methods": ["GET"],
+      "auth": "Bearer JWT",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 85,
+      "bridge_phase": "E"
+    },
+    {
+      "id": "DEP-MCP-HTTP",
+      "name": "MCP HTTP Client",
+      "type": "MCP",
+      "route": "/mcp/tools, /mcp/message",
+      "methods": ["GET", "POST"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 55,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-OAUTH-AUTH",
+      "name": "OAuth Authorize",
+      "type": "auth_flow",
+      "route": "/oauth/authorize",
+      "methods": ["GET"],
+      "auth": "none",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 75,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-OAUTH-TOKEN",
+      "name": "OAuth Token",
+      "type": "auth_flow",
+      "route": "/oauth/token",
+      "methods": ["POST"],
+      "auth": "Basic",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 75,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-OAUTH-CB",
+      "name": "OAuth Callback",
+      "type": "auth_flow",
+      "route": "/oauth/callback",
+      "methods": ["GET"],
+      "auth": "none",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 75,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-AUTH-LOGIN",
+      "name": "Auth Login",
+      "type": "backend",
+      "route": "/api/v1/auth/login",
+      "methods": ["POST"],
+      "auth": "session",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 70,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-AUTH-REG",
+      "name": "Auth Register",
+      "type": "backend",
+      "route": "/api/v1/auth/register",
+      "methods": ["POST"],
+      "auth": "session",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 70,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-AUTH-REFRESH",
+      "name": "Auth Refresh",
+      "type": "backend",
+      "route": "/api/v1/auth/refresh",
+      "methods": ["POST"],
+      "auth": "cookie",
+      "criticality": "P0",
+      "blast_radius": "high",
+      "migration_risk": 70,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-AUTH-STATUS",
+      "name": "Auth Status",
+      "type": "backend",
+      "route": "/api/v1/auth/status",
+      "methods": ["GET"],
+      "auth": "Bearer/Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 55,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-MEM-SEARCH",
+      "name": "Memory Search",
+      "type": "backend",
+      "route": "/api/v1/memories/search",
+      "methods": ["POST"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 50,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-MEM-CRUD",
+      "name": "Memory CRUD",
+      "type": "backend",
+      "route": "/api/v1/memories",
+      "methods": ["POST", "GET", "PUT", "DELETE"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 50,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-KEY-CR",
+      "name": "API Key Create",
+      "type": "backend",
+      "route": "/api/v1/keys",
+      "methods": ["POST"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 50,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-KEY-LIST",
+      "name": "API Key List",
+      "type": "backend",
+      "route": "/api/v1/keys/list",
+      "methods": ["GET"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 45,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-INT-ANALYZE",
+      "name": "Intelligence Analyze",
+      "type": "backend",
+      "route": "/api/v1/intelligence/analyze-patterns",
+      "methods": ["POST"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 55,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-INT-TAGS",
+      "name": "Intelligence Suggest Tags",
+      "type": "backend",
+      "route": "/api/v1/intelligence/suggest-tags",
+      "methods": ["POST"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 55,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-PROF-GET",
+      "name": "Profile Get",
+      "type": "backend",
+      "route": "/api/v1/profiles/:id",
+      "methods": ["GET"],
+      "auth": "Bearer/Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 55,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-PROF-ASK",
+      "name": "Profile Ask",
+      "type": "backend",
+      "route": "/api/v1/profiles/:id/ask",
+      "methods": ["POST"],
+      "auth": "Bearer/Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 55,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-FE-DASH",
+      "name": "Dashboard Frontend",
+      "type": "frontend",
+      "route": "/api/v1/*",
+      "methods": ["Various"],
+      "auth": "Bearer JWT",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 45,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-FE-DOCS",
+      "name": "Docs Site",
+      "type": "frontend",
+      "route": "/api/v1/*",
+      "methods": ["Various"],
+      "auth": "X-API-Key",
+      "criticality": "P2",
+      "blast_radius": "low",
+      "migration_risk": 30,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-CLI-MEM",
+      "name": "Memory CLI",
+      "type": "CLI",
+      "route": "/api/v1/memory/*",
+      "methods": ["Various"],
+      "auth": "X-API-Key",
+      "criticality": "P1",
+      "blast_radius": "medium",
+      "migration_risk": 50,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-CLI-CFG",
+      "name": "Config CLI",
+      "type": "CLI",
+      "route": "/api/v1/config/*",
+      "methods": ["GET", "PUT"],
+      "auth": "X-API-Key",
+      "criticality": "P2",
+      "blast_radius": "low",
+      "migration_risk": 30,
+      "bridge_phase": "C"
+    },
+    {
+      "id": "DEP-TEST-E2E",
+      "name": "E2E Tests",
+      "type": "test_suite",
+      "route": "/api/v1/auth/*",
+      "methods": ["Various"],
+      "auth": "None",
+      "criticality": "P2",
+      "blast_radius": "low",
+      "migration_risk": 25,
+      "bridge_phase": "D"
+    },
+    {
+      "id": "DEP-HEALTH",
+      "name": "Health Endpoint",
+      "type": "backend",
+      "route": "/health, /info, /api/v1/health",
+      "methods": ["GET"],
+      "auth": "none",
+      "criticality": "P1",
+      "blast_radius": "low",
+      "migration_risk": 10,
+      "bridge_phase": "B"
+    }
+  ],
+  "bridge_phases": {
+    "phase_A_infrastructure": {
+      "description": "Infrastructure deployment and SSL",
+      "dependencies": [],
+      "criteria": "SSL issued, nginx config valid"
+    },
+    "phase_B_static_health": {
+      "description": "Static/health/info routes",
+      "dependencies": ["DEP-HEALTH"],
+      "criteria": "No auth, no session, static or health-only",
+      "routes": ["/health", "/info", "/api/v1/health", "/.well-known/onasis.json"]
+    },
+    "phase_C_auth_adjacent_readonly": {
+      "description": "Auth-adjacent read-only routes",
+      "dependencies": ["DEP-AUTH-STATUS", "DEP-MEM-SEARCH", "DEP-MEM-CRUD", "DEP-KEY-CR", "DEP-KEY-LIST", "DEP-INT-ANALYZE", "DEP-INT-TAGS", "DEP-PROF-GET", "DEP-PROF-ASK", "DEP-CLI-MEM"],
+      "criteria": "Read-only, lightweight, no session/cookie",
+      "routes": ["/api/v1/auth/status", "/api/v1/config/*", "/api/v1/memory/health", "/api/v1/memories/* (GET)", "/api/v1/intelligence/*", "/api/v1/profiles/*"]
+    },
+    "phase_D_auth_session": {
+      "description": "Auth/session/OAuth routes",
+      "dependencies": ["DEP-AUTH-LOGIN", "DEP-AUTH-REG", "DEP-AUTH-REFRESH", "DEP-OAUTH-AUTH", "DEP-OAUTH-TOKEN", "DEP-OAUTH-CB", "DEP-FE-DASH", "DEP-TEST-E2E"],
+      "criteria": "Behavioral parity proven via --resolve tests",
+      "routes": ["/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/auth/refresh", "/oauth/*", "/auth/*"]
+    },
+    "phase_E_long_lived_mcp": {
+      "description": "Long-lived MCP/SSE/WebSocket connections",
+      "dependencies": ["DEP-MCP-WS", "DEP-MCP-SSE", "DEP-MCP-HTTP"],
+      "criteria": "Clients reconnection verified",
+      "routes": ["/mcp (SSE)", "/mcp (WebSocket)", "/mcp/*"]
+    }
+  },
+  "risk_scoring_model": {
+    "description": "Migration risk score from 0 to 100",
+    "formula": {
+      "+25": "auth/cookie/OAuth/session involved",
+      "+20": "browser CORS involved",
+      "+20": "response shape is unknown",
+      "+15": "owner/runtime is unclear",
+      "+15": "route currently goes through Netlify function wrappers",
+      "+10": "route is used by CLI or SDK",
+      "+10": "route is MCP/SSE/WebSocket/long-lived connection",
+      "+10": "Supabase direct proxy headers are involved",
+      "+5": "route is undocumented or only found in code",
+      "-10": "verified parity test already exists",
+      "-10": "route is low-risk read-only health/static/discovery endpoint"
+    }
+  },
+  "risk_distribution": {
+    "critical_high": 9,
+    "elevated_medium": 10,
+    "low": 5
+  },
+  "rollback_gate": {
+    "description": "Netlify bridge rollback preparation",
+    "commands": {
+      "backup": "cp apps/onasis-core/_redirects apps/onasis-core/_redirects.backup.$(date +%Y%m%d%H%M%S)",
+      "create_patch": "git diff apps/onasis-core/_redirects > rollback-bridge.patch",
+      "restore": "git checkout apps/onasis-core/_redirects"
+    }
+  },
+  "notes": {
+    "unknown_auth_count": "All auth mechanisms identified",
+    "unknown_response_shape_count": "OAuth callback and MCP WS responses need live verification",
+    "unknown_owner_count": "All owners identified from code and config",
+    "phase_B_ready": "Routes: /health, /info, /api/v1/health, /.well-known/onasis.json",
+    "phase_C_blocked": "Auth status is auth-adjacent (Supabase direct, header-sensitive)",
+    "phase_D_blocked": "All auth, OAuth, session routes until behavioral parity proven",
+    "phase_E_blocked": "MCP routes until reconnection verified",
+    "dns_cutover_blockers": "SSL cert not issued, any phase failure, auth flows not verified, MCP reconnection not tested"
+  }
+}
