@@ -102,15 +102,20 @@ export function getJWKS(): JWKS {
 
         try {
             const cryptoKey = createPublicKey(key.key)
-            const jwk = cryptoKey.export({ format: 'jwk' }) as { n: Buffer; e: Buffer }
+            const jwk = cryptoKey.export({ format: 'jwk' }) as { n?: string; e?: string }
+
+            if (!jwk.n || !jwk.e) {
+                logger.warn('JWK export missing modulus/exponent', { kid: key.kid })
+                continue
+            }
 
             jwks.keys.push({
                 kty: 'RSA',
                 use: 'sig',
                 kid: key.kid,
                 alg: key.alg,
-                n: base64urlEncode(jwk.n),
-                e: base64urlEncode(jwk.e),
+                n: jwk.n,
+                e: jwk.e,
             })
         } catch (err) {
             logger.warn('Failed to export key to JWKS', { kid: key.kid, err })
@@ -118,13 +123,6 @@ export function getJWKS(): JWKS {
     }
 
     return jwks
-}
-
-function base64urlEncode(data: Buffer | Uint8Array): string {
-    return Buffer.from(data).toString('base64')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '')
 }
 
 export function clearSigningKeyCache(): void {
