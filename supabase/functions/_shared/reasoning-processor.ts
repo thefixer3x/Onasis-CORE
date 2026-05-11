@@ -163,7 +163,6 @@ export async function processSubjectReasoningBatch(
   }
 
   const { subject_id, organization_id, source_memory_ids } = options;
-  let jobIds: string[];
   let conclusionCount = 0;
 
   // 3a: Mark pending jobs as running
@@ -178,7 +177,7 @@ export async function processSubjectReasoningBatch(
     return { job_ids: [], conclusion_count: 0 };
   }
 
-  jobIds = runningResult.data.map((j) => j.id);
+  const jobIds = runningResult.data.map((j) => j.id);
 
   try {
     // 3c: Call the three intelligence Edge Functions
