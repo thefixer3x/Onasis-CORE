@@ -163,7 +163,7 @@ export async function processSubjectReasoningBatch(
   }
 
   const { subject_id, organization_id, source_memory_ids } = options;
-  let jobIds: string[] = [];
+  let jobIds: string[];
   let conclusionCount = 0;
 
   // 3a: Mark pending jobs as running
