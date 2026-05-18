@@ -51,6 +51,8 @@ interface SearchRequest {
   threshold?: number;
   limit?: number;
   tags?: string[];
+  topic_key?: string;
+  include_deleted?: boolean;
   response_mode?: "full" | "compact" | "timeline";
 }
 
@@ -340,6 +342,10 @@ serve(async (req: Request) => {
           ? url.searchParams.get("tags")!.split(",").map((t) => t.trim())
             .filter(Boolean)
           : undefined,
+        topic_key: url.searchParams.get("topic_key") || undefined,
+        include_deleted: url.searchParams.has("include_deleted")
+          ? url.searchParams.get("include_deleted") === "true"
+          : undefined,
         response_mode: url.searchParams.get("response_mode") || undefined,
       };
     } else if (req.method === "POST") {
@@ -515,6 +521,13 @@ serve(async (req: Request) => {
       );
     }
 
+    // Filter by topic_key if provided
+    if (body.topic_key) {
+      filteredResults = filteredResults.filter(
+        (memory: { topic_key?: string | null }) => memory.topic_key === body.topic_key,
+      );
+    }
+
     // Lexical fallback for natural-language recall when semantic paths are empty.
     if (filteredResults.length === 0) {
       let lexicalQuery = supabase
@@ -522,9 +535,12 @@ serve(async (req: Request) => {
         .select(
           "id,title,content,memory_type,tags,topic_key,metadata,user_id,organization_id,created_at,updated_at",
         )
-        .is("deleted_at", null)
         .order("updated_at", { ascending: false })
         .limit(Math.min(Math.max(limit * 8, 40), 200));
+
+      if (!body.include_deleted) {
+        lexicalQuery = lexicalQuery.is("deleted_at", null);
+      }
 
       lexicalQuery = applyMemoryBoundary(lexicalQuery, auth, { route: "memory-search:lexical" });
 
@@ -536,6 +552,10 @@ serve(async (req: Request) => {
 
       if (body.tags && body.tags.length > 0) {
         lexicalQuery = lexicalQuery.overlaps("tags", body.tags);
+      }
+
+      if (body.topic_key) {
+        lexicalQuery = lexicalQuery.eq("topic_key", body.topic_key);
       }
 
       const { data: lexicalRows, error: lexicalError } = await lexicalQuery;
