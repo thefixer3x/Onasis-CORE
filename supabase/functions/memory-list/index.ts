@@ -10,7 +10,7 @@ import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { createErrorResponse, ErrorCode } from '../_shared/errors.ts';
 import { applyMemoryBoundary, resolveMemoryBoundary } from '../_shared/memory-context.ts';
 
-interface ListParams {
+export interface ListParams {
   limit?: number;
   offset?: number;
   type?: string;
@@ -19,6 +19,7 @@ interface ListParams {
   sortOrder?: 'asc' | 'desc';
   search?: string;
   include_deleted?: boolean;
+  topic_key?: string;
 }
 
 function parseBooleanParam(value: unknown): boolean {
@@ -56,7 +57,8 @@ serve(async (req: Request) => {
         sortBy: (url.searchParams.get('sortBy') as ListParams['sortBy']) || 'updated_at',
         sortOrder: (url.searchParams.get('sortOrder') as ListParams['sortOrder']) || 'desc',
         search: url.searchParams.get('search') || undefined,
-        include_deleted: parseBooleanParam(url.searchParams.get('include_deleted'))
+        include_deleted: parseBooleanParam(url.searchParams.get('include_deleted')),
+        topic_key: url.searchParams.get('topic_key') || undefined
       };
     }
 
@@ -76,9 +78,13 @@ serve(async (req: Request) => {
     // Build query
     let query = supabase
       .from('memory_entries')
-      .select('id, title, content, memory_type, tags, metadata, user_id, organization_id, created_at, updated_at, last_accessed, access_count', { count: 'exact' });
+      .select('id, title, content, memory_type, tags, metadata, user_id, organization_id, created_at, updated_at, last_accessed, access_count, topic_key', { count: 'exact' });
 
     query = applyMemoryBoundary(query, auth, { route: 'memory-list' });
+
+    if (params.topic_key) {
+      query = query.eq('topic_key', params.topic_key);
+    }
 
     if (!includeDeleted) {
       query = query.is('deleted_at', null);
@@ -138,6 +144,7 @@ serve(async (req: Request) => {
         type: params.type || null,
         tags: params.tags || null,
         search: params.search || null,
+        topic_key: params.topic_key || null,
         include_deleted: includeDeleted,
         sort_by: sortBy,
         sort_order: sortOrder
