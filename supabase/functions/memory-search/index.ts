@@ -253,6 +253,7 @@ async function runSemanticSearch(
   organizationId: string | null,
   userId: string | null,
   filterType: string | null,
+  includeDeleted: boolean = false,
 ) {
   return await supabase.rpc(rpcFunction, {
     query_embedding: queryEmbedding,
@@ -261,6 +262,10 @@ async function runSemanticSearch(
     filter_organization_id: organizationId,
     filter_user_id: userId,
     filter_type: filterType,
+    // include_deleted: forwarded to RPC for semantic search path.
+    // Lexical fallback (lines 541-543) applies deleted_at filtering in-memory
+    // via Supabase JS client .is("deleted_at", null) instead.
+    include_deleted: includeDeleted,
   });
 }
 
@@ -454,6 +459,7 @@ serve(async (req: Request) => {
       boundaryFilters.organization_id,
       boundaryFilters.user_id,
       primaryFilterType,
+      body.include_deleted ?? false,
     );
 
     if (error) {
@@ -498,6 +504,7 @@ serve(async (req: Request) => {
           boundaryFilters.organization_id,
           boundaryFilters.user_id,
           primaryFilterType,
+          body.include_deleted ?? false,
         );
         if (!relaxedResponse.error && Array.isArray(relaxedResponse.data)) {
           filteredResults = relaxedResponse.data;
@@ -522,6 +529,10 @@ serve(async (req: Request) => {
     }
 
     // Filter by topic_key if provided
+    // NOTE: topic_key filtering is applied in-memory post-RPC (not at SQL level).
+    // This is a performance tradeoff per CODA §7 flag — RPC returns all matches
+    // within boundary/threshold bounds, then EF narrows by topic_key in JS.
+    // This avoids the need to add topic_key as a SQL parameter to search_memories(search_memories_voyage.
     if (body.topic_key) {
       filteredResults = filteredResults.filter(
         (memory: { topic_key?: string | null }) => memory.topic_key === body.topic_key,
