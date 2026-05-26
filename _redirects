@@ -81,6 +81,18 @@
 /api/v1/keys/delete         https://lanonasis.supabase.co/functions/v1/api-key-delete       200!
 
 # ============================================================================
+# API KEY MANAGEMENT (CLI/SDK REST PATH) - PROXY TO VPS AUTH GATEWAY
+# ============================================================================
+# The CLI and SDK use /api/v1/api-keys/* (RESTful CRUD style).
+# The auth-gateway (VPS :4000 / auth.lanonasis.com) owns this data.
+# Tested: returns 42 keys with correct auth. Must come before catch-all.
+# Different from /api/v1/keys/* which routes to Supabase EFs for MCP tool mirrors.
+# ============================================================================
+
+/api/v1/api-keys/*          https://auth.lanonasis.com/api/v1/api-keys/:splat              200!
+/api/v1/api-keys            https://auth.lanonasis.com/api/v1/api-keys                     200!
+
+# ============================================================================
 # SYSTEM & AUTH STATUS - SUPABASE EDGE FUNCTIONS
 # ============================================================================
 
