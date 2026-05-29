@@ -29,7 +29,7 @@ module.exports = {
       exp_backoff_restart_delay: 100, // Then double each attempt (100→200→400...→15000ms cap)
       kill_timeout: 10000,     // Give app 10s to gracefully shut down
       // Secrets are injected at runtime by the npm start command:
-      // dotenvx run --ops-off -f .env.production -- node start.js
+      // dotenvx run --no-ops -f .env.production -- node start.js
       env: {
         NODE_ENV: 'production',
         PORT: 4000,
