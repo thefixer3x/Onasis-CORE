@@ -2,25 +2,15 @@ import { Router, Request, Response } from 'express'
 import { requireAuth } from '../middleware/auth.js'
 import {
   createApiKey,
-  createApiKeyWithServiceScopes,
   listApiKeys,
   getApiKey,
   rotateApiKey,
   revokeApiKey,
   deleteApiKey,
-  updateApiKey,
   updateApiKeyScopes,
-  getUserConfiguredServices,
-  setApiKeyServiceScopes,
-  type ServiceScopeRateLimit,
 } from '../services/api-key.service.js'
 
 const router = Router()
-
-// Helper function to extract string param from potentially string | string[]
-const getStringParam = (param: string | string[]): string => {
-  return typeof param === 'string' ? param : param[0] || ''
-}
 
 /**
  * API Keys Routes - User-level API key management
@@ -60,128 +50,6 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 })
 
 /**
- * GET /api/v1/auth/api-keys/services/configured
- * Get user's configured external services available for API key scoping
- * NOTE: This route must come BEFORE /:keyId routes for proper matching
- */
-router.get('/services/configured', requireAuth, async (req: Request, res: Response) => {
-  if (!req.user?.sub) {
-    return res.status(401).json({
-      error: 'Authentication required',
-      code: 'AUTH_REQUIRED',
-    })
-  }
-
-  try {
-    const services = await getUserConfiguredServices(req.user.sub)
-
-    return res.json({
-      success: true,
-      data: services,
-    })
-  } catch (error) {
-    console.error('Get configured services error:', error)
-    return res.status(500).json({
-      error: error instanceof Error ? error.message : 'Failed to get configured services',
-      code: 'GET_SERVICES_ERROR',
-    })
-  }
-})
-
-/**
- * POST /api/v1/auth/api-keys/with-services
- * Create a new API key with service scoping in a single request
- * NOTE: This route must come BEFORE /:keyId routes for proper matching
- */
-router.post('/with-services', requireAuth, async (req: Request, res: Response) => {
-  if (!req.user?.sub) {
-    return res.status(401).json({
-      error: 'Authentication required',
-      code: 'AUTH_REQUIRED',
-    })
-  }
-
-  try {
-    const {
-      name,
-      access_level,
-      key_context,
-      expires_in_days,
-      description,
-      scopes,
-      service_type,
-      service_keys,
-      rate_limits,
-    } = req.body as {
-      name: string
-      access_level?: string
-      key_context?: 'personal' | 'team' | 'enterprise' | null
-      expires_in_days?: number
-      description?: string
-      scopes?: string[]
-      service_type?: 'all' | 'specific'
-      service_keys?: string[]
-      rate_limits?: ServiceScopeRateLimit
-    }
-
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({
-        error: 'API key name is required',
-        code: 'INVALID_REQUEST',
-      })
-    }
-
-    if (service_type === 'specific' && (!service_keys || service_keys.length === 0)) {
-      return res.status(400).json({
-        error: 'service_keys is required when service_type is "specific"',
-        code: 'INVALID_REQUEST',
-      })
-    }
-
-    const apiKey = await createApiKeyWithServiceScopes(req.user.sub, {
-      name: name.trim(),
-      access_level,
-      key_context,
-      expires_in_days,
-      description,
-      scopes,
-      organization_id: req.user.organizationId,
-      service_type: service_type || 'all',
-      service_keys,
-      rate_limits,
-    })
-
-    return res.status(201).json({
-      success: true,
-      data: apiKey,
-      message: 'API key created successfully. Save the key value - it will not be shown again.',
-    })
-  } catch (error) {
-    console.error('Create API key with services error:', error)
-    const message = error instanceof Error ? error.message : 'Failed to create API key'
-
-    if (message.includes('already exists')) {
-      return res.status(409).json({
-        error: message,
-        code: 'KEY_EXISTS',
-      })
-    }
-
-    if (message.includes('Invalid')) {
-      return res.status(400).json({
-        error: message,
-        code: 'INVALID_REQUEST',
-      })
-    }
-
-    return res.status(500).json({
-      error: message,
-      code: 'CREATE_KEY_ERROR',
-    })
-  }
-})
-
-/**
  * POST /api/v1/auth/api-keys
  * Create a new API key for the authenticated user
  */
@@ -194,7 +62,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const { name, access_level, key_context, expires_in_days, description, scopes } = req.body
+    const { name, access_level, expires_in_days, scopes } = req.body
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({
@@ -206,11 +74,8 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     const apiKey = await createApiKey(req.user.sub, {
       name: name.trim(),
       access_level,
-      key_context,
       expires_in_days,
-      description,
       scopes,
-      organization_id: req.user.organizationId,
     })
 
     return res.status(201).json({
@@ -257,8 +122,7 @@ router.get('/:keyId', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const keyId = getStringParam(req.params.keyId)
-    const apiKey = await getApiKey(keyId, req.user.sub)
+    const apiKey = await getApiKey(req.params.keyId, req.user.sub)
 
     return res.json({
       success: true,
@@ -284,7 +148,7 @@ router.get('/:keyId', requireAuth, async (req: Request, res: Response) => {
 
 /**
  * PUT /api/v1/auth/api-keys/:keyId
- * Update mutable platform API key fields
+ * Update an API key's scopes/permissions
  */
 router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
   if (!req.user?.sub) {
@@ -295,44 +159,16 @@ router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const {
-      name,
-      description,
-      access_level,
-      expires_in_days,
-      clear_expiry,
-      scopes,
-    } = req.body as {
-      name?: string
-      description?: string | null
-      access_level?: string
-      expires_in_days?: number
-      clear_expiry?: boolean
-      scopes?: string[]
-    }
+    const { scopes } = req.body
 
-    if (
-      name === undefined &&
-      description === undefined &&
-      access_level === undefined &&
-      expires_in_days === undefined &&
-      clear_expiry === undefined &&
-      scopes === undefined
-    ) {
+    if (!scopes || !Array.isArray(scopes)) {
       return res.status(400).json({
-        error: 'At least one updatable field is required',
+        error: 'Scopes array is required',
         code: 'INVALID_REQUEST',
       })
     }
 
-    const apiKey = await updateApiKey(getStringParam(req.params.keyId), req.user.sub, {
-      name,
-      description,
-      access_level,
-      expires_in_days,
-      clear_expiry,
-      scopes,
-    })
+    const apiKey = await updateApiKeyScopes(req.params.keyId, req.user.sub, scopes)
 
     return res.json({
       success: true,
@@ -346,20 +182,6 @@ router.put('/:keyId', requireAuth, async (req: Request, res: Response) => {
       return res.status(404).json({
         error: 'API key not found',
         code: 'KEY_NOT_FOUND',
-      })
-    }
-
-    if (message.includes('already exists')) {
-      return res.status(409).json({
-        error: message,
-        code: 'KEY_EXISTS',
-      })
-    }
-
-    if (message.includes('Invalid') || message.includes('must be') || message.includes('required')) {
-      return res.status(400).json({
-        error: message,
-        code: 'INVALID_REQUEST',
       })
     }
 
@@ -383,7 +205,7 @@ router.post('/:keyId/rotate', requireAuth, async (req: Request, res: Response) =
   }
 
   try {
-    const apiKey = await rotateApiKey(getStringParam(req.params.keyId), req.user.sub)
+    const apiKey = await rotateApiKey(req.params.keyId, req.user.sub)
 
     return res.json({
       success: true,
@@ -421,7 +243,7 @@ router.post('/:keyId/revoke', requireAuth, async (req: Request, res: Response) =
   }
 
   try {
-    await revokeApiKey(getStringParam(req.params.keyId), req.user.sub)
+    await revokeApiKey(req.params.keyId, req.user.sub)
 
     return res.json({
       success: true,
@@ -458,7 +280,7 @@ router.delete('/:keyId', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    await deleteApiKey(getStringParam(req.params.keyId), req.user.sub)
+    await deleteApiKey(req.params.keyId, req.user.sub)
 
     return res.json({
       success: true,
@@ -478,66 +300,6 @@ router.delete('/:keyId', requireAuth, async (req: Request, res: Response) => {
     return res.status(500).json({
       error: message,
       code: 'DELETE_KEY_ERROR',
-    })
-  }
-})
-
-/**
- * PUT /api/v1/auth/api-keys/:keyId/service-scopes
- * Update an API key's service scopes (which external services the key can access)
- */
-router.put('/:keyId/service-scopes', requireAuth, async (req: Request, res: Response) => {
-  if (!req.user?.sub) {
-    return res.status(401).json({
-      error: 'Authentication required',
-      code: 'AUTH_REQUIRED',
-    })
-  }
-
-  try {
-    const { service_keys, rate_limits } = req.body as {
-      service_keys: string[]
-      rate_limits?: ServiceScopeRateLimit
-    }
-
-    if (!service_keys || !Array.isArray(service_keys)) {
-      return res.status(400).json({
-        error: 'service_keys array is required',
-        code: 'INVALID_REQUEST',
-      })
-    }
-
-    await setApiKeyServiceScopes(getStringParam(req.params.keyId), req.user.sub, service_keys, rate_limits)
-
-    // Fetch updated key to return
-    const updatedKey = await getApiKey(getStringParam(req.params.keyId), req.user.sub)
-
-    return res.json({
-      success: true,
-      data: updatedKey,
-      message: 'Service scopes updated successfully',
-    })
-  } catch (error) {
-    console.error('Update service scopes error:', error)
-    const message = error instanceof Error ? error.message : 'Failed to update service scopes'
-
-    if (message.includes('not found')) {
-      return res.status(404).json({
-        error: 'API key not found',
-        code: 'KEY_NOT_FOUND',
-      })
-    }
-
-    if (message.includes('Invalid service')) {
-      return res.status(400).json({
-        error: message,
-        code: 'INVALID_SERVICE',
-      })
-    }
-
-    return res.status(500).json({
-      error: message,
-      code: 'UPDATE_SERVICE_SCOPES_ERROR',
     })
   }
 })

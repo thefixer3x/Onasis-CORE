@@ -15,37 +15,37 @@ import { appendEventWithOutbox } from '../services/event.service.js'
 
 const router = Router()
 
+// Default organization ID for API keys without explicit org
+// This should match the default org in your system
+const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000001'
+
 /**
  * Webhook endpoint for API key sync from Supabase
  * Called by sync-api-key edge function when api_keys are created/updated/revoked
  *
  * POST /v1/sync/api-key
  * Headers: X-Webhook-Secret (for authentication)
- * Body: { event_type, id, user_id, organization_id, name, key_hash, access_level, key_context, permissions, expires_at, created_at, is_active }
+ * Body: { event_type, id, user_id, name, key_hash, access_level, permissions, expires_at, created_at, is_active }
  */
-router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
+router.post('/api-key', async (req: Request, res: Response) => {
   try {
     // Verify webhook secret (REQUIRED in production)
-    const webhookSecret = process.env.WEBHOOK_SECRET || ""
+    const webhookSecret = process.env.WEBHOOK_SECRET
     if (!webhookSecret) {
-      console.error('CRITICAL: WEBHOOK_SECRET environment variable not set');
-      res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
-      return
+      console.error('CRITICAL: WEBHOOK_SECRET not configured - rejecting sync request')
+      return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
     const {
       event_type = 'INSERT',
       id,
       user_id,
-      organization_id,  // ✅ Required - user's organization for RLS isolation
       name,
       key_hash,  // ✅ Now included from edge function
       access_level,
-      key_context,
       permissions,
       expires_at,
       created_at,
@@ -54,20 +54,12 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
     } = req.body
 
     if (!id || !user_id || !name) {
-      res.status(400).json({ error: 'Missing required fields: id, user_id, name' })
-      return
+      return res.status(400).json({ error: 'Missing required fields: id, user_id, name' })
     }
 
     if (!key_hash) {
       console.warn(`API key sync received without key_hash for id=${id}`)
-      res.status(400).json({ error: 'Missing key_hash - cannot sync without hash' })
-      return
-    }
-
-    if (!organization_id && event_type !== 'REVOKE' && is_active !== false) {
-      console.warn(`API key sync received without organization_id for id=${id}`)
-      res.status(400).json({ error: 'Missing organization_id - required for RLS isolation' })
-      return
+      return res.status(400).json({ error: 'Missing key_hash - cannot sync without hash' })
     }
 
     const client = await dbPool.connect()
@@ -103,16 +95,15 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
           `
           INSERT INTO security_service.api_keys (
             id, name, key_hash, organization_id, user_id,
-            permissions, key_context, expires_at, created_at, is_active
+            permissions, expires_at, created_at, is_active
           ) VALUES (
             $1::uuid, $2, $3, $4::uuid, $5::uuid,
-            $6::jsonb, $7::text, $8::timestamptz, $9::timestamptz, $10
+            $6::jsonb, $7::timestamptz, $8::timestamptz, $9
           )
           ON CONFLICT (id) DO UPDATE SET
             name = EXCLUDED.name,
             key_hash = EXCLUDED.key_hash,
             permissions = EXCLUDED.permissions,
-            key_context = EXCLUDED.key_context,
             expires_at = EXCLUDED.expires_at,
             is_active = EXCLUDED.is_active
           `,
@@ -120,10 +111,9 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
             id,
             name,
             key_hash,
-            organization_id,  // ✅ User's actual organization for proper RLS
+            DEFAULT_ORG_ID,  // TODO: Get from user's organization
             user_id,
             JSON.stringify(permissions || []),
-            key_context || null,
             expires_at || null,
             created_at || new Date().toISOString(),
             is_active !== false,
@@ -141,7 +131,6 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
           payload: {
             user_id,
             access_level: access_level || 'authenticated',
-            key_context: key_context || null,
             permissions: permissions || [],
             expires_at,
             name,
@@ -190,25 +179,22 @@ router.post('/api-key', async (req: Request, res: Response): Promise<void> => {
  * Headers: X-Webhook-Secret (for authentication)
  * Body: { id, email, role, provider, metadata, last_sign_in_at }
  */
-router.post('/user', async (req: Request, res: Response): Promise<void> => {
+router.post('/user', async (req: Request, res: Response) => {
   try {
     // Verify webhook secret (REQUIRED in production)
-    const webhookSecret = process.env.WEBHOOK_SECRET || ""
+    const webhookSecret = process.env.WEBHOOK_SECRET
     if (!webhookSecret) {
-      console.error('CRITICAL: WEBHOOK_SECRET environment variable not set');
-      res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
-      return
+      console.error('CRITICAL: WEBHOOK_SECRET not configured - rejecting sync request')
+      return res.status(500).json({ error: 'Server misconfiguration: webhook authentication not configured' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
     const { id, email, role, provider, metadata, last_sign_in_at } = req.body
 
     if (!id || !email) {
-      res.status(400).json({ error: 'Missing required fields' })
-      return
+      return res.status(400).json({ error: 'Missing required fields' })
     }
 
     const client = await dbPool.connect()
@@ -229,7 +215,7 @@ router.post('/user', async (req: Request, res: Response): Promise<void> => {
             last_sign_in_at = COALESCE(EXCLUDED.last_sign_in_at, auth_gateway.user_accounts.last_sign_in_at),
             updated_at = NOW()
         `,
-        [id, email, role || 'user', provider || 'email', metadata || {}, last_sign_in_at || null]
+        [id, email, role || 'authenticated', provider || 'email', metadata || {}, last_sign_in_at || null]
       )
 
       // Emit UserUpserted event
@@ -240,7 +226,7 @@ router.post('/user', async (req: Request, res: Response): Promise<void> => {
           event_type: 'UserUpserted',
           payload: {
             email,
-            role: role || 'user',
+            role: role || 'authenticated',
             provider: provider || 'email',
             last_sign_in_at,
           },
@@ -277,7 +263,7 @@ router.post('/user', async (req: Request, res: Response): Promise<void> => {
 /**
  * Health check for sync webhooks
  */
-router.get('/health', (_req: Request, res: Response): void => {
+router.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     service: 'sync-webhooks',
@@ -298,25 +284,22 @@ router.get('/health', (_req: Request, res: Response): void => {
  *
  * This is a one-time operation to populate Auth-Gateway DB with existing keys
  */
-router.post('/backfill-api-keys', async (req: Request, res: Response): Promise<void> => {
+router.post('/backfill-api-keys', async (req: Request, res: Response) => {
   try {
     // Verify webhook secret
-    const webhookSecret = process.env.WEBHOOK_SECRET || ""
+    const webhookSecret = process.env.WEBHOOK_SECRET
     if (!webhookSecret) {
-      res.status(500).json({ error: 'Server misconfiguration' })
-      return
+      return res.status(500).json({ error: 'Server misconfiguration' })
     }
     if (req.headers['x-webhook-secret'] !== webhookSecret) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
+      return res.status(401).json({ error: 'Unauthorized' })
     }
 
     // This endpoint expects the keys to be passed from a secure source
     const { keys } = req.body
 
     if (!keys || !Array.isArray(keys)) {
-      res.status(400).json({ error: 'Missing keys array in request body' })
-      return
+      return res.status(400).json({ error: 'Missing keys array in request body' })
     }
 
     const client = await dbPool.connect()
@@ -330,24 +313,22 @@ router.post('/backfill-api-keys', async (req: Request, res: Response): Promise<v
             `
             INSERT INTO security_service.api_keys (
               id, name, key_hash, organization_id, user_id,
-              permissions, key_context, expires_at, created_at, is_active
+              permissions, expires_at, created_at, is_active
             ) VALUES (
               $1::uuid, $2, $3, $4::uuid, $5::uuid,
-              $6::jsonb, $7::text, $8::timestamptz, $9::timestamptz, $10
+              $6::jsonb, $7::timestamptz, $8::timestamptz, $9
             )
             ON CONFLICT (id) DO UPDATE SET
               key_hash = EXCLUDED.key_hash,
-              key_context = EXCLUDED.key_context,
               is_active = EXCLUDED.is_active
             `,
             [
               key.id,
               key.name,
               key.key_hash,
-              key.organization_id,  // ✅ User's actual organization
+              DEFAULT_ORG_ID,
               key.user_id,
               JSON.stringify(key.permissions || []),
-              key.key_context || null,
               key.expires_at || null,
               key.created_at || new Date().toISOString(),
               key.is_active !== false,
