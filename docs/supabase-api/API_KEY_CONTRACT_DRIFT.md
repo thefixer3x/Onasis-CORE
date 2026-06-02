@@ -216,9 +216,9 @@ achieve the unified security management goal:
   `/api/v1/api-keys/security-events` for remediation tracking
 - [ ] This creates the detection → management → enforcement loop
 
-### Phase 4 — RLS remediation
-- [ ] Add policies to 8 RLS-disabled tables before enabling
-- [ ] Priority: `memory_revisions` (111 rows, sensitive)
+### Phase 4 — RLS remediation — COMPLETED
+- [x] Add policies to 8 RLS-disabled tables before enabling — verified via live DB inspection (2026-06-02)
+- [x] Priority: `memory_revisions` (111 rows, sensitive) — relrowsecurity=true, all policies present
 
 ---
 
