@@ -5,7 +5,7 @@ import { findSessionByToken } from '../services/session.service.js';
 const buildUnifiedUserFromJwt = (payload) => ({
     // Primary identifiers
     userId: payload.sub,
-    organizationId: payload.project_scope ?? 'unknown',
+    organizationId: payload.organization_id ?? 'unknown',
     role: payload.role,
     // Extract plan from JWT claims: check user_metadata, app_metadata, or direct claim
     plan: payload.user_metadata?.plan || payload.app_metadata?.plan || payload.plan || 'free',
@@ -17,6 +17,7 @@ const buildUnifiedUserFromJwt = (payload) => ({
     id: payload.sub,
     email: payload.email,
     app_metadata: {
+        organization_id: payload.organization_id,
         project_scope: payload.project_scope,
         platform: payload.platform,
     },
@@ -81,6 +82,7 @@ export async function requireAuth(req, res, next) {
                 });
             }
             req.user = buildUnifiedUserFromJwt(payload);
+            req.user.authSource = 'jwt';
             // JWT tokens get full access by default
             req.scopes = ['*'];
             return next();

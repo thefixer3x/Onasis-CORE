@@ -1164,11 +1164,12 @@ export async function validateAPIKey(apiKey: string): Promise<{
           'This prefix has been replaced with "lano_". Please regenerate your API key.'
         )
       } else if (!apiKey.startsWith('lano_')) {
-        // During migration, we're lenient but still validate the key
-        console.warn(
-          `[api-key.service] WARNING: API key with unknown prefix detected (${apiKey.substring(0, 8)}...). ` +
-          'Expected "lano_" prefix. Key will still be validated against database.'
-        )
+        // Post-migration hard block: reject unknown prefixes rather than warning and burning a DB lookup.
+        // Migration period is over — only lano_, vx_ (deprecated), lns_ (deprecated), and raw SHA-256 hashes are valid.
+        return {
+          valid: false,
+          reason: `API key rejected: unknown prefix. Expected "lano_" (received ${apiKey.substring(0, 8)}...). Please regenerate your key.`,
+        }
       }
     }
 

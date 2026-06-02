@@ -172,9 +172,11 @@ describe('Auth Middleware', () => {
       expect(mockNext).not.toHaveBeenCalled()
     })
 
-    // TODO: This test requires dynamic import mocking which doesn't work reliably with ESM
-    it.skip('should try API key when JWT is invalid', async () => {
-      ;(extractBearerToken as any).mockReturnValue('invalid-token')
+    it('should try API key when JWT is invalid', async () => {
+      // Use a dot-containing token so the `!token.includes('.')` guard
+      // skips the dynamic `await import('../services/oauth.service.js')` path.
+      // This avoids the ESM hoisting issue that made vi.mock() unreliable here.
+      ;(extractBearerToken as any).mockReturnValue('invalid.token')
       ;(verifyToken as any).mockImplementation(() => {
         throw new Error('Invalid token')
       })

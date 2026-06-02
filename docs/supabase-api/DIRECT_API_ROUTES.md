@@ -201,6 +201,23 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-bulk-delete" \
 | `sync-api-key`     | POST   | `/functions/v1/sync-api-key`     | ✅   | Sync API key across systems |
 | `sync-user`        | POST   | `/functions/v1/sync-user`        | ✅   | Sync user data              |
 
+### CLI & SDK API Key Path (auth-gateway via `api.lanonasis.com`)
+
+The canonical REST surface for CLI/SDK API key lifecycle commands is:
+`/api/v1/api-keys/*` on `api.lanonasis.com`, proxied to `auth.lanonasis.com`.
+
+| Public Route | Method | Destination | Auth |
+| ------------ | ------ | ----------- | ---- |
+| `/api/v1/api-keys` | GET | `https://auth.lanonasis.com/api/v1/api-keys` | ✅ |
+| `/api/v1/api-keys` | POST | `https://auth.lanonasis.com/api/v1/api-keys` | ✅ |
+| `/api/v1/api-keys/:id` | GET | `https://auth.lanonasis.com/api/v1/api-keys/:id` | ✅ |
+| `/api/v1/api-keys/:id` | PUT | `https://auth.lanonasis.com/api/v1/api-keys/:id` | ✅ |
+| `/api/v1/api-keys/:id` | DELETE | `https://auth.lanonasis.com/api/v1/api-keys/:id` | ✅ |
+| `/api/v1/api-keys/projects` | GET/POST | `https://auth.lanonasis.com/api/v1/api-keys/projects` | ✅ |
+
+`/api/v1/keys/*` remains available as a Supabase Edge Function mirror path for
+specific compatibility flows. It is not the canonical CLI/SDK route family.
+
 ---
 
 ### AI & Chat Functions
@@ -373,6 +390,9 @@ curl -X POST "https://lanonasis.supabase.co/rest/v1/rpc/search_memories" \
 | `/api/v1/memory/:id`           | `/functions/v1/memory-get/:id`     | Get by ID        |
 | `/api/v1/memories/:id`         | `/functions/v1/memory-get/:id`     | Get by ID        |
 | `/api/v1/memory` (POST)        | `/functions/v1/memory-create`      | Create memory    |
+| `/api/v1/api-keys`             | `auth.lanonasis.com/api/v1/api-keys` | CLI/SDK API keys |
+| `/api/v1/api-keys/:id`         | `auth.lanonasis.com/api/v1/api-keys/:id` | Key get/update/delete |
+| `/api/v1/keys/*`               | `/functions/v1/api-key-*`          | EF mirror routes |
 | `/api/v1/intelligence/*`       | `/functions/v1/intelligence-*`     | Intelligence API |
 
 ---

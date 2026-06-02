@@ -70,6 +70,24 @@ describe('Netlify Routing (via _redirects)', () => {
   });
 
   describe('API Key Routes', () => {
+    it('should route /api/v1/api-keys to auth-gateway list endpoint', async () => {
+      const { status, data } = await netlifyCall('api-keys', {
+        method: 'GET',
+      });
+
+      expect(status).toBe(200);
+      const payload = data?.data ?? data;
+      expect(Array.isArray(payload)).toBe(true);
+    });
+
+    it('should return 404 for /api/v1/api-keys/<missing-uuid>', async () => {
+      const { status } = await netlifyCall('api-keys/00000000-0000-0000-0000-000000000000', {
+        method: 'GET',
+      });
+
+      expect(status).toBe(404);
+    });
+
     it('should route /api/v1/keys/list to Supabase', async () => {
       const { status, data } = await netlifyCall('keys/list', {
         method: 'GET',

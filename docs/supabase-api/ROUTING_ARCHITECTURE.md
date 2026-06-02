@@ -66,15 +66,24 @@ Netlify's `_redirects` file processes rules in order. The **first matching rule 
 | `/api/v1/memory` | `memory-create` | Exact |
 | `/api/v1/memory/*` | `maas-api` (Netlify) | **Fallback** |
 
-### 2. User API Keys → Supabase Edge Functions
+### 2. User API Keys → Dual Path (Canonical + EF Mirror)
+
+#### Canonical CLI/SDK Path (auth-gateway via Netlify)
+
+| Route | Destination | Purpose |
+|-------|-------------|---------|
+| `/api/v1/api-keys` | `auth.lanonasis.com/api/v1/api-keys` | List/Create keys |
+| `/api/v1/api-keys/:id` | `auth.lanonasis.com/api/v1/api-keys/:id` | Get/Update/Delete key |
+
+#### Supabase Edge Function Mirror Path (compatibility)
 
 | Route | Edge Function | Purpose |
 |-------|---------------|---------|
-| `/api/v1/keys` | `api-key-create` | Create new key |
-| `/api/v1/keys/list` | `api-key-list` | List user's keys |
-| `/api/v1/keys/rotate` | `api-key-rotate` | Rotate key value |
-| `/api/v1/keys/revoke` | `api-key-revoke` | Soft delete |
-| `/api/v1/keys/delete` | `api-key-delete` | Hard delete |
+| `/api/v1/keys` | `api-key-create` | Create new key (mirror) |
+| `/api/v1/keys/list` | `api-key-list` | List user's keys (mirror) |
+| `/api/v1/keys/rotate` | `api-key-rotate` | Rotate key value (mirror) |
+| `/api/v1/keys/revoke` | `api-key-revoke` | Soft delete (mirror) |
+| `/api/v1/keys/delete` | `api-key-delete` | Hard delete (mirror) |
 
 ### 3. Vendor API Keys → Netlify Function
 
@@ -82,7 +91,7 @@ Netlify's `_redirects` file processes rules in order. The **first matching rule 
 |-------|------------------|---------|
 | `/v1/keys/vendors/*` | `key-manager` | Third-party keys (OpenAI, etc.) |
 
-**Note:** User keys (`/api/v1/keys/*`) and vendor keys (`/v1/keys/*`) are different systems!
+**Note:** User keys (`/api/v1/api-keys/*` canonical, `/api/v1/keys/*` mirror) and vendor keys (`/v1/keys/*`) are different systems.
 
 ### 4. Auth Routes → Mixed
 
@@ -117,8 +126,9 @@ Line 132: /api/v1/auth/*      → VPS (fallback for other auth routes)
 ### ✅ Resolved: User Keys vs Vendor Keys
 
 ```
-/api/v1/keys/*  → Supabase Edge Functions (user API keys)
-/v1/keys/*      → Netlify key-manager (vendor API keys)
+/api/v1/api-keys/* → VPS auth-gateway (canonical CLI/SDK API key path)
+/api/v1/keys/*     → Supabase Edge Functions (mirror compatibility path)
+/v1/keys/*         → Netlify key-manager (vendor API keys)
 ```
 
 These are completely different paths - no conflict.

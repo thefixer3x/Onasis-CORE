@@ -1,3 +1,16 @@
+/**
+ * Unit tests for OTP routes — validation logic only.
+ *
+ * The Supabase Auth transport (`supabaseAuth.auth.signInWithOtp` /
+ * `supabaseAuth.auth.verifyOtp`) is mocked at the module level.  These tests
+ * verify request validation, error handling, and success-path orchestration
+ * but do NOT assert email delivery or transport wiring.
+ *
+ * Transport wiring is verified in the integration suite
+ * (tests/integration/otp.integration.test.ts) gated behind
+ * `RUN_AUTH_GATEWAY_INTEGRATION=true`.
+ */
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import request from 'supertest'
 import express from 'express'
@@ -151,5 +164,81 @@ describe('OTP Routes - unit', () => {
     const res = await request(app).post('/otp/resend').send({ email: 'user@example.com' })
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
+  })
+
+  // --- Edge-case assertions merged from integration suite ---
+
+  it('should reject verify with expired/missing state gracefully', async () => {
+    ;(OtpStateCache.get as any).mockResolvedValue(null)
+    ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: 'Token has expired or is invalid' }
+    })
+
+    const app = createApp()
+    const res = await request(app)
+      .post('/otp/verify')
+      .send({ email: 'user@example.com', token: '123456', type: 'email' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('OTP_INVALID')
+    expect(res.body.error).toContain('Invalid or expired')
+  })
+
+  it('should reject verify with mismatched email', async () => {
+    ;(OtpStateCache.get as any).mockResolvedValue({
+      email: 'original@example.com',
+      type: 'email',
+      platform: 'cli',
+      created_at: Date.now()
+    })
+    ;(supabaseAuth.auth.verifyOtp as any).mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: 'Invalid token for this email' }
+    })
+
+    const app = createApp()
+    const res = await request(app)
+      .post('/otp/verify')
+      .send({ email: 'different@example.com', token: '123456', type: 'email' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('OTP_INVALID')
+  })
+
+  it('should validate redirect_uri format for magic link', async () => {
+    const app = createApp()
+    const res = await request(app)
+      .post('/otp/send')
+      .send({ email: 'user@example.com', type: 'magiclink', redirect_uri: 'not-a-url' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.code).toBe('INVALID_REDIRECT_URI')
+  })
+
+  it('should normalize platform to cli by default', async () => {
+    ;(supabaseAuth.auth.signInWithOtp as any).mockResolvedValue({ error: null })
+
+    const app = createApp()
+    await request(app)
+      .post('/otp/send')
+      .send({ email: 'user@example.com' })
+
+    const storeCall = (OtpStateCache.set as any).mock.calls[0]
+    const storedData = storeCall[1]
+    expect(storedData.platform).toBe('cli')
+  })
+
+  it('should normalize OTP type to email by default', async () => {
+    ;(supabaseAuth.auth.signInWithOtp as any).mockResolvedValue({ error: null })
+
+    const app = createApp()
+    await request(app)
+      .post('/otp/send')
+      .send({ email: 'user@example.com' })
+
+    const storeCall = (OtpStateCache.set as any).mock.calls[0]
+    const storedData = storeCall[1]
+    expect(storedData.type).toBe('email')
   })
 })
