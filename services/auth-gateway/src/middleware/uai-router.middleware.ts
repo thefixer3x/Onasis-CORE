@@ -33,6 +33,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken } from '../utils/jwt.js'
 import { validateAPIKey } from '../services/api-key.service.js'
+import { apiKeyValidationContextFromRequest } from '../services/caller-binding.service.js'
 import { resolveUAICached, type UAIResolutionResult } from '../services/uai-session-cache.service.js'
 import type { AuthMethod } from '../services/identity-resolution.service.js'
 
@@ -174,7 +175,10 @@ export function uaiRouter(options: UAIRouterOptions = {}) {
       const apiKey = req.headers['x-api-key'] as string
       if (apiKey) {
         try {
-          const validation = await validateAPIKey(apiKey)
+          const validation = await validateAPIKey(
+            apiKey,
+            apiKeyValidationContextFromRequest(req, { audience: 'auth-gateway' })
+          )
           if (validation.valid && validation.userId) {
             authMethod = 'api_key'
             originalUserId = validation.userId

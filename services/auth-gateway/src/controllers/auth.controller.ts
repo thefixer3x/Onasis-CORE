@@ -11,6 +11,7 @@ import * as apiKeyService from '../services/api-key.service.js'
 import { OAuthStateCache } from '../services/cache.service.js'
 import { resolveProjectScope } from '../services/project-scope.service.js'
 import { resolveUAICached } from '../services/uai-session-cache.service.js'
+import { apiKeyValidationContextFromRequest } from '../services/caller-binding.service.js'
 import { logger } from '../utils/logger.js'
 
 type Platform = 'mcp' | 'cli' | 'web' | 'api'
@@ -111,6 +112,9 @@ const introspectRequestSchema = z.object({
     'session',
   ]).optional().default('auto'),
   project_scope: z.string().min(1).optional(),
+  audience: z.string().min(1).optional(),
+  client_id: z.string().min(1).optional(),
+  installation_id: z.string().min(1).optional(),
   platform: z.enum(SUPPORTED_PLATFORMS).optional(),
 }).superRefine((value, ctx) => {
   if (!value.credential && !value.token) return
@@ -1682,7 +1686,15 @@ export async function introspectIdentity(req: Request, res: Response) {
     let response: IntrospectResponseBody | null = null
 
     if (parsed.data.type === 'api_key' || parsed.data.type === 'vendor_key' || parsed.data.type === 'auto') {
-      const validation = await apiKeyService.validateAPIKey(credential)
+      const validation = await apiKeyService.validateAPIKey(
+        credential,
+        apiKeyValidationContextFromRequest(req, {
+          audience: parsed.data.audience || 'auth-gateway',
+          projectScope: parsed.data.project_scope,
+          clientId: parsed.data.client_id,
+          installationId: parsed.data.installation_id,
+        })
+      )
       if (validation.valid && validation.userId) {
         response = await buildIntrospectedIdentity({
           resolutionMethod: 'api_key',
@@ -1949,7 +1961,10 @@ export async function verifyAPIKey(req: Request, res: Response) {
   }
 
   try {
-    const validation = await apiKeyService.validateAPIKey(apiKey)
+    const validation = await apiKeyService.validateAPIKey(
+      apiKey,
+      apiKeyValidationContextFromRequest(req, { audience: 'auth-gateway' })
+    )
 
     if (!validation.valid) {
       return res.status(401).json({
@@ -1967,6 +1982,7 @@ export async function verifyAPIKey(req: Request, res: Response) {
       projectScope: validation.projectScope,
       keyContext: validation.keyContext,
       permissions: validation.permissions,
+      binding: validation.binding,
       message: 'API key is valid'
     })
   } catch (error) {

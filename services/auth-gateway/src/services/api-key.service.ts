@@ -1,6 +1,15 @@
 import crypto from 'crypto'
 import { dbPool, supabaseAdmin, supabaseUsers } from '../../db/client.js'
 import { appendEventWithOutbox } from './event.service.js'
+import {
+  readApiKeyBinding,
+  validateApiKeyBinding,
+  type ApiKeyBinding,
+  type ApiKeyBindingValidationResult,
+  type ApiKeyValidationContext,
+} from './caller-binding.service.js'
+
+export type { ApiKeyBinding, ApiKeyValidationContext }
 
 const AUTH_GATEWAY_API_KEYS_SCHEMA = 'security_service'
 
@@ -21,6 +30,8 @@ interface CanonicalApiKeyRow extends Record<string, unknown> {
   key_context?: ApiKeyContext | null
   permissions?: unknown
   service?: string | null
+  binding?: unknown
+  metadata?: unknown
   last_used?: string | null
   last_used_at?: string | null
   expires_at?: string | null
@@ -102,6 +113,7 @@ function mapCanonicalApiKeyRow(row: CanonicalApiKeyRow): ApiKeyRecord {
     key_context: readApiKeyContextValue(row.key_context),
     permissions: normalizePermissionsValue(row.permissions),
     service: typeof row.service === 'string' ? row.service : 'all',
+    binding: row.binding as ApiKeyBinding | null | undefined,
     expires_at: typeof row.expires_at === 'string' ? row.expires_at : undefined,
     last_used_at:
       typeof row.last_used_at === 'string'
@@ -145,6 +157,7 @@ async function insertCanonicalApiKeyDirect(record: {
   created_at: string
   is_active: boolean
   service?: string
+  binding?: ApiKeyBinding | null
 }): Promise<ApiKeyRecord> {
   const columns = await getCanonicalApiKeyColumns()
   const fieldNames = [
@@ -185,6 +198,11 @@ async function insertCanonicalApiKeyDirect(record: {
   if (columns.has('key_context') && record.key_context !== undefined) {
     fieldNames.push('key_context')
     values.push(record.key_context ?? null)
+  }
+
+  if (columns.has('binding') && record.binding !== undefined) {
+    fieldNames.push('binding')
+    values.push(record.binding ?? {})
   }
 
   const placeholders = values.map((_, index) => `$${index + 1}`)
@@ -347,6 +365,7 @@ export interface ApiKey {
   permissions: string[]
   service: string // 'all' or 'specific' - controls external service access
   service_scopes?: ServiceScope[] // Populated when service = 'specific'
+  binding?: ApiKeyBinding | null
   expires_at?: string
   last_used_at?: string
   created_at: string
@@ -380,6 +399,7 @@ interface ApiKeyRecord {
   key_context?: ApiKeyContext | null
   permissions?: string[]
   service?: string // 'all' or 'specific'
+  binding?: ApiKeyBinding | null
   expires_at?: string
   last_used_at?: string
   created_at: string
@@ -595,6 +615,7 @@ function mapApiKeyRecord(record: ApiKeyRecord, serviceScopes?: ServiceScope[]): 
     permissions: record.permissions || [],
     service: record.service || 'all',
     service_scopes: serviceScopes,
+    binding: record.binding ?? null,
     expires_at: record.expires_at,
     last_used_at: record.last_used_at,
     created_at: record.created_at,
@@ -616,6 +637,7 @@ export async function createApiKey(
     description?: string | null
     scopes?: string[]  // Scoped permissions for the API key
     key_context?: ApiKeyContext | null
+    binding?: ApiKeyBinding | null
     organization_id?: string  // Required by security_service.api_keys FK
   }
 ): Promise<ApiKey> {
@@ -633,6 +655,7 @@ export async function createApiKey(
     // Validate and normalize scopes
     const keyContext = normalizeApiKeyContext(params.key_context)
     const permissions = resolveApiKeyPermissions(params.scopes, keyContext)
+    const binding = params.binding ? readApiKeyBinding({ binding: params.binding }) : null
 
     // Resolve organization_id — required by security_service.api_keys (FK constraint)
     // Auth controller guarantees every issued token carries a valid org UUID.
@@ -689,6 +712,10 @@ export async function createApiKey(
       apiKeyRecord.key_context = keyContext
     }
 
+    if (binding) {
+      apiKeyRecord.binding = binding
+    }
+
     const insertResult = await authGatewayApiKeysTable()
       .insert(apiKeyRecord)
       .select()
@@ -701,6 +728,7 @@ export async function createApiKey(
           key_context: apiKeyRecord.key_context,
           permissions,
           service: 'all',
+          binding: apiKeyRecord.binding ?? null,
         })
       : insertResult.data
 
@@ -716,6 +744,7 @@ export async function createApiKey(
         user_id,
         access_level: data.access_level,
         key_context: data.key_context ?? keyContext ?? null,
+        binding: data.binding ?? apiKeyRecord.binding ?? null,
         permissions: data.permissions || permissions,
         expires_at: data.expires_at,
         name: data.name,
@@ -1131,7 +1160,7 @@ export async function updateApiKeyUsage(key_id: string): Promise<void> {
  * Validate an API key
  * Supports migration period - accepts lano_, vx_, and lns_ prefixes
  */
-export async function validateAPIKey(apiKey: string): Promise<{
+export async function validateAPIKey(apiKey: string, context?: ApiKeyValidationContext): Promise<{
   valid: boolean
   userId?: string
   organizationId?: string
@@ -1141,6 +1170,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
   reason?: string
   /** DB primary key of the matched api_key record. Used for audit attribution. */
   keyId?: string
+  binding?: ApiKeyBindingValidationResult['status']
 }> {
   try {
     if (!apiKey || typeof apiKey !== 'string') {
@@ -1338,6 +1368,15 @@ export async function validateAPIKey(apiKey: string): Promise<{
           }
         }
 
+        const bindingValidation = validateApiKeyBinding(keyRecord, context)
+        if (!bindingValidation.valid) {
+          return {
+            valid: false,
+            reason: bindingValidation.reason,
+            binding: bindingValidation.status,
+          }
+        }
+
         // Update last used timestamp
         if (keyRecord.id) {
           await updateApiKeyUsage(keyRecord.id)
@@ -1358,6 +1397,7 @@ export async function validateAPIKey(apiKey: string): Promise<{
           keyContext: resolveValidatedKeyContext(keyRecord.key_context),
           permissions,
           keyId: keyRecord.id ?? undefined,
+          binding: bindingValidation.status,
         }
       }
     }
@@ -1595,6 +1635,7 @@ export async function createApiKeyWithServiceScopes(
     service_type?: 'all' | 'specific' // External service access type
     service_keys?: string[] // If service_type = 'specific', which services
     rate_limits?: Record<string, { per_minute?: number; per_day?: number }>
+    binding?: ApiKeyBinding | null
     organization_id?: string  // Required by security_service.api_keys FK
   }
 ): Promise<ApiKey> {
@@ -1606,6 +1647,7 @@ export async function createApiKeyWithServiceScopes(
     description: params.description,
     scopes: params.scopes,
     key_context: params.key_context,
+    binding: params.binding,
     organization_id: params.organization_id,
   })
 
