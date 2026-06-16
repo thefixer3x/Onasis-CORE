@@ -140,7 +140,7 @@ function timingSafeEqualString(left: string, right: string): boolean {
 }
 
 function signaturePayload(context: ApiKeyValidationContext): string {
-  return [
+  const fields = [
     context.method?.toUpperCase() || '',
     context.path || '',
     context.timestamp || '',
@@ -150,7 +150,11 @@ function signaturePayload(context: ApiKeyValidationContext): string {
     context.projectScope || '',
     context.clientId || '',
     context.installationId || '',
-  ].join('\n')
+  ]
+  if (fields.some((f) => f.includes('\n'))) {
+    throw new Error('Newline characters are not allowed in signature payload fields')
+  }
+  return fields.join('\n')
 }
 
 function parseSignature(signature: string): Buffer | null {

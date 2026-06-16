@@ -109,7 +109,6 @@ class SimpleMCPServer {
 
         // Initialize heartbeat and progress sentinel
         ws.isAlive = true;
-        ws.isAlive = true;
         ws.lastProgressAt = Date.now();
         ws.progressPercent = 0;
         ws.progressMessage = 'started';
@@ -168,8 +167,8 @@ class SimpleMCPServer {
               type: "notification",
               method: "error",
               params: { code: "MAX_DURATION_EXCEEDED", message: `Job exceeded max duration of ${ws.maxDurationMs}ms` },
-            }));
-            return ws.terminate();
+            }), () => ws.terminate());
+            return;
           }
 
           // Check 3: No progress made within expected duration = stuck worker
@@ -180,8 +179,8 @@ class SimpleMCPServer {
               type: "notification",
               method: "error",
               params: { code: "STUCK_WORKER", message: `No progress made within ${progressTimeout}ms (last: ${ws.progressPercent}% - ${ws.progressMessage})` },
-            }));
-            return ws.terminate();
+            }), () => ws.terminate());
+            return;
           }
 
           ws.isAlive = false;

@@ -614,7 +614,9 @@ export async function chatCompletion(
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error?.message || "API error");
+      const err = new Error(data.error?.message || "API error") as Error & { status: number }
+      err.status = response.status
+      throw err
     }
 
     const inputTokens = data.usage?.prompt_tokens || 0;
@@ -635,10 +637,14 @@ export async function chatCompletion(
         "https://api.openai.com/v1",
         model,
       );
-    } catch (err) {
+    } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Fall through to OpenRouter on quota exceeded
-      if (!msg.includes("quota") && !msg.includes("billing") && !msg.includes("429")) {
+      const isQuotaOrRateLimit =
+        err.status === 429 ||
+        msg.includes("quota") ||
+        msg.includes("billing") ||
+        msg.includes("429");
+      if (!isQuotaOrRateLimit) {
         throw err;
       }
       console.warn("[chatCompletion] OpenAI quota exceeded, falling back to OpenRouter:", msg);
