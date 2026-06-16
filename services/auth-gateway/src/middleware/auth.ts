@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
 import { validateAPIKey, type ApiKeyContext } from '../services/api-key.service.js'
+import { apiKeyValidationContextFromRequest } from '../services/caller-binding.service.js'
 import { findSessionByToken } from '../services/session.service.js'
 import { generateRequestId } from '../utils/correlation.js'
 import { resolveOrganizationIdForUser } from '../services/user.service.js'
@@ -200,7 +201,10 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const apiKey = req.headers['x-api-key'] as string
   if (apiKey) {
     try {
-      const validation = await validateAPIKey(apiKey)
+      const validation = await validateAPIKey(
+        apiKey,
+        apiKeyValidationContextFromRequest(req, { audience: 'auth-gateway' })
+      )
       if (validation.valid && validation.userId) {
         // Attach scopes from API key validation
         req.scopes = validation.permissions || ['legacy.full_access']
@@ -455,7 +459,10 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   const apiKey = req.headers['x-api-key'] as string
   if (apiKey) {
     try {
-      const validation = await validateAPIKey(apiKey)
+      const validation = await validateAPIKey(
+        apiKey,
+        apiKeyValidationContextFromRequest(req, { audience: 'auth-gateway' })
+      )
       if (validation.valid && validation.userId) {
         req.scopes = validation.permissions || ['legacy.full_access']
 

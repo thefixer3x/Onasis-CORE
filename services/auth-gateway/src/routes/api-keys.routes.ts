@@ -13,6 +13,7 @@ import {
   getUserConfiguredServices,
   setApiKeyServiceScopes,
   type ServiceScopeRateLimit,
+  type ApiKeyBinding,
 } from '../services/api-key.service.js'
 
 const router = Router()
@@ -112,6 +113,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       service_type,
       service_keys,
       rate_limits,
+      binding,
     } = req.body as {
       name: string
       access_level?: string
@@ -122,6 +124,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       service_type?: 'all' | 'specific'
       service_keys?: string[]
       rate_limits?: ServiceScopeRateLimit
+      binding?: ApiKeyBinding | null
     }
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
@@ -149,6 +152,7 @@ router.post('/with-services', requireAuth, async (req: Request, res: Response) =
       service_type: service_type || 'all',
       service_keys,
       rate_limits,
+      binding,
     })
 
     return res.status(201).json({
@@ -194,7 +198,15 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 
   try {
-    const { name, access_level, key_context, expires_in_days, description, scopes } = req.body
+    const { name, access_level, key_context, expires_in_days, description, scopes, binding } = req.body as {
+      name: string
+      access_level?: string
+      key_context?: 'personal' | 'team' | 'enterprise' | null
+      expires_in_days?: number
+      description?: string | null
+      scopes?: string[]
+      binding?: ApiKeyBinding | null
+    }
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({
@@ -210,6 +222,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       expires_in_days,
       description,
       scopes,
+      binding,
       organization_id: req.user.organizationId,
     })
 

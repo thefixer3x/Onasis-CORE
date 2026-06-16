@@ -63,6 +63,8 @@ const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() ||
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const VOYAGE_API_KEY = Deno.env.get("VOYAGE_API_KEY");
 const AI_ROUTER_URL = Deno.env.get("AI_ROUTER_URL");
+const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
+const OPENROUTER_DEFAULT_MODEL = Deno.env.get("OPENROUTER_DEFAULT_MODEL") || "openai/gpt-4o-mini";
 
 // Get the appropriate API key based on provider
 function getEmbeddingApiKey(): string {
@@ -589,44 +591,93 @@ export async function chatCompletion(
     };
   }
 
-  // Fallback to OpenAI
-  if (!OPENAI_API_KEY) {
-    throw new Error(
-      "OPENAI_API_KEY not configured for chat completions (AI Router not configured)",
+  // OpenAI direct (with OpenRouter fallback on quota/transient errors)
+  const callOpenAICompatible = async (
+    apiKey: string,
+    baseUrl: string,
+    modelName: string,
+    calculateCost: (inputTokens: number, outputTokens: number) => number,
+  ) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const err = new Error(data.error?.message || "API error") as Error & { status: number }
+      err.status = response.status
+      throw err
+    }
+
+    const inputTokens = data.usage?.prompt_tokens || 0;
+    const outputTokens = data.usage?.completion_tokens || 0;
+
+    return {
+      content: data.choices[0]?.message?.content || "",
+      tokensUsed: inputTokens + outputTokens,
+      cost: calculateCost(inputTokens, outputTokens),
+    };
+  };
+
+  if (OPENAI_API_KEY) {
+    try {
+      return await callOpenAICompatible(
+        OPENAI_API_KEY,
+        "https://api.openai.com/v1",
+        model,
+        (inp, out) => inp * 0.00000015 + out * 0.0000006,
+      );
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isTransient =
+        err.status === 429 ||
+        err.status >= 500 ||
+        msg.includes("quota") ||
+        msg.includes("billing") ||
+        msg.includes("429") ||
+        msg.includes("503") ||
+        msg.includes("timeout") ||
+        msg.includes("ECONNRESET");
+      if (!isTransient) {
+        throw err;
+      }
+      console.warn("[chatCompletion] OpenAI unavailable, falling back to OpenRouter:", msg);
+    }
+  }
+
+  if (OPENROUTER_API_KEY) {
+    const orModel = model.includes("/") ? model : OPENROUTER_DEFAULT_MODEL;
+    // OpenRouter pricing varies per model; report cost as 0 until a pricing
+    // table or the OpenRouter API is integrated.
+    return await callOpenAICompatible(
+      OPENROUTER_API_KEY,
+      "https://openrouter.ai/api/v1",
+      orModel,
+      () => 0,
     );
   }
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.7,
-      max_tokens: 1000,
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error?.message || "OpenAI API error");
-  }
-
-  const inputTokens = data.usage?.prompt_tokens || 0;
-  const outputTokens = data.usage?.completion_tokens || 0;
-
-  // GPT-4o-mini pricing (as of Dec 2024)
-  const cost = inputTokens * 0.00000015 + outputTokens * 0.0000006;
-
-  return {
-    content: data.choices[0]?.message?.content || "",
-    tokensUsed: inputTokens + outputTokens,
-    cost,
-  };
+  throw new Error("AI service unavailable");
 }
 
 // Provider-aware embedding generation

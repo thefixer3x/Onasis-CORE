@@ -16,6 +16,7 @@
 import { Router, Request, Response } from 'express'
 import { verifyToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
 import { validateAPIKey } from '../services/api-key.service.js'
+import { apiKeyValidationContextFromRequest } from '../services/caller-binding.service.js'
 import { resolveUAICached, type UAIResolutionResult } from '../services/uai-session-cache.service.js'
 import { type AuthMethod } from '../services/identity-resolution.service.js'
 import { extractOrGenerateRequestId } from '../utils/correlation.js'
@@ -155,7 +156,10 @@ router.get('/', async (req: Request, res: Response) => {
     const apiKey = req.headers['x-api-key'] as string
     if (apiKey) {
       try {
-        const validation = await validateAPIKey(apiKey)
+        const validation = await validateAPIKey(
+          apiKey,
+          apiKeyValidationContextFromRequest(req, { audience: 'auth-gateway' })
+        )
         if (validation.valid && validation.userId) {
           authMethod = 'api_key'
           resolvedApiKeyId = validation.keyId
@@ -303,7 +307,10 @@ router.get('/debug', async (req: Request, res: Response) => {
     }
   } else if (req.headers['x-api-key']) {
     try {
-      const validation = await validateAPIKey(req.headers['x-api-key'] as string)
+      const validation = await validateAPIKey(
+        req.headers['x-api-key'] as string,
+        apiKeyValidationContextFromRequest(req, { audience: 'auth-gateway' })
+      )
       if (validation.valid && validation.userId) {
         method = 'api_key'
         resolution = await resolveUAICached('api_key', validation.userId, {
