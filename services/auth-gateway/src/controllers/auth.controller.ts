@@ -1711,6 +1711,14 @@ export async function introspectIdentity(req: Request, res: Response) {
           ipAddress: clientIp,
           userAgent,
         })
+      } else if (parsed.data.type === 'api_key' || parsed.data.type === 'vendor_key') {
+        return res.status(401).json(
+          buildIntrospectError(
+            'invalid_credential',
+            (validation as any).reason || 'API key credential is invalid.',
+            false
+          )
+        )
       }
     }
 

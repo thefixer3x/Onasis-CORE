@@ -591,25 +591,35 @@ export async function chatCompletion(
     };
   }
 
-  // OpenAI direct (with OpenRouter fallback on quota errors)
+  // OpenAI direct (with OpenRouter fallback on quota/transient errors)
   const callOpenAICompatible = async (
     apiKey: string,
     baseUrl: string,
     modelName: string,
+    calculateCost: (inputTokens: number, outputTokens: number) => number,
   ) => {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: modelName,
-        messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages,
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const data = await response.json();
 
@@ -621,12 +631,11 @@ export async function chatCompletion(
 
     const inputTokens = data.usage?.prompt_tokens || 0;
     const outputTokens = data.usage?.completion_tokens || 0;
-    const cost = inputTokens * 0.00000015 + outputTokens * 0.0000006;
 
     return {
       content: data.choices[0]?.message?.content || "",
       tokensUsed: inputTokens + outputTokens,
-      cost,
+      cost: calculateCost(inputTokens, outputTokens),
     };
   };
 
@@ -636,27 +645,35 @@ export async function chatCompletion(
         OPENAI_API_KEY,
         "https://api.openai.com/v1",
         model,
+        (inp, out) => inp * 0.00000015 + out * 0.0000006,
       );
     } catch (err: any) {
       const msg = err instanceof Error ? err.message : String(err);
-      const isQuotaOrRateLimit =
+      const isTransient =
         err.status === 429 ||
+        err.status >= 500 ||
         msg.includes("quota") ||
         msg.includes("billing") ||
-        msg.includes("429");
-      if (!isQuotaOrRateLimit) {
+        msg.includes("429") ||
+        msg.includes("503") ||
+        msg.includes("timeout") ||
+        msg.includes("ECONNRESET");
+      if (!isTransient) {
         throw err;
       }
-      console.warn("[chatCompletion] OpenAI quota exceeded, falling back to OpenRouter:", msg);
+      console.warn("[chatCompletion] OpenAI unavailable, falling back to OpenRouter:", msg);
     }
   }
 
   if (OPENROUTER_API_KEY) {
     const orModel = model.includes("/") ? model : OPENROUTER_DEFAULT_MODEL;
+    // OpenRouter pricing varies per model; report cost as 0 until a pricing
+    // table or the OpenRouter API is integrated.
     return await callOpenAICompatible(
       OPENROUTER_API_KEY,
       "https://openrouter.ai/api/v1",
       orModel,
+      () => 0,
     );
   }
 

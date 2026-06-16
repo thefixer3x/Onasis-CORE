@@ -250,11 +250,13 @@ class SimpleMCPServer {
       // Handle progress sentinel update
       if (method === "kanban_progress") {
         const ws = this.connections.get(connectionId)?.ws;
-        if (ws) {
-          ws.lastProgressAt = Date.now();
-          ws.progressPercent = params?.percent ?? ws.progressPercent;
-          ws.progressMessage = params?.message ?? ws.progressMessage;
+        if (!ws) {
+          this.sendError(connectionId, id, -32600, "Connection not found");
+          return;
         }
+        ws.lastProgressAt = Date.now();
+        ws.progressPercent = params?.percent ?? ws.progressPercent;
+        ws.progressMessage = params?.message ?? ws.progressMessage;
         this.sendMessage(connectionId, {
           type: "result",
           id,
@@ -266,13 +268,15 @@ class SimpleMCPServer {
       // Handle max duration setting
       if (method === "set_max_duration") {
         const ws = this.connections.get(connectionId)?.ws;
-        if (ws) {
-          ws.maxDurationMs = params?.maxDurationMs ?? 0;
+        if (!ws) {
+          this.sendError(connectionId, id, -32600, "Connection not found");
+          return;
         }
+        ws.maxDurationMs = params?.maxDurationMs ?? 0;
         this.sendMessage(connectionId, {
           type: "result",
           id,
-          result: { acknowledged: true, maxDurationMs: ws?.maxDurationMs },
+          result: { acknowledged: true, maxDurationMs: ws.maxDurationMs },
         });
         return;
       }

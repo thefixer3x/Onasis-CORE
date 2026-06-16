@@ -20,6 +20,10 @@ export interface ApiKeyValidationContext {
   timestamp?: string
   nonce?: string
   contentSha256?: string
+  // Server-computed SHA-256 digest of the raw request body (set by middleware).
+  // When present, verifySignature checks it matches the caller-supplied contentSha256
+  // to prevent body-tampering on signed requests.
+  computedContentSha256?: string
   signature?: string
   enforceBinding?: boolean
 }
@@ -30,7 +34,16 @@ export interface ApiKeyBindingValidationResult {
   reason?: string
 }
 
-const SIGNATURE_WINDOW_SECONDS = Number.parseInt(process.env.AUTH_GATEWAY_API_KEY_SIGNATURE_WINDOW_SECONDS || '300', 10)
+// Fail closed: if the env var is missing or non-numeric, default to 300 s.
+const _parsed = Number.parseInt(process.env.AUTH_GATEWAY_API_KEY_SIGNATURE_WINDOW_SECONDS || '300', 10)
+const SIGNATURE_WINDOW_SECONDS = Number.isFinite(_parsed) && _parsed > 0 ? _parsed : 300
+
+const PRIVATE_PEM_RE = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/
+const PRIVATE_JWK_FIELDS = new Set(['d', 'p', 'q', 'dp', 'dq', 'qi', 'oth', 'k'])
+
+function hasPrivateJwkMaterial(jwk: Record<string, unknown>): boolean {
+  return Object.keys(jwk).some((key) => PRIVATE_JWK_FIELDS.has(key))
+}
 
 function normalizeString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
@@ -76,11 +89,13 @@ export function readApiKeyBinding(record: Record<string, unknown>): ApiKeyBindin
   const installationId = normalizeString(rawBinding.installation_id ?? rawBinding.installationId)
   if (installationId) binding.installation_id = installationId
 
+  // Reject private PEM material — only store public keys.
   const publicKeyPem = normalizeString(rawBinding.public_key_pem ?? rawBinding.publicKeyPem)
-  if (publicKeyPem) binding.public_key_pem = publicKeyPem
+  if (publicKeyPem && !PRIVATE_PEM_RE.test(publicKeyPem)) binding.public_key_pem = publicKeyPem
 
+  // Reject JWK objects that carry private/symmetric key fields.
   const publicKeyJwk = readRecord(rawBinding.public_key_jwk ?? rawBinding.publicKeyJwk)
-  if (publicKeyJwk) binding.public_key_jwk = publicKeyJwk as JsonWebKey
+  if (publicKeyJwk && !hasPrivateJwkMaterial(publicKeyJwk)) binding.public_key_jwk = publicKeyJwk as JsonWebKey
 
   if (typeof rawBinding.require_request_signature === 'boolean') {
     binding.require_request_signature = rawBinding.require_request_signature
@@ -97,11 +112,13 @@ export function apiKeyValidationContextFromRequest(
 ): ApiKeyValidationContext {
   return {
     ...defaults,
+    // defaults.audience takes priority — prevents callers from overriding the
+    // gateway's own audience claim via request headers.
     audience:
+      defaults.audience ??
       normalizeString(req.headers['x-lanonasis-audience']) ??
       normalizeString(req.headers['x-auth-audience']) ??
-      normalizeString(req.headers['x-service-audience']) ??
-      defaults.audience,
+      normalizeString(req.headers['x-service-audience']),
     projectScope:
       normalizeString(req.headers['x-project-scope']) ??
       normalizeString(req.body?.project_scope) ??
@@ -121,6 +138,9 @@ export function apiKeyValidationContextFromRequest(
     timestamp: normalizeString(req.headers['x-lanonasis-timestamp']),
     nonce: normalizeString(req.headers['x-lanonasis-nonce']),
     contentSha256: normalizeString(req.headers['x-lanonasis-content-sha256']),
+    // computedContentSha256 is populated by raw-body middleware upstream; leave
+    // undefined here so the middleware's value (attached to req) is preserved.
+    computedContentSha256: (req as any).computedContentSha256,
     signature: normalizeString(req.headers['x-lanonasis-signature']),
   }
 }
@@ -181,6 +201,13 @@ function verifySignature(binding: ApiKeyBinding, context: ApiKeyValidationContex
     return false
   }
 
+  // If raw-body middleware computed the body digest, verify the header matches.
+  if (context.contentSha256 && context.computedContentSha256) {
+    if (!timingSafeEqualString(context.contentSha256, context.computedContentSha256)) {
+      return false
+    }
+  }
+
   const signature = parseSignature(context.signature)
   if (!signature) {
     return false
@@ -196,7 +223,11 @@ function verifySignature(binding: ApiKeyBinding, context: ApiKeyValidationContex
     return false
   }
 
-  return crypto.verify('sha256', Buffer.from(signaturePayload(context)), publicKey, signature)
+  // Ed25519/Ed448 require algorithm=null; RSA/EC use 'sha256'.
+  const algorithm =
+    publicKey.asymmetricKeyType === 'ed25519' || publicKey.asymmetricKeyType === 'ed448' ? null : 'sha256'
+
+  return crypto.verify(algorithm, Buffer.from(signaturePayload(context)), publicKey, signature)
 }
 
 export function validateApiKeyBinding(
@@ -214,6 +245,24 @@ export function validateApiKeyBinding(
       }
     }
 
+    return { valid: true, status: 'legacy_unbound' }
+  }
+
+  // A binding that contains only a public key with no signature requirement is
+  // inert — it enforces nothing. Treat it the same as unbound.
+  const signatureRequired = shouldRequireSignature(binding)
+  const hasEnforceableConstraint = Boolean(
+    binding.audiences?.length || binding.client_id || binding.installation_id || signatureRequired
+  )
+
+  if (!hasEnforceableConstraint) {
+    if (shouldRequireBinding(context)) {
+      return {
+        valid: false,
+        status: 'binding_required',
+        reason: 'API key binding does not include an enforceable audience, client, installation, or signature requirement.',
+      }
+    }
     return { valid: true, status: 'legacy_unbound' }
   }
 
@@ -250,7 +299,7 @@ export function validateApiKeyBinding(
     }
   }
 
-  if (shouldRequireSignature(binding)) {
+  if (signatureRequired) {
     if (!binding.public_key_pem && !binding.public_key_jwk) {
       return {
         valid: false,

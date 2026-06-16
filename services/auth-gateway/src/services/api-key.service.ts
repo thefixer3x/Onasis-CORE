@@ -655,7 +655,14 @@ export async function createApiKey(
     // Validate and normalize scopes
     const keyContext = normalizeApiKeyContext(params.key_context)
     const permissions = resolveApiKeyPermissions(params.scopes, keyContext)
-    const binding = params.binding ? readApiKeyBinding({ binding: params.binding }) : null
+    const bindingProvided = params.binding !== undefined && params.binding !== null
+    const binding = bindingProvided ? readApiKeyBinding({ binding: params.binding }) : null
+    if (bindingProvided && !binding) {
+      throw new Error('Invalid binding. Provide at least one supported audience, client_id, installation_id, or signature field.')
+    }
+    if (binding?.require_request_signature && !binding.public_key_pem && !binding.public_key_jwk) {
+      throw new Error('Invalid binding. require_request_signature requires public_key_pem or public_key_jwk.')
+    }
 
     // Resolve organization_id — required by security_service.api_keys (FK constraint)
     // Auth controller guarantees every issued token carries a valid org UUID.
