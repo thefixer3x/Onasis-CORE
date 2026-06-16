@@ -107,8 +107,14 @@ class SimpleMCPServer {
           lastPing: Date.now(),
         });
 
-        // Initialize heartbeat
+        // Initialize heartbeat and progress sentinel
         ws.isAlive = true;
+        ws.isAlive = true;
+        ws.lastProgressAt = Date.now();
+        ws.progressPercent = 0;
+        ws.progressMessage = 'started';
+        ws.maxDurationMs = 0; // 0 = no limit
+        ws.createdAt = Date.now();
         ws.on("pong", () => {
           ws.isAlive = true;
         });
@@ -141,11 +147,40 @@ class SimpleMCPServer {
       );
       console.log(`⚠️  For production: Use wss:// with TLS/SSL certificates`);
 
-      // Production heartbeat - ping clients every 30 seconds
+      // Production heartbeat - ping clients every 30 seconds with progress sentinel
       const heartbeatInterval = setInterval(() => {
+        const now = Date.now();
+        const heartbeatTimeout = 30000; // 30 seconds
+        const progressTimeout = 60000; // 60 seconds without progress = stuck
+
         this.wss.clients.forEach((ws) => {
+          // Check 1: Heartbeat timeout
           if (ws.isAlive === false) {
-            console.log("💀 Terminating dead WebSocket connection");
+            console.log("💀 Terminating dead WebSocket connection (no pong)");
+            return ws.terminate();
+          }
+
+          // Check 2: Max duration exceeded (regardless of heartbeat)
+          const elapsedDuration = ws.maxDurationMs > 0 ? now - ws.createdAt : 0;
+          if (ws.maxDurationMs > 0 && elapsedDuration > ws.maxDurationMs) {
+            console.log(`💀 Terminating worker (max duration ${ws.maxDurationMs}ms exceeded, elapsed ${elapsedDuration}ms)`);
+            ws.send(JSON.stringify({
+              type: "notification",
+              method: "error",
+              params: { code: "MAX_DURATION_EXCEEDED", message: `Job exceeded max duration of ${ws.maxDurationMs}ms` },
+            }));
+            return ws.terminate();
+          }
+
+          // Check 3: No progress made within expected duration = stuck worker
+          const timeSinceLastProgress = now - ws.lastProgressAt;
+          if (timeSinceLastProgress > progressTimeout) {
+            console.log(`💀 Terminating stuck worker (no progress for ${timeSinceLastProgress}ms, last: ${ws.progressPercent}% - ${ws.progressMessage})`);
+            ws.send(JSON.stringify({
+              type: "notification",
+              method: "error",
+              params: { code: "STUCK_WORKER", message: `No progress made within ${progressTimeout}ms (last: ${ws.progressPercent}% - ${ws.progressMessage})` },
+            }));
             return ws.terminate();
           }
 
@@ -212,6 +247,36 @@ class SimpleMCPServer {
 
     try {
       let result;
+
+      // Handle progress sentinel update
+      if (method === "kanban_progress") {
+        const ws = this.connections.get(connectionId)?.ws;
+        if (ws) {
+          ws.lastProgressAt = Date.now();
+          ws.progressPercent = params?.percent ?? ws.progressPercent;
+          ws.progressMessage = params?.message ?? ws.progressMessage;
+        }
+        this.sendMessage(connectionId, {
+          type: "result",
+          id,
+          result: { acknowledged: true, lastProgressAt: new Date().toISOString() },
+        });
+        return;
+      }
+
+      // Handle max duration setting
+      if (method === "set_max_duration") {
+        const ws = this.connections.get(connectionId)?.ws;
+        if (ws) {
+          ws.maxDurationMs = params?.maxDurationMs ?? 0;
+        }
+        this.sendMessage(connectionId, {
+          type: "result",
+          id,
+          result: { acknowledged: true, maxDurationMs: ws?.maxDurationMs },
+        });
+        return;
+      }
 
       switch (method) {
         case "initialize":
