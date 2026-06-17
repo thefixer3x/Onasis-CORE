@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express'
-import { supabaseAdmin, supabaseUsers } from '../../db/client.js'
+import { supabaseUsers } from '../../db/client.js'
 import { generateTokenPairWithUAI } from '../utils/jwt.js'
 import { auditCorrelation } from '../utils/correlation.js'
 import { createSession } from '../services/session.service.js'
@@ -23,7 +23,7 @@ export async function mcpAuth(req: Request, res: Response) {
 
   try {
     // Authenticate with Supabase
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    const { data, error } = await supabaseUsers.auth.signInWithPassword({
       email,
       password,
     })
@@ -151,7 +151,7 @@ export async function cliLogin(req: Request, res: Response) {
 
   try {
     // Authenticate with Supabase
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    const { data, error } = await supabaseUsers.auth.signInWithPassword({
       email,
       password,
     })
