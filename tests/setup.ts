@@ -94,6 +94,33 @@ export async function netlifyCall(
   };
 }
 
+// Registers a fresh user via basic auth and logs in, for tests that just
+// need any authenticated identity rather than a specific shared fixture.
+export async function registerAndLogin(): Promise<string> {
+  const email = `contract-test-${crypto.randomUUID()}@example.com`;
+  const password = 'Sup3rSecure!Pass1';
+
+  await netlifyCall('auth/basic/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+
+  const { status, data } = await netlifyCall('auth/basic/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (status !== 200) {
+    throw new Error(`registerAndLogin failed: login returned ${status}`);
+  }
+
+  const token = data?.token ?? data?.access_token;
+  if (!token) {
+    throw new Error('registerAndLogin failed: no token in login response');
+  }
+  return token;
+}
+
 // Test data cleanup registry
 const cleanupItems: Array<{ type: string; id: string }> = [];
 
