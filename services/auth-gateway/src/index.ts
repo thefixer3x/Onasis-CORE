@@ -612,6 +612,7 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`   - POST /v1/auth/logout`)
     console.log(`   - GET  /v1/auth/session`)
     console.log(`   - POST /v1/auth/verify`)
+    console.log(`   - POST /v1/auth/refresh`)
     console.log(`   - GET  /v1/auth/sessions`)
     console.log(`🌐 Web endpoints:`)
     console.log(`   - GET  /web/login`)

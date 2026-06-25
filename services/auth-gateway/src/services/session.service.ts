@@ -34,7 +34,7 @@ export interface Session {
 /**
  * Hash token for secure storage
  */
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
@@ -110,6 +110,28 @@ export async function findSessionByToken(token: string): Promise<Session | null>
       `
       SELECT * FROM auth_gateway.sessions
       WHERE token_hash = $1
+        AND expires_at > NOW()
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [hashToken(token)]
+    )
+    return (result.rows[0] as Session) || null
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Find session by refresh token
+ */
+export async function findSessionByRefreshToken(token: string): Promise<Session | null> {
+  const client = await dbPool.connect()
+  try {
+    const result = await client.query(
+      `
+      SELECT * FROM auth_gateway.sessions
+      WHERE refresh_token_hash = $1
         AND expires_at > NOW()
       ORDER BY created_at DESC
       LIMIT 1

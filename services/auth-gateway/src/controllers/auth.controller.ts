@@ -2,8 +2,8 @@ import crypto from 'crypto'
 import type { Request, Response } from 'express'
 import { z } from 'zod'
 import { supabaseUsers } from '../../db/client.js'
-import { generateTokenPairWithUAI, verifyToken as verifyJwtToken, extractBearerToken } from '../utils/jwt.js'
-import { createSession, revokeSession, getUserSessions, findSessionByToken } from '../services/session.service.js'
+import { generateTokenPairWithUAI, verifyToken as verifyJwtToken, extractBearerToken, type JWTPayload } from '../utils/jwt.js'
+import { createSession, revokeSession, getUserSessions, findSessionByToken, findSessionByRefreshToken, hashToken } from '../services/session.service.js'
 import { upsertUserAccount, findUserAccountById, resolveOrganizationIdForUser } from '../services/user.service.js'
 import { logAuthEvent } from '../services/audit.service.js'
 import { auditCorrelation } from '../utils/correlation.js'
@@ -2259,6 +2259,141 @@ export async function getMe(req: Request, res: Response) {
     return res.status(500).json({
       error: 'Failed to fetch user profile',
       code: 'PROFILE_FETCH_ERROR',
+    })
+  }
+}
+
+/**
+ * POST /v1/auth/refresh
+ * Redeem a refresh token for a new token pair
+ * Validates the type:'refresh' JWT against session.refresh_token_hash
+ * and re-issues tokens via generateTokenPair()
+ */
+export async function refreshToken(req: Request, res: Response) {
+  const refreshToken = (req.body.refresh_token || req.body.refreshToken) as string | undefined
+
+  if (!refreshToken) {
+    return res.status(400).json({
+      error: 'Refresh token is required',
+      code: 'MISSING_REFRESH_TOKEN',
+    })
+  }
+
+  let decoded: JWTPayload
+  try {
+    decoded = verifyJwtToken(refreshToken)
+  } catch (error) {
+    logger.warn('Invalid refresh token', { error: error instanceof Error ? error.message : 'unknown' })
+    return res.status(401).json({
+      error: 'Invalid or expired refresh token',
+      code: 'INVALID_REFRESH_TOKEN',
+    })
+  }
+
+  // Verify this is a refresh token
+  if (decoded.type !== 'refresh') {
+    return res.status(400).json({
+      error: 'Token is not a refresh token',
+      code: 'INVALID_TOKEN_TYPE',
+    })
+  }
+
+  // Verify against session.refresh_token_hash
+  const session = await findSessionByRefreshToken(refreshToken)
+  if (!session) {
+    return res.status(401).json({
+      error: 'Session not found or expired',
+      code: 'SESSION_NOT_FOUND',
+    })
+  }
+
+  // Ensure the refresh token belongs to the same user
+  if (session.user_id !== decoded.sub) {
+    logger.warn('Refresh token user mismatch', {
+      sessionUser: session.user_id,
+      tokenUser: decoded.sub,
+    })
+    return res.status(401).json({
+      error: 'Token user mismatch',
+      code: 'INVALID_REFRESH_TOKEN',
+    })
+  }
+
+  try {
+    // Re-issue token pair using stored user data
+    const userAccount = await findUserAccountById(session.user_id)
+    if (!userAccount) {
+      return res.status(401).json({
+        error: 'User account not found',
+        code: 'USER_NOT_FOUND',
+      })
+    }
+
+    // Generate new token pair with UAI
+    const tokens = await generateTokenPairWithUAI({
+      sub: session.user_id,
+      email: userAccount.email,
+      role: userAccount.role || 'authenticated',
+      project_scope: session.scope?.[0],
+      platform: session.platform as Platform,
+      authMethod: 'supabase_jwt',
+    })
+
+    const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
+
+    // Update session with new tokens
+    const client = await (await import('../../db/client.js')).dbPool.connect()
+    try {
+      await client.query(
+        `
+        UPDATE auth_gateway.sessions
+        SET token_hash = $1, refresh_token_hash = $2, last_used_at = NOW()
+        WHERE id = $3
+        `,
+        [hashToken(tokens.access_token), hashToken(tokens.refresh_token), session.id]
+      )
+    } finally {
+      client.release()
+    }
+
+    await logAuthEvent({
+      event_type: 'refresh_token_success',
+      user_id: session.user_id,
+      platform: session.platform as Platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+      metadata: { provider: session.metadata?.provider as string | undefined },
+      actor_id: decoded.uai || decoded.sub,
+      actor_type: 'user',
+      auth_source: 'refresh_token',
+      ...auditCorrelation(req),
+    })
+
+    return res.json({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_in: tokens.expires_in,
+      token_type: 'Bearer',
+    })
+  } catch (error) {
+    logger.error('Refresh token error:', { error, userId: session.user_id })
+    await logAuthEvent({
+      event_type: 'refresh_token_failed',
+      user_id: session.user_id,
+      platform: session.platform as Platform,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: false,
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      actor_id: decoded.uai || decoded.sub,
+      actor_type: 'user',
+      auth_source: 'refresh_token',
+      ...auditCorrelation(req),
+    })
+    return res.status(500).json({
+      error: 'Failed to refresh tokens',
+      code: 'REFRESH_FAILED',
     })
   }
 }

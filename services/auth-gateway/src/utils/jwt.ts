@@ -19,6 +19,8 @@ export interface JWTPayload {
   app_metadata?: Record<string, unknown>
   /** Organization/tenant ID from UAI resolution */
   organization_id?: string
+  /** Token type: 'refresh' for refresh tokens */
+  type?: 'refresh'
   iat?: number
   exp?: number
 }

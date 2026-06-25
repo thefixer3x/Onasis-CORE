@@ -35,4 +35,7 @@ router.post('/verify-api-key', authController.verifyAPIKey)
 // Gateway-wide credential introspection (distinct from /oauth/introspect)
 router.post('/introspect', authController.introspectIdentity)
 
+// Token refresh endpoint
+router.post('/refresh', authController.refreshToken)
+
 export default router
