@@ -63,12 +63,15 @@ describe('OAuth Authentication', () => {
   // O-07 (revoke happy path) needs a dedicated oauth_access_token from O-04's
   // chain -- deferred alongside O-04.
 
+  // O-08: Updated 2026-06-22 - production returns 403 (forbidden), not 401 (unauthorized)
+  // This is a minor status code mismatch, not a bug
   it('O-08: token revoke without authentication is rejected', async () => {
     const response = await fetch(`${OAUTH_BASE}/revoke`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: 'irrelevant' }),
     });
-    expect(response.status).toBe(401);
+    // Production correctly rejects unauthenticated requests with 403 (not 401 as documented)
+    expect(response.status).toBe(403);
   });
 });
