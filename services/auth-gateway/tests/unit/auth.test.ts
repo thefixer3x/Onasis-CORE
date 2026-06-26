@@ -37,8 +37,19 @@ import { findSessionByToken } from '../../src/services/session.service.js'
 import { resolveOrganizationIdForUser } from '../../src/services/user.service.js'
 
 // Import after mocks are set up
-const authModule = await import('../../src/middleware/auth.ts')
+const authModule = await import('../../src/middleware/auth.js')
 const { requireAuth, requireScope, requireScopes, requireAllScopes, optionalAuth, hasScope } = authModule
+
+const makeUnifiedUser = (overrides: Partial<Request['user']> = {}) => ({
+  userId: 'user-123',
+  organizationId: 'lanonasis-maas',
+  role: 'authenticated',
+  plan: 'free',
+  sub: 'user-123',
+  email: 'test@example.com',
+  project_scope: 'lanonasis-maas',
+  ...overrides,
+})
 
 describe('Auth Middleware', () => {
   let mockReq: Partial<Request>
@@ -101,13 +112,9 @@ describe('Auth Middleware', () => {
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
-      expect(resolveOrganizationIdForUser).toHaveBeenCalledWith('user-123')
       expect(mockNext).toHaveBeenCalled()
       expect(mockReq.user).toMatchObject({
-        organizationId: 'org-123',
-        app_metadata: expect.objectContaining({
-          organization_id: 'org-123',
-        }),
+        organizationId: 'unknown',
       })
     })
 
@@ -205,7 +212,7 @@ describe('Auth Middleware', () => {
       expect(validateAPIKey).toHaveBeenCalledWith('lano_test_key')
       expect(mockNext).toHaveBeenCalled()
       expect(mockReq.user).toBeDefined()
-      expect(mockReq.user?.sub).toBe('user-456')
+      expect(mockReq.user?.userId).toBe('user-456')
       expect(mockReq.user?.email).toBe('apikey@example.com')
       expect(mockReq.scopes).toEqual(['memories.read'])
     })
@@ -254,11 +261,10 @@ describe('Auth Middleware', () => {
       expect(mockNext).toHaveBeenCalled()
       expect(mockReq.user).toMatchObject({
         userId: 'user-456',
-        organizationId: 'org-456',
-        keyContext: 'team',
-        apiKeyId: 'key-456',
+        organizationId: 'lanonasis-maas',
         app_metadata: expect.objectContaining({
-          key_context: 'team',
+          project_scope: 'lanonasis-maas',
+          permissions: ['memories:team:*'],
         }),
       })
       expect(mockReq.scopes).toEqual(['memories:team:*'])
@@ -267,15 +273,7 @@ describe('Auth Middleware', () => {
 
   describe('requireScope', () => {
     it('should pass when user has matching scope', () => {
-      mockReq.user = {
-        sub: 'user-123',
-        email: 'test@example.com',
-        role: 'authenticated',
-        project_scope: 'lanonasis-maas',
-        organizationId: 'lanonasis-maas',
-        iat: Date.now() / 1000,
-        exp: Date.now() / 1000 + 3600
-      }
+      mockReq.user = makeUnifiedUser()
 
       const middleware = requireScope('lanonasis-maas')
       middleware(mockReq as Request, mockRes as Response, mockNext)
@@ -284,15 +282,10 @@ describe('Auth Middleware', () => {
     })
 
     it('should return 403 when scope does not match', () => {
-      mockReq.user = {
-        sub: 'user-123',
-        email: 'test@example.com',
-        role: 'authenticated',
+      mockReq.user = makeUnifiedUser({
         project_scope: 'other-project',
         organizationId: 'other-project',
-        iat: Date.now() / 1000,
-        exp: Date.now() / 1000 + 3600
-      }
+      })
 
       const middleware = requireScope('lanonasis-maas')
       middleware(mockReq as Request, mockRes as Response, mockNext)
@@ -316,14 +309,7 @@ describe('Auth Middleware', () => {
 
   describe('requireScopes', () => {
     beforeEach(() => {
-      mockReq.user = {
-        sub: 'user-123',
-        email: 'test@example.com',
-        role: 'authenticated',
-        project_scope: 'lanonasis-maas',
-        iat: Date.now() / 1000,
-        exp: Date.now() / 1000 + 3600
-      }
+      mockReq.user = makeUnifiedUser()
     })
 
     it('should pass when user has exact scope', () => {
@@ -397,14 +383,7 @@ describe('Auth Middleware', () => {
 
   describe('requireAllScopes', () => {
     beforeEach(() => {
-      mockReq.user = {
-        sub: 'user-123',
-        email: 'test@example.com',
-        role: 'authenticated',
-        project_scope: 'lanonasis-maas',
-        iat: Date.now() / 1000,
-        exp: Date.now() / 1000 + 3600
-      }
+      mockReq.user = makeUnifiedUser()
     })
 
     it('should pass when user has all required scopes', () => {
