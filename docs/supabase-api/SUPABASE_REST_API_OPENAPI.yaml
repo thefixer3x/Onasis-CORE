@@ -828,6 +828,116 @@ paths:
         '401':
           $ref: '#/components/responses/UnauthorizedError'
 
+  /profiles/{subject_id}:
+    get:
+      tags:
+        - Intelligence
+      summary: Get Living Memory Profile
+      description: |
+        Return the current living memory profile for the requested subject.
+        This is the public production surface for `intelligence-profiles`.
+
+        Access is authenticated and scoped: the direct EF only allows the
+        subject themselves unless the caller is using service-role auth.
+      operationId: getIntelligenceProfile
+      parameters:
+        - name: subject_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Current profile snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceProfileResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /profiles/{subject_id}/versions:
+    get:
+      tags:
+        - Intelligence
+      summary: Get Living Memory Profile Versions
+      description: |
+        Return append-only profile versions for the requested subject.
+        This maps to `GET /functions/v1/intelligence-profiles/:subject_id/versions`.
+      operationId: getIntelligenceProfileVersions
+      parameters:
+        - name: subject_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Profile version history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceProfileVersionsResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /profiles/{subject_id}/ask:
+    post:
+      tags:
+        - Intelligence
+      summary: Ask a Question from a Living Memory Profile
+      description: |
+        Synthesize an answer from the subject's current living memory profile.
+        This is the canonical public replacement for the older
+        `intelligence-ask-profile` compatibility EF.
+      operationId: askIntelligenceProfile
+      parameters:
+        - name: subject_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntelligenceProfileAskRequest'
+      responses:
+        '200':
+          description: Profile-backed answer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceProfileAskResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
   # ============================================================================
   # API KEY MANAGEMENT
   # ============================================================================
@@ -2377,9 +2487,10 @@ components:
 
     PredictiveRecallRequest:
       type: object
-      required:
-        - userId
-        - context
+      description: |
+        Predictive recall accepts an empty object. `userId` is optional and defaults
+        to the authenticated caller; cross-user access is rejected if provided.
+        The source also accepts snake_case aliases for most fields.
       properties:
         userId:
           type: string
@@ -2525,9 +2636,11 @@ components:
 
     PredictionFeedbackRequest:
       type: object
+      description: |
+        `userId` defaults to the authenticated caller and is only accepted when it
+        matches that caller. The source also accepts snake_case aliases.
       required:
         - memoryId
-        - userId
         - useful
         - action
       properties:
@@ -2545,6 +2658,10 @@ components:
         dismissReason:
           type: string
           enum: [not_relevant, already_know, not_now, other]
+        predictionConfidence:
+          type: number
+        predictionReason:
+          type: string
 
     PredictionFeedbackResponse:
       type: object
@@ -2571,6 +2688,357 @@ components:
             feedback_at:
               type: string
               format: date-time
+
+    BehaviorAction:
+      type: object
+      required:
+        - tool
+        - parameters
+        - outcome
+        - timestamp
+      properties:
+        tool:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+        outcome:
+          type: string
+          enum: [success, partial, failed]
+        timestamp:
+          type: string
+          format: date-time
+        duration_ms:
+          type: integer
+
+    BehaviorPattern:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        trigger:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/BehaviorAction'
+        final_outcome:
+          type: string
+          enum: [success, partial, failed]
+        confidence:
+          type: number
+        use_count:
+          type: integer
+        similarity:
+          type: number
+        last_used_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    BehaviorRecordRequest:
+      type: object
+      required:
+        - trigger
+        - context
+        - actions
+        - final_outcome
+      properties:
+        trigger:
+          type: string
+          minLength: 10
+          maxLength: 500
+        context:
+          type: object
+          required:
+            - directory
+          properties:
+            directory:
+              type: string
+            project_type:
+              type: string
+            branch:
+              type: string
+            files_touched:
+              type: array
+              items:
+                type: string
+        actions:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/BehaviorAction'
+        final_outcome:
+          type: string
+          enum: [success, partial, failed]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        user_id:
+          type: string
+          format: uuid
+
+    BehaviorRecordResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            pattern_id:
+              type: string
+              format: uuid
+            trigger:
+              type: string
+            final_outcome:
+              type: string
+              enum: [success, partial, failed]
+            confidence:
+              type: number
+            actions_count:
+              type: integer
+            embedding_generated:
+              type: boolean
+            embedding_provider:
+              type: string
+              nullable: true
+        usage:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    BehaviorRecallRequest:
+      type: object
+      required:
+        - context
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        context:
+          type: object
+          required:
+            - current_directory
+            - current_task
+          properties:
+            current_directory:
+              type: string
+            current_task:
+              type: string
+            project_type:
+              type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+        similarity_threshold:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.7
+
+    BehaviorRecallResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            patterns:
+              type: array
+              items:
+                $ref: '#/components/schemas/BehaviorPattern'
+            total_patterns:
+              type: integer
+            matched_patterns:
+              type: integer
+            message:
+              type: string
+            query_context:
+              type: object
+              properties:
+                task:
+                  type: string
+                directory:
+                  type: string
+                project_type:
+                  type: string
+                  nullable: true
+        usage:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    BehaviorSuggestRequest:
+      type: object
+      required:
+        - current_state
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        current_state:
+          type: object
+          required:
+            - task_description
+            - completed_steps
+          properties:
+            task_description:
+              type: string
+            completed_steps:
+              type: array
+              items:
+                type: string
+            current_files:
+              type: array
+              items:
+                type: string
+        max_suggestions:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+
+    BehaviorSuggestResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            suggestions:
+              type: array
+              items:
+                type: object
+                properties:
+                  action:
+                    type: string
+                  tool:
+                    type: string
+                  reasoning:
+                    type: string
+                  confidence:
+                    type: number
+                  based_on_pattern:
+                    type: string
+                    nullable: true
+            patterns_used:
+              type: integer
+        usage:
+          $ref: '#/components/schemas/IntelligenceMeta'
+        tier_info:
+          $ref: '#/components/schemas/TierInfo'
+
+    MemoryProfile:
+      type: object
+      description: |
+        Raw `memory_profiles` row returned by `intelligence-profiles`.
+        The EF selects `*`, so fields may expand over time.
+      additionalProperties: true
+      properties:
+        subject_id:
+          type: string
+          format: uuid
+        organization_id:
+          type: string
+          format: uuid
+          nullable: true
+        profile_summary:
+          type: string
+        structured_fields:
+          type: object
+          additionalProperties: true
+        confidence_by_field:
+          type: object
+          additionalProperties: true
+        head_version_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MemoryProfileVersion:
+      type: object
+      description: |
+        Raw `memory_profile_versions` row returned by `intelligence-profiles`.
+        The EF selects `*`, so fields may expand over time.
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          format: uuid
+        profile_id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+
+    IntelligenceProfileResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            profile:
+              $ref: '#/components/schemas/MemoryProfile'
+
+    IntelligenceProfileVersionsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            versions:
+              type: array
+              items:
+                $ref: '#/components/schemas/MemoryProfileVersion'
+
+    IntelligenceProfileAskRequest:
+      type: object
+      required:
+        - question
+      properties:
+        question:
+          type: string
+          minLength: 1
+
+    IntelligenceProfileAskResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            answer:
+              type: string
+            sources:
+              type: array
+              items:
+                type: string
+            confidence:
+              type: number
 
     # Shared Intelligence Schemas
     IntelligenceMeta:

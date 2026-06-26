@@ -3,7 +3,7 @@
 **Direct Edge Base URL:** `https://mxtsdgkwzjzlttpotole.supabase.co`
 **Vanity Compatibility Host:** `https://lanonasis.supabase.co`
 **Project Ref:** `mxtsdgkwzjzlttpotole`
-**Last Updated:** 2026-04-03
+**Last Updated:** 2026-06-26
 
 > **LIVE SUPABASE SAFETY RULE: never run `supabase db push` against this live project.**
 > This Supabase database is a multi-project database that includes schemas,
@@ -188,6 +188,21 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-bulk-delete" \
 | `intelligence-analyze-patterns`  | POST   | `/functions/v1/intelligence-analyze-patterns`  | ✅   | Analyze usage patterns            |
 | `intelligence-predictive-recall` | POST   | `/functions/v1/intelligence-predictive-recall` | ✅   | Predict likely-useful memories    |
 | `intelligence-prediction-feedback` | POST | `/functions/v1/intelligence-prediction-feedback` | ✅ | Record user feedback on predictions |
+
+#### Intelligence control-plane endpoint decision matrix (verified 2026-06-26)
+
+| Edge Function | Current status | Canonical caller / route | Auth shape | Why this is the decision |
+| --- | --- | --- | --- | --- |
+| `intelligence-profiles` | Public HTTP route | `GET/POST /api/v1/profiles/*` via MaaS gateway, plus direct EF calls from `apps/mcp-core/src/tools/memory-tool.ts` | Gateway uses `validateProjectScope` + `alignedAuthMiddleware`; EF uses `_shared/utils.ts#authenticateRequest` and only allows self-access unless caller is service-role | This is the live profile surface. `apps/lanonasis-maas/src/server.ts` mounts `/api/v1/profiles`, `src/routes/profiles.ts` serves `/:subject_id`, `/:subject_id/versions`, and `/:subject_id/ask`, and the EF itself supports the same operations on `/functions/v1/intelligence-profiles/<subject_id>[/versions|/ask]`. |
+| `intelligence-ask-profile` | Deprecated internal alias | Service-role call from `apps/lanonasis-maas/src/services/profileService.ts` | EF uses `_shared/utils.ts#authenticateRequest`; no dedicated public gateway route | Functionality is duplicated by `POST /functions/v1/intelligence-profiles/<subject_id>/ask`, which is what `apps/mcp-core/src/tools/memory-tool.ts` already uses. Keep for compatibility until the MaaS service switches to the profiles EF path, but do not document it as the canonical public route. |
+| `intelligence-flush-reasoning-queue` | Internal authenticated control-plane HTTP endpoint | Direct EF call from `apps/lanonasis-maas/src/services/intelligenceService.ts`, `apps/mcp-core/src/tools/memory-tool.ts`, and acceptance tests | EF uses `_shared/utils.ts#authenticateRequest`; callers are expected to use API key or service-role auth | This is intentionally callable over HTTP for forced flushes, but it is not exposed as an `api.lanonasis.com` public REST route and is not part of the end-user profile surface. Treat it as operator/tooling control-plane only. |
+| `intelligence-reasoning-worker` | Internal queue/cron-only | `Deno.cron("intelligence-reasoning-worker", "*/5 * * * *", runReasoningWorker)` in the EF module | No inbound HTTP auth path; it runs on Supabase cron and uses service-role DB access internally | The file explicitly states `NO inbound HTTP handler — cron-only.` There is no route to publish; documenting it as public would be incorrect. |
+
+Notes:
+
+- Netlify `_redirects` no longer carries `/api/v1/profiles/*`; the canonical public path now terminates at the MaaS gateway / nginx layer rather than direct Netlify → Supabase rewrites.
+- `intelligence-flush-reasoning-queue` and `intelligence-reasoning-worker` are both part of the reasoning control plane, not the public profile API.
+- Future cleanup: migrate `ProfileService.askProfile()` off `intelligence-ask-profile` and onto `intelligence-profiles/:subject_id/ask`, then retire the alias.
 
 ---
 
