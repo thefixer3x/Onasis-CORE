@@ -14,7 +14,7 @@ The auth-gateway runs in two places. Same code, same datastores, two entry paths
 | **Process manager** | PM2 (`auth-gateway`, fork mode) | Render runtime |
 | **Auto-deploy** | None — manual `pm2 reload` | On `main` push (autoDeploy=yes) |
 | **Build** | `bun install && bun run build` | `bun install && bun run build` |
-| **Start command** | `npm start` → `dotenvx run --strict --ops-off -f .env.production -- node start.js` | `bun run start:plain` → `node start.js` |
+| **Start command** | `npm start` → `dotenvx run --strict --no-armor -f .env.production -- node start.js` | `bun run start:plain` → `node start.js` |
 | **Env source** | Encrypted `.env.production` on disk, decrypted at runtime by dotenvx | Render dashboard env vars injected as `process.env` |
 | **Postgres** | Neon (same `DATABASE_URL`) | Neon (same `DATABASE_URL`) |
 | **Redis** | Redis Cloud `redis-11092.c323.us-east-1-2.ec2.cloud.redislabs.com:11092` (DB: `onasis-core`) | Same Redis Cloud instance |
@@ -41,7 +41,7 @@ Both write to the same Postgres + Redis, so user-visible state is identical rega
 
 ```jsonc
 // package.json scripts
-"start": "dotenvx run --strict --ops-off -f .env.production -- node start.js",   // VPS
+"start": "dotenvx run --strict --no-armor -f .env.production -- node start.js",   // VPS
 "start:plain": "node start.js"                                                   // Render
 ```
 
@@ -150,7 +150,7 @@ If you prefer Render to keep managing git-based deploy initiation, remove the `d
 
 ### Why the workflow keeps VPS and Render different
 
-- **VPS:** reloads through `dotenvx --ops-off` because `.env.production` is encrypted on disk and `.env.keys` is the source of truth.
+- **VPS:** reloads through `dotenvx --no-armor` because `.env.production` is encrypted on disk and `.env.keys` is the source of truth.
 - **Render:** does **not** use `dotenvx`; it inherits plain environment variables from the Render dashboard at runtime.
 
 The workflow intentionally never tries to copy `.env.production` or `.env.keys` to Render. New variables must still be added in both places.

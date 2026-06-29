@@ -5,7 +5,7 @@
 // without test-DB credentials wired up.
 //
 // To run locally:
-//   dotenvx run --strict --no-ops -f .env.test -- \
+//   dotenvx run --strict --no-armor -f .env.test -- \
 //     RUN_AUTH_GATEWAY_INTEGRATION=true vitest run tests/integration/auth-introspect.smoke
 //
 // In CI: provide JWT_SECRET, DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY,
