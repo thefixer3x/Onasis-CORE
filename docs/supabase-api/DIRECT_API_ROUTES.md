@@ -189,6 +189,11 @@ curl -X POST "https://lanonasis.supabase.co/functions/v1/memory-bulk-delete" \
 | `intelligence-predictive-recall` | POST   | `/functions/v1/intelligence-predictive-recall` | ✅   | Predict likely-useful memories    |
 | `intelligence-prediction-feedback` | POST | `/functions/v1/intelligence-prediction-feedback` | ✅ | Record user feedback on predictions |
 
+Notes:
+
+- Netlify currently preserves the public compatibility alias `/api/v1/intelligence/analyze-patterns` via [`_redirects`](/Users/onasis/dev-hub/projects/lan-onasis-monorepo/apps/onasis-core/_redirects:195), which forwards to the direct Edge Function route `/functions/v1/intelligence-analyze-patterns`.
+- The server-side `@lanonasis/mem-intel-sdk` tool implementation is not a REST wrapper for this route. It queries Supabase and OpenAI directly, so its request/response contract must be kept explicitly aligned with the Edge Function and OpenAPI spec.
+
 #### Intelligence control-plane endpoint decision matrix (verified 2026-06-26)
 
 | Edge Function | Current status | Canonical caller / route | Auth shape | Why this is the decision |

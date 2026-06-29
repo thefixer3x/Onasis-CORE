@@ -1976,6 +1976,25 @@ components:
           enum: [json, markdown]
           default: json
           description: Response format
+        organization_id:
+          type: string
+          format: uuid
+          description: Restrict analysis to a specific organization scope when allowed by auth context
+        topic_id:
+          type: string
+          description: Restrict analysis to memories for a specific topic
+        memory_type:
+          type: string
+          description: Legacy single memory type filter
+        memory_types:
+          type: array
+          items:
+            type: string
+          description: Restrict analysis to the listed memory types
+        query_scope:
+          type: string
+          enum: [personal, team, organization, hybrid]
+          description: Scope hint for personal vs organization memory analysis
 
     AnalyzePatternsResponse:
       type: object
@@ -2030,6 +2049,14 @@ components:
               items:
                 type: string
               description: AI-generated insights
+            creation_velocity:
+              type: object
+              properties:
+                daily_average:
+                  type: number
+                trend:
+                  type: string
+                  enum: [increasing, stable, decreasing]
             generated_at:
               type: string
               format: date-time

@@ -4,6 +4,11 @@
 > live route/auth contract is defined by `DIRECT_API_ROUTES.md` and
 > `SUPABASE_REST_API_OPENAPI.yaml`. Use those files for current examples and
 > exact endpoint behavior.
+>
+> For `intelligence-analyze-patterns`, the current contract includes scoped
+> request fields (`organization_id`, `topic_id`, `memory_type`, `memory_types`,
+> `query_scope`) and response fields `top_tags`, `most_accessed`,
+> `creation_velocity`, `time_range_days`, and `generated_at`.
 
 **Date:** 2025-12-24
 **Version:** 1.0.0

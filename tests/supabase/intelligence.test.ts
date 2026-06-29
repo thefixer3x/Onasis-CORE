@@ -296,6 +296,10 @@ describe('Intelligence Edge Functions (Direct Supabase)', () => {
 
       expect(data.data!.top_tags).toBeDefined();
       expect(data.data!.peak_creation_hours).toBeDefined();
+      expect(data.data!.time_range_days).toBe(30);
+      expect(data.data!.most_accessed).toBeDefined();
+      expect(data.data!.creation_velocity).toBeDefined();
+      expect(data.data!.generated_at).toBeDefined();
     });
   });
 
