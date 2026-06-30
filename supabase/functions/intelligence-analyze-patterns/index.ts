@@ -166,6 +166,7 @@ const includeInsights = body.include_insights !== false;
       Saturday: 0,
     };
     const hourDistribution: Record<number, number> = {};
+    const dailyCounts: Record<string, number> = {};
     let totalContentLength = 0;
 
     const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -192,6 +193,10 @@ const includeInsights = body.include_insights !== false;
 
       // Content length
       totalContentLength += memory.content?.length || 0;
+
+      // Daily counts for velocity
+      const dateKey = date.toISOString().split("T")[0];
+      dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
     }
 
     // Find peak hours
@@ -205,6 +210,19 @@ const includeInsights = body.include_insights !== false;
       .sort(([, a], [, b]) => b - a)
       .slice(0, 10)
       .map(([tag, count]) => ({ tag, count }));
+
+    // Creation velocity
+    const dailyAverage = memories.length / timeRangeDays;
+    let velocityTrend: "increasing" | "stable" | "decreasing" = "stable";
+    const dailyValues = Object.values(dailyCounts);
+    if (dailyValues.length >= 7) {
+      const mid = Math.floor(dailyValues.length / 2);
+      const firstAvg = dailyValues.slice(0, mid).reduce((a, b) => a + b, 0) / mid;
+      const secondAvg = dailyValues.slice(mid).reduce((a, b) => a + b, 0) / (dailyValues.length - mid);
+      const change = firstAvg > 0 ? ((secondAvg - firstAvg) / firstAvg) * 100 : 0;
+      if (change > 20) velocityTrend = "increasing";
+      else if (change < -20) velocityTrend = "decreasing";
+    }
 
     // Build patterns object
     const patterns = {
@@ -220,6 +238,10 @@ const includeInsights = body.include_insights !== false;
         .sort((a, b) => (b.access_count || 0) - (a.access_count || 0))
         .slice(0, 5)
         .map((m) => ({ id: m.id, title: m.title, access_count: m.access_count })),
+      creation_velocity: {
+        daily_average: parseFloat(dailyAverage.toFixed(2)),
+        trend: velocityTrend,
+      },
     };
 
     // Generate AI insights if requested

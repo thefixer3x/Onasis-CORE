@@ -2122,9 +2122,8 @@ components:
               type: string
               format: uuid
             topic_id:
-              type: string
+              type: ["string", "null"]
               format: uuid
-              nullable: true
             memory_types:
               type: array
               items:
@@ -2709,9 +2708,8 @@ components:
             useful:
               type: boolean
             stored_suggestion_id:
-              type: string
+              type: ["string", "null"]
               format: uuid
-              nullable: true
             feedback_at:
               type: string
               format: date-time
@@ -2835,8 +2833,7 @@ components:
             embedding_generated:
               type: boolean
             embedding_provider:
-              type: string
-              nullable: true
+              type: ["string", "null"]
         usage:
           $ref: '#/components/schemas/IntelligenceMeta'
         tier_info:
@@ -2899,8 +2896,7 @@ components:
                 directory:
                   type: string
                 project_type:
-                  type: string
-                  nullable: true
+                  type: ["string", "null"]
         usage:
           $ref: '#/components/schemas/IntelligenceMeta'
         tier_info:
@@ -2958,8 +2954,7 @@ components:
                   confidence:
                     type: number
                   based_on_pattern:
-                    type: string
-                    nullable: true
+                    type: ["string", "null"]
             patterns_used:
               type: integer
         usage:
@@ -2978,9 +2973,8 @@ components:
           type: string
           format: uuid
         organization_id:
-          type: string
+          type: ["string", "null"]
           format: uuid
-          nullable: true
         profile_summary:
           type: string
         structured_fields:
@@ -2990,9 +2984,8 @@ components:
           type: object
           additionalProperties: true
         head_version_id:
-          type: string
+          type: ["string", "null"]
           format: uuid
-          nullable: true
         created_at:
           type: string
           format: date-time
