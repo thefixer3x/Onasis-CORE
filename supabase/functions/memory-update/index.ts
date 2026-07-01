@@ -50,6 +50,8 @@ const VALID_MEMORY_TYPES: MemoryType[] = [
 ];
 const VALID_WRITE_INTENTS: WriteIntent[] = ["new", "continue", "auto"];
 const VALID_REVISION_POLICIES: RevisionPolicy[] = ["none", "important_only", "always"];
+const DEFAULT_VOYAGE_MODEL = "voyage-4-large";
+const DEFAULT_VOYAGE_OUTPUT_DIMENSION = 1024;
 
 // Embedding provider configuration
 type EmbeddingProvider = "openai" | "voyage";
@@ -60,7 +62,7 @@ const PROVIDER_CONFIG = {
     url: "https://api.openai.com/v1/embeddings",
   },
   voyage: {
-    model: "voyage-4",
+    model: DEFAULT_VOYAGE_MODEL,
     url: "https://api.voyageai.com/v1/embeddings",
   },
 } as const;
@@ -74,6 +76,15 @@ function getApiKey(provider: EmbeddingProvider): string | undefined {
   return provider === "voyage"
     ? Deno.env.get("VOYAGE_API_KEY")
     : Deno.env.get("OPENAI_API_KEY");
+}
+
+function getVoyageModel(defaultModel: string): string {
+  return Deno.env.get("VOYAGE_MODEL") || defaultModel;
+}
+
+function getVoyageOutputDimension(): number {
+  const raw = Number(Deno.env.get("VOYAGE_OUTPUT_DIMENSION") || String(DEFAULT_VOYAGE_OUTPUT_DIMENSION));
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_VOYAGE_OUTPUT_DIMENSION;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -444,8 +455,10 @@ serve(async (req: Request) => {
         const embeddingBody = provider === "voyage"
           ? {
             input: [textToEmbed],
-            model: Deno.env.get("VOYAGE_MODEL") || providerConfig.model,
+            model: getVoyageModel(providerConfig.model),
             input_type: "document",
+            output_dimension: getVoyageOutputDimension(),
+            output_dtype: "float",
           }
           : { model: providerConfig.model, input: textToEmbed };
 
@@ -467,7 +480,9 @@ serve(async (req: Request) => {
             updateData.embedding = embeddingData.data[0].embedding;
           }
           updateData.embedding_provider = provider;
-          updateData.embedding_model = Deno.env.get("VOYAGE_MODEL") || providerConfig.model;
+          updateData.embedding_model = provider === "voyage"
+            ? getVoyageModel(providerConfig.model)
+            : providerConfig.model;
           embeddingGenerated = true;
         } else {
           const errText = await embeddingRes.text();

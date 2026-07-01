@@ -62,6 +62,8 @@ const EMBEDDING_PROVIDER = (Deno.env.get("EMBEDDING_PROVIDER")?.toLowerCase() ||
   "openai") as EmbeddingProvider;
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const VOYAGE_API_KEY = Deno.env.get("VOYAGE_API_KEY");
+const DEFAULT_VOYAGE_MODEL = "voyage-4-large";
+const DEFAULT_VOYAGE_OUTPUT_DIMENSION = 1024;
 const AI_ROUTER_URL = Deno.env.get("AI_ROUTER_URL");
 const OPENROUTER_API_KEY = Deno.env.get("OPENROUTER_API_KEY");
 const OPENROUTER_DEFAULT_MODEL = Deno.env.get("OPENROUTER_DEFAULT_MODEL") || "openai/gpt-4o-mini";
@@ -753,7 +755,10 @@ async function generateVoyageEmbedding(
   }
 > {
   const apiKey = getEmbeddingApiKey();
-  const model = Deno.env.get("VOYAGE_MODEL") || "voyage-4";
+  const model = Deno.env.get("VOYAGE_MODEL") || DEFAULT_VOYAGE_MODEL;
+  const outputDimension = Number(
+    Deno.env.get("VOYAGE_OUTPUT_DIMENSION") || String(DEFAULT_VOYAGE_OUTPUT_DIMENSION),
+  );
 
   const response = await fetch("https://api.voyageai.com/v1/embeddings", {
     method: "POST",
@@ -765,6 +770,10 @@ async function generateVoyageEmbedding(
       input: [text],
       model,
       input_type: "document",
+      output_dimension: Number.isFinite(outputDimension) && outputDimension > 0
+        ? outputDimension
+        : DEFAULT_VOYAGE_OUTPUT_DIMENSION,
+      output_dtype: "float",
     }),
   });
 

@@ -16,11 +16,15 @@ import { corsHeaders, handleCors } from "../_shared/cors.ts";
 import { createErrorResponse, ErrorCode } from "../_shared/errors.ts";
 
 const VOYAGE_API_URL = "https://api.voyageai.com/v1/embeddings";
-const DEFAULT_MODEL = "voyage-4";
+const DEFAULT_MODEL = "voyage-4-large";
+const DEFAULT_OUTPUT_DIMENSION = 1024;
 
 // Models we allow proxying (prevent arbitrary model injection)
 const ALLOWED_MODELS = new Set([
   "voyage-4",
+  "voyage-4-large",
+  "voyage-4-lite",
+  "voyage-4-nano",
   "voyage-3",
   "voyage-3-lite",
   "voyage-code-3",
@@ -33,6 +37,7 @@ interface EmbeddingsRequest {
   input: string | string[];
   model?: string;
   encoding_format?: "float" | "base64";
+  dimensions?: number;
 }
 
 interface VoyageEmbeddingItem {
@@ -142,6 +147,11 @@ serve(async (req: Request) => {
     // Resolve model
     const requestedModel = body.model || DEFAULT_MODEL;
     const model = ALLOWED_MODELS.has(requestedModel) ? requestedModel : DEFAULT_MODEL;
+    const dimensions = Number(
+      body.dimensions ??
+      Deno.env.get("VOYAGE_OUTPUT_DIMENSION") ??
+      String(DEFAULT_OUTPUT_DIMENSION),
+    );
 
     // Get Voyage API key
     const voyageApiKey = Deno.env.get("VOYAGE_API_KEY");
@@ -163,6 +173,10 @@ serve(async (req: Request) => {
       input: inputArray,
       model,
       input_type: "document",
+      output_dimension: Number.isFinite(dimensions) && dimensions > 0
+        ? dimensions
+        : DEFAULT_OUTPUT_DIMENSION,
+      output_dtype: "float",
     };
 
     const voyageResponse = await fetch(VOYAGE_API_URL, {

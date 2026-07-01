@@ -19,6 +19,9 @@ import {
 
 // Embedding provider configuration
 type EmbeddingProvider = "openai" | "voyage";
+const DEFAULT_VOYAGE_MODEL = "voyage-4-large";
+const DEFAULT_VOYAGE_OUTPUT_DIMENSION = 1024;
+const DEFAULT_VOYAGE_RERANK_MODEL = "rerank-2.5";
 
 const PROVIDER_CONFIG = {
   openai: {
@@ -27,7 +30,7 @@ const PROVIDER_CONFIG = {
     rpcFunction: "search_memories",
   },
   voyage: {
-    model: "voyage-4",
+    model: DEFAULT_VOYAGE_MODEL,
     url: "https://api.voyageai.com/v1/embeddings",
     rpcFunction: "search_memories_voyage",
   },
@@ -42,6 +45,35 @@ function getApiKey(provider: EmbeddingProvider): string | undefined {
   return provider === "voyage"
     ? Deno.env.get("VOYAGE_API_KEY")
     : Deno.env.get("OPENAI_API_KEY");
+}
+
+function getVoyageModel(defaultModel: string): string {
+  return Deno.env.get("VOYAGE_MODEL") || defaultModel;
+}
+
+function getVoyageOutputDimension(): number {
+  const raw = Number(Deno.env.get("VOYAGE_OUTPUT_DIMENSION") || String(DEFAULT_VOYAGE_OUTPUT_DIMENSION));
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_VOYAGE_OUTPUT_DIMENSION;
+}
+
+function isVoyageRerankEnabled(provider: EmbeddingProvider): boolean {
+  return provider === "voyage" &&
+    Deno.env.get("VOYAGE_RERANK_ENABLED") === "true" &&
+    Boolean(Deno.env.get("VOYAGE_API_KEY"));
+}
+
+function getVoyageRerankModel(): string {
+  return Deno.env.get("VOYAGE_RERANK_MODEL") || DEFAULT_VOYAGE_RERANK_MODEL;
+}
+
+function getVoyageRerankCandidates(): number {
+  const raw = Number(Deno.env.get("VOYAGE_RERANK_CANDIDATES") || "30");
+  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 30;
+}
+
+function getVoyageRerankTopK(): number {
+  const raw = Number(Deno.env.get("VOYAGE_RERANK_TOP_K") || "10");
+  return Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 10;
 }
 
 interface SearchRequest {
@@ -262,6 +294,61 @@ async function runSemanticSearch(
   });
 }
 
+async function voyageRerankResults(
+  query: string,
+  rows: SearchMemoryRow[],
+  requestedLimit: number,
+): Promise<SearchMemoryRow[]> {
+  const voyageApiKey = Deno.env.get("VOYAGE_API_KEY");
+  if (!voyageApiKey || rows.length === 0) {
+    return rows.slice(0, requestedLimit);
+  }
+
+  const candidateLimit = Math.min(rows.length, getVoyageRerankCandidates());
+  const candidateRows = rows.slice(0, candidateLimit);
+  const finalLimit = Math.min(
+    requestedLimit,
+    getVoyageRerankTopK(),
+    candidateRows.length,
+  );
+
+  const response = await fetch("https://api.voyageai.com/v1/rerank", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${voyageApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: getVoyageRerankModel(),
+      query,
+      documents: candidateRows.map((row) => `${row.title || ""}\n\n${row.content || ""}`.trim()),
+      top_k: finalLimit,
+      truncation: true,
+      return_documents: false,
+    }),
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      `Voyage rerank failed (${response.status}): ${JSON.stringify(payload)}`,
+    );
+  }
+
+  const reranked = ((payload.data || payload.results || []) as Array<{ index: number; relevance_score: number }>)
+    .map((item) => {
+      const source = candidateRows[item.index];
+      if (!source) return null;
+      return {
+        ...source,
+        similarity_score: item.relevance_score,
+      } satisfies SearchMemoryRow;
+    })
+    .filter((row): row is SearchMemoryRow => row !== null);
+
+  return reranked.length > 0 ? reranked.slice(0, finalLimit) : rows.slice(0, requestedLimit);
+}
+
 async function hydrateTopicKeys(
   supabase: ReturnType<typeof createSupabaseClient>,
   rows: SearchMemoryRow[],
@@ -392,8 +479,10 @@ serve(async (req: Request) => {
     const embeddingBody = provider === "voyage"
       ? {
         input: [body.query],
-        model: Deno.env.get("VOYAGE_MODEL") || providerConfig.model,
+        model: getVoyageModel(providerConfig.model),
         input_type: "query",
+        output_dimension: getVoyageOutputDimension(),
+        output_dtype: "float",
       }
       : { model: providerConfig.model, input: body.query };
 
@@ -427,6 +516,9 @@ serve(async (req: Request) => {
     const supabase = createSupabaseClient();
     const threshold = normalizeThreshold(body.threshold);
     const limit = boundedLimit(body.limit, responseMode);
+    const semanticCandidateLimit = isVoyageRerankEnabled(provider)
+      ? Math.max(limit, getVoyageRerankCandidates())
+      : limit;
     const typeFilters = normalizeTypes(body.memory_type, body.memory_types);
     const primaryFilterType = typeFilters.length === 1 ? typeFilters[0] : null;
     const boundary = resolveMemoryBoundary(auth);
@@ -444,7 +536,7 @@ serve(async (req: Request) => {
       providerConfig.rpcFunction,
       queryEmbedding,
       thresholdUsed,
-      limit,
+      semanticCandidateLimit,
       boundaryFilters.organization_id,
       boundaryFilters.user_id,
       primaryFilterType,
@@ -488,7 +580,7 @@ serve(async (req: Request) => {
           providerConfig.rpcFunction,
           queryEmbedding,
           relaxed,
-          limit,
+          semanticCandidateLimit,
           boundaryFilters.organization_id,
           boundaryFilters.user_id,
           primaryFilterType,
@@ -513,6 +605,21 @@ serve(async (req: Request) => {
       filteredResults = filteredResults.filter((memory: { tags: string[] }) =>
         body.tags!.some((tag) => memory.tags?.includes(tag))
       );
+    }
+
+    let reranked = false;
+    if (filteredResults.length > 0 && isVoyageRerankEnabled(provider)) {
+      try {
+        filteredResults = await voyageRerankResults(
+          body.query,
+          filteredResults as SearchMemoryRow[],
+          limit,
+        );
+        reranked = true;
+      } catch (rerankError) {
+        console.warn("Voyage rerank failed, returning pgvector ordering:", rerankError);
+        filteredResults = filteredResults.slice(0, limit);
+      }
     }
 
     // Lexical fallback for natural-language recall when semantic paths are empty.
@@ -571,6 +678,7 @@ serve(async (req: Request) => {
       threshold: thresholdUsed,
       requested_threshold: threshold,
       search_strategy: searchStrategy,
+      reranked,
       total: filteredResults.length,
       organization_id: boundaryFilters.organization_id ?? auth.organization_id,
       memory_context: boundary.context,

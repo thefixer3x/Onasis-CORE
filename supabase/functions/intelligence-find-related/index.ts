@@ -37,6 +37,42 @@ interface FindRelatedRequest {
   query_scope?: "personal" | "team" | "organization" | "hybrid";
 }
 
+function parseEmbeddingValue(value: unknown): number[] | null {
+  if (Array.isArray(value) && value.every((item) => typeof item === "number")) {
+    return value;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) && parsed.every((item) => typeof item === "number")
+        ? parsed
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function selectCandidateEmbedding(
+  memory: Record<string, unknown>,
+  provider: string,
+  dimensions: number,
+): number[] | null {
+  const preferredKeys = provider === "voyage"
+    ? ["voyage_embedding", "embedding"]
+    : ["embedding", "voyage_embedding"];
+
+  for (const key of preferredKeys) {
+    const parsed = parseEmbeddingValue(memory[key]);
+    if (parsed && parsed.length === dimensions) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -123,15 +159,19 @@ Deno.serve(async (req) => {
     }
 
     // Generate embedding for query
-    const { embedding: queryEmbedding, cost: embeddingCost } = await generateEmbedding(
+    const {
+      embedding: queryEmbedding,
+      cost: embeddingCost,
+      provider: embeddingProvider,
+      dimensions: embeddingDimensions,
+    } = await generateEmbedding(
       queryText.slice(0, 8000)
     );
 
     // Try vector search with pgvector (if embeddings exist)
     let embeddingsQuery = supabase
       .from("memory_entries")
-      .select("id, title, content, type, tags, embedding, created_at")
-      .not("embedding", "is", null);
+      .select("id, title, content, type, tags, embedding, voyage_embedding, created_at");
 
     embeddingsQuery = applyIntelligenceMemoryContext(embeddingsQuery, auth, context);
 
@@ -151,7 +191,13 @@ Deno.serve(async (req) => {
       const similarities = memoriesWithEmbeddings
         .filter((m) => !excludeIds.includes(m.id))
         .map((memory) => {
-          const similarity = cosineSimilarity(queryEmbedding, memory.embedding);
+          const selectedEmbedding = selectCandidateEmbedding(
+            memory as Record<string, unknown>,
+            embeddingProvider,
+            embeddingDimensions,
+          );
+          if (!selectedEmbedding) return null;
+          const similarity = cosineSimilarity(queryEmbedding, selectedEmbedding);
           return {
             id: memory.id,
             title: memory.title,
@@ -161,6 +207,14 @@ Deno.serve(async (req) => {
             snippet: memory.content?.slice(0, 200) + "...",
           };
         })
+        .filter((memory): memory is {
+          id: string;
+          title: string;
+          type: string;
+          tags: string[];
+          similarity: number;
+          snippet: string;
+        } => memory !== null)
         .filter((m) => m.similarity >= threshold)
         .sort((a, b) => b.similarity - a.similarity)
         .slice(0, limit);

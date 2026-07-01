@@ -56,9 +56,10 @@ Deno.serve(async (req) => {
     // Skip tier/access checks for internal service-role calls from reasoning-processor
     const isServiceInternal = auth.authSource === "service_role";
 
+    let access: Awaited<ReturnType<typeof checkIntelligenceAccess>> | null = null;
     if (!isServiceInternal) {
       // Check tier access
-      const access = await checkIntelligenceAccess(userId, TOOL_NAME);
+      access = await checkIntelligenceAccess(userId, TOOL_NAME);
       if (!access.allowed) {
         const tierInfo = await getUserTierInfo(userId);
         return premiumRequiredResponse(
@@ -75,9 +76,10 @@ Deno.serve(async (req) => {
       return errorResponse(context.error, context.status);
     }
     const timeRangeDays = body.time_range_days || 30;
-const includeInsights = body.include_insights !== false;
+    const includeInsights = body.include_insights !== false;
     const responseFormat = body.response_format || "json";
     const supabase = getSupabaseClient();
+    const usageRemaining = isServiceInternal ? -1 : access?.usage_remaining ?? 0;
 
     // --- prefer_cache layer: read pre-reasoned conclusions before calling LLM ---
     if (body.prefer_cache) {
@@ -95,7 +97,7 @@ const includeInsights = body.include_insights !== false;
         return successResponse(
           { insights: cachedConclusions, source: "cache", from_conclusions: true },
           { tokens_used: 0, cost_usd: 0, cached: true },
-          { tier: tierInfo?.tier_name || "free", usage_remaining: access.usage_remaining || 0 }
+          { tier: tierInfo?.tier_name || "free", usage_remaining: usageRemaining }
         );
       }
     }
@@ -122,7 +124,7 @@ const includeInsights = body.include_insights !== false;
       return successResponse(
         cached.data,
         { tokens_used: 0, cost_usd: 0, cached: true },
-        { tier: tierInfo?.tier_name || "free", usage_remaining: access.usage_remaining || 0 }
+        { tier: tierInfo?.tier_name || "free", usage_remaining: usageRemaining }
       );
     }
 
@@ -326,7 +328,7 @@ Provide insights in JSON array format: ["insight 1", "insight 2", ...]`;
       { tokens_used: tokensUsed, cost_usd: totalCost, cached: false },
       {
         tier: tierInfo?.tier_name || "free",
-        usage_remaining: (access.usage_remaining || 1) - 1,
+        usage_remaining: usageRemaining === -1 ? -1 : Math.max(usageRemaining - 1, 0),
       }
     );
   } catch (error) {
