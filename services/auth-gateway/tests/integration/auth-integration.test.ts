@@ -500,6 +500,18 @@ describe('Auth Gateway Integration Tests', () => {
       expect(response.body).toHaveProperty('access_token')
       expect(response.body).toHaveProperty('token_type', 'Bearer')
     })
+
+    it('should resume OAuth authorize flows via web-session provider redirects', async () => {
+      const returnTo = '/oauth/authorize?client_id=lanonasis-cli&response_type=code'
+
+      const response = await request(app)
+        .get('/auth/cli-login')
+        .query({ return_to: returnTo })
+        .expect(200)
+
+      expect(response.text).toContain("const oauthPlatform = hasAuthorizeResume ? 'web' : platform;")
+      expect(response.text).toContain("window.location.origin + returnTo")
+    })
   })
 
   describe('Error Handling', () => {

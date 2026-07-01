@@ -209,7 +209,7 @@ describe('Auth Middleware', () => {
 
       await requireAuth(mockReq as Request, mockRes as Response, mockNext)
 
-      expect(validateAPIKey).toHaveBeenCalledWith('lano_test_key')
+      expect(validateAPIKey).toHaveBeenCalledWith('lano_test_key', expect.objectContaining({ audience: 'auth-gateway' }))
       expect(mockNext).toHaveBeenCalled()
       expect(mockReq.user).toBeDefined()
       expect(mockReq.user?.userId).toBe('user-456')

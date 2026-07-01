@@ -663,8 +663,17 @@ router.get("/cli-login", (req, res) => {
             const originalText = textElement.textContent;
             textElement.textContent = 'CONNECTING...';
 
-            // Build OAuth URL for CLI
-            const oauthUrl = \`/v1/auth/oauth?provider=\${provider}&project_scope=lanonasis-maas&platform=\${platform}&redirect_uri=\${encodeURIComponent(redirectUri)}\`;
+            const urlParams = new URLSearchParams(window.location.search);
+            const returnTo = urlParams.get('return_to');
+            const hasAuthorizeResume = !!returnTo;
+            const oauthPlatform = hasAuthorizeResume ? 'web' : platform;
+            const oauthRedirectUri = hasAuthorizeResume
+              ? (returnTo.startsWith('http') ? returnTo : window.location.origin + returnTo)
+              : redirectUri;
+
+            // Resume /oauth/authorize with a web session when this page was reached
+            // as the login gate for a PKCE flow; otherwise keep standalone CLI behavior.
+            const oauthUrl = \`/v1/auth/oauth?provider=\${provider}&project_scope=lanonasis-maas&platform=\${oauthPlatform}&redirect_uri=\${encodeURIComponent(oauthRedirectUri)}\`;
 
             // Redirect after brief delay
             setTimeout(() => {

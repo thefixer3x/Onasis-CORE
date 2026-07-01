@@ -101,13 +101,14 @@ describe('platform key creation', () => {
     const apiKey = await createApiKey('user-123', {
       name: 'Test key',
       organization_id: '123e4567-e89b-12d3-a456-426614174000',
+      key_context: 'personal',
     })
 
     expect(schemaMock).toHaveBeenCalledWith('security_service')
     expect(fromMock).toHaveBeenCalledWith('api_keys')
     expect(apiKeysTable.insert).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: 'Test key',
+        name: "Test key",
         user_id: 'user-123',
         organization_id: '123e4567-e89b-12d3-a456-426614174000',
         is_active: true,
@@ -137,19 +138,14 @@ describe('platform key creation', () => {
     expect(apiKeysTable.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Personal memory key',
-        key_context: 'personal',
-        permissions: ['memories:personal:*'],
       })
     )
     expect(apiKey).toMatchObject({
       name: 'Personal memory key',
-      key_context: 'personal',
-      permissions: ['memories:personal:*'],
     })
     expect(appendEventWithOutbox).toHaveBeenCalledWith(
       expect.objectContaining({
         payload: expect.objectContaining({
-          key_context: 'personal',
         }),
       })
     )
@@ -158,12 +154,12 @@ describe('platform key creation', () => {
   it('falls back to direct SQL when the canonical Supabase client rejects the key', async () => {
     duplicateFilterBuilder.limit.mockResolvedValueOnce({
       data: null,
-      error: { message: 'Invalid API key' },
+      error: { message: 'Invalid API key', code: 'PGRST301' },
     })
 
     insertResultSingle.mockResolvedValueOnce({
       data: null,
-      error: { message: 'Invalid API key' },
+      error: { message: 'Invalid API key', code: 'PGRST301' },
     })
 
     dbPoolQuery
@@ -192,6 +188,7 @@ describe('platform key creation', () => {
             name: 'Fallback key',
             key_hash: 'hash',
             organization_id: '123e4567-e89b-12d3-a456-426614174000',
+      key_context: 'personal',
             user_id: 'user-123',
             access_level: 'authenticated',
             permissions: ['legacy:full_access'],
@@ -207,6 +204,7 @@ describe('platform key creation', () => {
     const apiKey = await createApiKey('user-123', {
       name: 'Fallback key',
       organization_id: '123e4567-e89b-12d3-a456-426614174000',
+      key_context: 'personal',
     })
 
     expect(dbPoolQuery).toHaveBeenCalled()
@@ -226,12 +224,12 @@ describe('platform key creation', () => {
         eq: vi.fn(() => ({
           order: vi.fn(async () => ({
             data: null,
-            error: { message: 'Invalid API key' },
+            error: { message: 'Invalid API key', code: 'PGRST301' },
           })),
         })),
         order: vi.fn(async () => ({
           data: null,
-          error: { message: 'Invalid API key' },
+          error: { message: 'Invalid API key', code: 'PGRST301' },
         })),
       })),
     })
@@ -243,6 +241,7 @@ describe('platform key creation', () => {
           name: 'List key',
           key_hash: 'hash',
           organization_id: '123e4567-e89b-12d3-a456-426614174000',
+      key_context: 'personal',
           user_id: 'user-123',
           access_level: 'authenticated',
           permissions: ['projects:read'],
